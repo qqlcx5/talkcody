@@ -31,6 +31,8 @@ vi.mock('../stores/settings-store', () => ({
   settingsManager: {
     getCurrentRootPath: vi.fn().mockReturnValue('/test/path'),
     getCurrentConversationId: vi.fn().mockReturnValue('test-conversation-id'),
+    getSync: vi.fn().mockReturnValue(undefined),
+    getBatchSync: vi.fn().mockReturnValue({}),
   },
 }));
 

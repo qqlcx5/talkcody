@@ -4,12 +4,14 @@ import { createErrorContext, extractAndFormatError } from '@/lib/error-utils';
 import { convertMessages } from '@/lib/llm-utils';
 import { logger } from '@/lib/logger';
 import { MessageTransform } from '@/lib/message-transform';
-import { GEMINI_25_FLASH_LITE } from '@/lib/models';
+import { getContextLength } from '@/lib/models';
 import { getToolSync } from '@/lib/tools';
 import { modelService } from '@/services/model-service';
+import { modelTypeService } from '@/services/model-type-service';
 import { getValidatedWorkspaceRoot } from '@/services/workspace-root-service';
 import { useConversationUsageStore } from '@/stores/conversation-usage-store';
 import { usePlanModeStore } from '@/stores/plan-mode-store';
+import { ModelType } from '@/types/model-types';
 import type {
   AgentLoopOptions,
   AgentLoopState,
@@ -31,12 +33,14 @@ export class LLMService {
   private readonly toolExecutor: ToolExecutor;
   private readonly errorHandler: ErrorHandler;
 
-  private defaultCompressionConfig: CompressionConfig = {
-    enabled: true,
-    preserveRecentMessages: 6,
-    compressionModel: GEMINI_25_FLASH_LITE,
-    compressionThreshold: 0.9,
-  };
+  private getDefaultCompressionConfig(): CompressionConfig {
+    return {
+      enabled: true,
+      preserveRecentMessages: 6,
+      compressionModel: modelTypeService.resolveModelTypeSync(ModelType.MESSAGE_COMPACTION),
+      compressionThreshold: 0.9,
+    };
+  }
 
   constructor() {
     this.messageCompactor = new MessageCompactor(this);
@@ -85,7 +89,7 @@ export class LLMService {
 
         // Merge compression config with defaults
         const compressionConfig: CompressionConfig = {
-          ...this.defaultCompressionConfig,
+          ...this.getDefaultCompressionConfig(),
           ...compression,
         };
 
@@ -125,7 +129,7 @@ export class LLMService {
           currentIteration: 0,
           isComplete: false,
           lastFinishReason: undefined,
-          lastRequestTokens: undefined,
+          lastRequestTokens: 0,
         };
 
         // Convert initial messages to model format
@@ -205,7 +209,8 @@ export class LLMService {
             this.messageCompactor.shouldCompress(
               loopState.messages,
               compressionConfig,
-              loopState.lastRequestTokens
+              loopState.lastRequestTokens,
+              model
             )
           ) {
             try {
@@ -307,7 +312,6 @@ export class LLMService {
             onFinish: async ({ finishReason, usage, steps, totalUsage, response, request }) => {
               const requestDuration = Date.now() - requestStartTime;
 
-              // Update token tracking for compression decision on next iteration
               if (totalUsage?.totalTokens) {
                 loopState.lastRequestTokens = totalUsage.totalTokens;
               }
@@ -321,6 +325,16 @@ export class LLMService {
                   outputTokens,
                 });
                 useConversationUsageStore.getState().addUsage(cost, inputTokens, outputTokens);
+
+                // Calculate and update context usage percentage
+                if (loopState.lastRequestTokens > 0) {
+                  const maxContextTokens = getContextLength(model);
+                  const contextUsage = Math.min(
+                    100,
+                    (loopState.lastRequestTokens / maxContextTokens) * 100
+                  );
+                  useConversationUsageStore.getState().setContextUsage(contextUsage);
+                }
               }
 
               logger.info('onFinish', {
@@ -328,8 +342,8 @@ export class LLMService {
                 requestDuration,
                 totalUsage: totalUsage,
                 usage: usage,
-                steps: steps,
                 lastRequestTokens: loopState.lastRequestTokens,
+                steps: steps,
                 request: request
                   ? {
                       body: request.body,

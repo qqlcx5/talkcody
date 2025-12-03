@@ -25,6 +25,7 @@ interface SettingsState {
   // UI Settings
   theme: string;
   language: string;
+  onboarding_completed: boolean;
 
   // AI Settings
   model: string;
@@ -129,6 +130,7 @@ type SettingsStore = SettingsState & SettingsActions;
 const DEFAULT_SETTINGS: Omit<SettingsState, 'loading' | 'error' | 'isInitialized'> = {
   theme: 'system',
   language: 'en',
+  onboarding_completed: false,
   model: '',
   assistantId: 'planner',
   is_think: false,
@@ -194,6 +196,7 @@ class SettingsDatabase {
       model_type_small: '',
       model_type_image_generator: '',
       model_type_transcription: '',
+      onboarding_completed: 'false',
       ...generateDefaultApiKeySettings(),
       shortcut_globalFileSearch: JSON.stringify(DEFAULT_SHORTCUTS.globalFileSearch),
       shortcut_globalContentSearch: JSON.stringify(DEFAULT_SHORTCUTS.globalContentSearch),
@@ -304,6 +307,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         'model_type_small',
         'model_type_image_generator',
         'model_type_transcription',
+        'onboarding_completed',
       ];
 
       // Add API key keys
@@ -354,6 +358,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       set({
         theme: rawSettings.theme || 'system',
         language: rawSettings.language || 'en',
+        onboarding_completed: rawSettings.onboarding_completed === 'true',
         model: rawSettings.model || '',
         assistantId: rawSettings.assistantId || 'planner',
         is_think: rawSettings.is_think === 'true',
@@ -588,7 +593,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     });
   },
 
-  getProviderBaseUrl: (providerId: string) => {
+  getProviderBaseUrl: (_providerId: string) => {
     // We need to get this from the database directly since we don't cache it in state
     // For now, we'll return empty string and let the component handle async loading
     return undefined;
@@ -603,7 +608,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     });
   },
 
-  getProviderUseCodingPlan: (providerId: string) => {
+  getProviderUseCodingPlan: (_providerId: string) => {
     // We need to get this from the database directly since we don't cache it in state
     // For now, we'll return undefined and let the component handle async loading
     return undefined;

@@ -1,6 +1,7 @@
 // src/services/prompt/prompt-composer.ts
 
 import { repositoryService } from '@/services/repository-service';
+import { settingsManager } from '@/stores/settings-store';
 import type {
   InjectionPlacement,
   PromptBuildOptions,
@@ -192,6 +193,14 @@ export class PromptComposer {
           }
         }
       }
+    }
+
+    // Append output language instruction based on user's language setting
+    const language = settingsManager.getSync('language');
+    if (language === 'zh') {
+      raw = `${raw}\n\nIMPORTANT: You MUST respond in Chinese (中文).`;
+    } else {
+      raw = `${raw}\n\nIMPORTANT: You MUST respond in English.`;
     }
 
     return {

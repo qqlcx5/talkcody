@@ -63,6 +63,14 @@ vi.mock('@/services/agents/agent-registry', () => ({
 vi.mock('@/stores/settings-store', () => ({
   settingsManager: {
     getProject: vi.fn(),
+    getSync: vi.fn(() => 'en'),
+  },
+  useSettingsStore: (selector: (state: any) => any) => {
+    const mockState = {
+      language: 'en',
+      setLanguage: vi.fn(),
+    };
+    return selector(mockState);
   },
 }));
 

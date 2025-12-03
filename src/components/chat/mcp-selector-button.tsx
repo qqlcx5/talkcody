@@ -8,14 +8,16 @@ import { Button } from '@/components/ui/button';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useTranslation } from '@/hooks/use-locale';
 import { useMultiMCPTools } from '@/hooks/use-multi-mcp-tools';
 import { useAppSettings } from '@/hooks/use-settings';
-import { DOC_LINKS } from '@/lib/doc-links';
+import { getDocLinks } from '@/lib/doc-links';
 import { logger } from '@/lib/logger';
 import { useAgentStore } from '@/stores/agent-store';
 import { useToolOverrideStore } from '@/stores/tool-override-store';
 
 export function McpSelectorButton() {
+  const t = useTranslation();
   const [open, setOpen] = useState(false);
   const { settings } = useAppSettings();
   const { servers, allTools, isLoading, refreshTools } = useMultiMCPTools();
@@ -80,7 +82,7 @@ export function McpSelectorButton() {
 
   const handleToggleTool = (toolPrefixedName: string) => {
     if (!currentAgent) {
-      toast.error('No active agent');
+      toast.error(t.MCPServers.selector.noActiveAgent);
       return;
     }
 
@@ -90,14 +92,14 @@ export function McpSelectorButton() {
       // Use tool override store for temporary modifications
       if (isSelected) {
         useToolOverrideStore.getState().removeTool(currentAgent.id, toolPrefixedName);
-        toast.success('MCP tool removed (temporary)');
+        toast.success(t.MCPServers.selector.toolRemoved);
       } else {
         useToolOverrideStore.getState().addTool(currentAgent.id, toolPrefixedName);
-        toast.success('MCP tool added (temporary)');
+        toast.success(t.MCPServers.selector.toolAdded);
       }
     } catch (error) {
       logger.error('Failed to toggle MCP tool:', error);
-      toast.error('Failed to update MCP tool');
+      toast.error(t.MCPServers.selector.updateFailed);
     }
   };
 
@@ -106,10 +108,10 @@ export function McpSelectorButton() {
 
     try {
       useToolOverrideStore.getState().clearOverride(currentAgent.id);
-      toast.success('MCP tool overrides reset');
+      toast.success(t.MCPServers.selector.overridesReset);
     } catch (error) {
       logger.error('Failed to reset MCP tool overrides:', error);
-      toast.error('Failed to reset');
+      toast.error(t.MCPServers.selector.resetFailed);
     }
   };
 
@@ -144,19 +146,15 @@ export function McpSelectorButton() {
         </HoverCardTrigger>
         <HoverCardContent side="top" className="w-72">
           <div className="space-y-2">
-            <h4 className="font-medium text-sm">MCP Servers</h4>
-            <p className="text-xs text-muted-foreground">
-              Model Context Protocol (MCP) servers provide external tools and integrations. Connect
-              to services like databases, APIs, and other external systems to extend the AI agent's
-              capabilities.
-            </p>
+            <h4 className="font-medium text-sm">{t.MCPServers.selector.title}</h4>
+            <p className="text-xs text-muted-foreground">{t.MCPServers.selector.description}</p>
             <a
-              href={DOC_LINKS.features.mcpServers}
+              href={getDocLinks().features.mcpServers}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
             >
-              Learn more
+              {t.MCPServers.selector.learnMore}
               <ExternalLink className="h-3 w-3" />
             </a>
           </div>
@@ -165,16 +163,18 @@ export function McpSelectorButton() {
         <PopoverContent className="w-96 p-0" align="start">
           <div className="flex items-center justify-between px-3 py-2 border-b">
             <div className="flex items-center gap-2">
-              <div className="font-semibold text-sm">MCP Tools</div>
+              <div className="font-semibold text-sm">{t.MCPServers.selector.toolsTitle}</div>
               {hasOverride && (
                 <span className="text-xs px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
-                  Modified
+                  {t.MCPServers.selector.modified}
                 </span>
               )}
             </div>
             <div className="flex items-center gap-2">
               {totalSelectedCount > 0 && (
-                <span className="text-xs text-muted-foreground">{totalSelectedCount} selected</span>
+                <span className="text-xs text-muted-foreground">
+                  {totalSelectedCount} {t.MCPServers.selector.selected}
+                </span>
               )}
               {hasOverride && (
                 <Button
@@ -184,7 +184,7 @@ export function McpSelectorButton() {
                   onClick={handleReset}
                 >
                   <RotateCcw className="h-3 w-3 mr-1" />
-                  Reset
+                  {t.MCPServers.selector.reset}
                 </Button>
               )}
               <Button
@@ -202,7 +202,7 @@ export function McpSelectorButton() {
           <ScrollArea className="h-[400px]">
             {serverGroups.length === 0 ? (
               <div className="p-4 text-center text-sm text-muted-foreground">
-                No MCP servers available
+                {t.MCPServers.selector.noServersAvailable}
               </div>
             ) : (
               <div className="p-2 space-y-3">
@@ -217,11 +217,11 @@ export function McpSelectorButton() {
                           variant="default"
                           className="text-xs px-1.5 py-0 bg-green-100 text-green-800"
                         >
-                          Connected
+                          {t.MCPServers.selector.connected}
                         </Badge>
                       ) : (
                         <Badge variant="destructive" className="text-xs px-1.5 py-0">
-                          {group.error ? 'Error' : 'Disconnected'}
+                          {group.error ? t.MCPServers.selector.error : t.MCPServers.disconnected}
                         </Badge>
                       )}
                       {group.selectedCount > 0 && (
@@ -289,7 +289,7 @@ export function McpSelectorButton() {
                     {/* No Tools Message */}
                     {group.tools.length === 0 && group.isConnected && (
                       <div className="text-xs text-muted-foreground italic px-2 py-1">
-                        No tools available from this server
+                        {t.MCPServers.selector.noToolsFromServer}
                       </div>
                     )}
                   </div>

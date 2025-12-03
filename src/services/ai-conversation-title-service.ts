@@ -1,6 +1,7 @@
 // src/services/ai-conversation-title-service.ts
 import { streamText } from 'ai';
 import { logger } from '@/lib/logger';
+import { settingsManager } from '@/stores/settings-store';
 import { ModelType } from '@/types/model-types';
 import { aiProviderService } from './ai-provider-service';
 import { modelTypeService } from './model-type-service';
@@ -24,6 +25,12 @@ class AIConversationTitleService {
       const modelIdentifier = await modelTypeService.resolveModelType(ModelType.SMALL);
       logger.info('Resolved model identifier for SMALL type:', modelIdentifier);
 
+      const language = settingsManager.getSync('language');
+      const languageInstruction =
+        language === 'zh'
+          ? 'Generate the title in Chinese (中文).'
+          : 'Generate the title in English.';
+
       const prompt = `You are an AI assistant that generates concise, descriptive titles for conversations.
 
 User's message: "${userInput}"
@@ -44,6 +51,8 @@ Examples:
 - "Database Schema Design"
 - "API Rate Limiting Issue"
 
+${languageInstruction}
+
 Provide ONLY the title without any quotes, explanations, or additional formatting.`;
 
       const { textStream } = await streamText({
@@ -63,8 +72,6 @@ Provide ONLY the title without any quotes, explanations, or additional formattin
 
       const title = fullText.trim();
       logger.info('AI generated title:', title);
-      logger.info('Title length:', title.length);
-      logger.info('Full text before trim:', fullText);
 
       if (title) {
         return {

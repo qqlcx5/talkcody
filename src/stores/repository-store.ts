@@ -1,5 +1,5 @@
 import { join } from '@tauri-apps/api/path';
-import { exists } from '@tauri-apps/plugin-fs';
+import { exists, stat } from '@tauri-apps/plugin-fs';
 import { toast } from 'sonner';
 import { create } from 'zustand';
 import { logger } from '@/lib/logger';
@@ -179,6 +179,40 @@ export const useRepositoryStore = create<RepositoryStore>((set, get) => ({
     }
     // Note: We don't check isLoading here because selectRepository sets it before calling us
 
+    // 0. VALIDATE PATH EXISTS BEFORE any state changes
+    // This prevents infinite retry loops when the directory has been renamed/deleted
+    try {
+      const pathExists = await exists(path);
+      if (!pathExists) {
+        // Clear stale settings for this invalid path to prevent retry loop
+        if (settingsManager.getCurrentRootPath() === path) {
+          settingsManager.setCurrentRootPath('');
+        }
+        toast.error(`Directory does not exist: ${path}`);
+        logger.error('Attempted to open non-existent directory:', path);
+        return;
+      }
+
+      // Also verify it's a directory, not a file
+      const pathStat = await stat(path);
+      if (!pathStat.isDirectory) {
+        if (settingsManager.getCurrentRootPath() === path) {
+          settingsManager.setCurrentRootPath('');
+        }
+        toast.error(`Path is not a directory: ${path}`);
+        logger.error('Attempted to open a file as repository:', path);
+        return;
+      }
+    } catch (error) {
+      logger.error('Failed to validate path:', error);
+      // Clear settings to prevent retry loop
+      if (settingsManager.getCurrentRootPath() === path) {
+        settingsManager.setCurrentRootPath('');
+      }
+      toast.error('Failed to validate directory path');
+      return;
+    }
+
     // 1. IMMEDIATELY update UI with new path to show responsiveness
     // Set rootPath first so project selector updates right away
     // Also clear indexedFiles to prevent cross-project pollution
@@ -258,6 +292,10 @@ export const useRepositoryStore = create<RepositoryStore>((set, get) => ({
           toast.success('Repository opened successfully');
         } catch (error) {
           const errorMessage = (error as Error).message;
+
+          // Clear invalid path from settings to prevent retry loop
+          settingsManager.setCurrentRootPath('');
+
           set({
             error: errorMessage,
             isLoading: false,

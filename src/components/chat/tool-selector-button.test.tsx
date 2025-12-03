@@ -110,6 +110,9 @@ vi.mock('@/stores/settings-store', () => {
   });
   return {
     useSettingsStore: mockStore,
+    settingsManager: {
+      getSync: vi.fn(() => 'en'),
+    },
   };
 });
 

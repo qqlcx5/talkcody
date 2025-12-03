@@ -78,6 +78,16 @@ export interface LocaleDefinition {
       transcribing: string;
       notSupported: string;
       error: (message: string) => string;
+      modal: {
+        connectingTitle: string;
+        transcribingTitle: string;
+        recordingTitle: string;
+        connecting: string;
+        recording: string;
+        processing: string;
+        liveTranscript: string;
+        stopAndTranscribe: string;
+      };
     };
     image: {
       notSupported: string;
@@ -121,6 +131,18 @@ export interface LocaleDefinition {
       switchSuccess: string;
       switchFailed: string;
     };
+    toolbar: {
+      model: string;
+      planMode: string;
+      actMode: string;
+      planModeTooltip: string;
+      actModeTooltip: string;
+      toggleTerminal: string;
+      inputTokens: string;
+      outputTokens: string;
+    };
+    chatHistory: string;
+    searchConversations: string;
   };
 
   Settings: {
@@ -202,6 +224,10 @@ export interface LocaleDefinition {
         description: string;
       };
       transcription: {
+        title: string;
+        description: string;
+      };
+      messageCompaction: {
         title: string;
         description: string;
       };
@@ -414,6 +440,14 @@ export interface LocaleDefinition {
       noRepositoryPath: string;
       openedInNewWindow: (name: string) => string;
       failedToOpenInWindow: string;
+      deleteProject: string;
+      deleteProjectTitle: string;
+      deleteProjectDescription: (name: string) => string;
+      deleteProjectCancel: string;
+      deleteProjectConfirm: string;
+      deleteProjectDeleting: string;
+      deleteProjectSuccess: (name: string) => string;
+      deleteProjectError: string;
     };
   };
 
@@ -426,6 +460,7 @@ export interface LocaleDefinition {
       description: string;
     };
     openFailed: (path: string) => string;
+    directoryNotFound: string;
   };
 
   Skills: {
@@ -446,6 +481,20 @@ export interface LocaleDefinition {
     docs: (count: number) => string;
     scripts: string;
     marketplace: string;
+    selector: {
+      title: string;
+      description: string;
+      learnMore: string;
+      active: string;
+      searchPlaceholder: string;
+      loading: string;
+      noSkillsFound: string;
+      noSkillsAvailable: string;
+      browseMarketplace: string;
+      skillRemoved: string;
+      skillAdded: string;
+      updateFailed: string;
+    };
     page: {
       description: string;
       createNew: string;
@@ -533,6 +582,25 @@ export interface LocaleDefinition {
     builtIn: string;
     connected: (count: number) => string;
     disconnected: string;
+    selector: {
+      title: string;
+      description: string;
+      learnMore: string;
+      toolsTitle: string;
+      modified: string;
+      selected: string;
+      reset: string;
+      noServersAvailable: string;
+      connected: string;
+      error: string;
+      noToolsFromServer: string;
+      noActiveAgent: string;
+      toolRemoved: string;
+      toolAdded: string;
+      updateFailed: string;
+      overridesReset: string;
+      resetFailed: string;
+    };
     refreshConnection: string;
     enableServer: string;
     disableServer: string;
@@ -606,6 +674,26 @@ export interface LocaleDefinition {
     lmstudio: { description: string };
     tavily: { description: string };
     elevenlabs: { description: string };
+  };
+
+  Onboarding: {
+    title: string;
+    subtitle: string;
+    skip: string;
+    getStarted: string;
+    steps: {
+      language: {
+        title: string;
+        description: string;
+      };
+      theme: {
+        title: string;
+        description: string;
+        light: string;
+        dark: string;
+        system: string;
+      };
+    };
   };
 }
 

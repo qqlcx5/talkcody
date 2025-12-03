@@ -23,6 +23,7 @@ import { databaseService } from '@/services/database-service';
 import { getRelativePath } from '@/services/repository-utils';
 import { terminalService } from '@/services/terminal-service';
 import { useGitStore } from '@/stores/git-store';
+import { useProjectStore } from '@/stores/project-store';
 import { useRepositoryStore } from '@/stores/repository-store';
 import { settingsManager } from '@/stores/settings-store';
 import { useTerminalStore } from '@/stores/terminal-store';
@@ -51,6 +52,9 @@ export function RepositoryLayout() {
   const contentSearchInputRef = useRef<HTMLInputElement>(null);
 
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
+
+  // Circuit breaker: track paths that failed to open to prevent infinite retry loops
+  const [failedPaths] = useState(() => new Set<string>());
 
   // Fullscreen panel state
   type FullscreenPanel = 'none' | 'editor' | 'terminal' | 'chat';
@@ -103,6 +107,9 @@ export function RepositoryLayout() {
   const initializeGit = useGitStore((state) => state.initialize);
   const refreshGitStatus = useGitStore((state) => state.refreshStatus);
   const clearGitState = useGitStore((state) => state.clearState);
+
+  // Project store actions
+  const refreshProjects = useProjectStore((state) => state.refreshProjects);
 
   const chatBoxRef = useRef<ChatBoxRef>(null);
 
@@ -180,41 +187,32 @@ export function RepositoryLayout() {
     loadCurrentSettings();
   }, []);
 
-  // Update currentProjectId when rootPath changes (e.g., when navigating from projects page)
-  useEffect(() => {
-    const loadProjectForRootPath = async () => {
-      if (rootPath) {
-        try {
-          const projectId = await settingsManager.getProject();
-          setCurrentProjectId(projectId);
-        } catch (error) {
-          logger.error('Failed to load project for root path:', error);
-        }
-      }
-    };
-    loadProjectForRootPath();
-  }, [rootPath]);
-
   // Load saved repository on component mount
   useEffect(() => {
     const loadSavedRepository = async () => {
       const savedPath = settingsManager.getCurrentRootPath();
       const projectId = await settingsManager.getProject();
 
-      if (savedPath && !rootPath) {
-        try {
-          await openRepository(savedPath, projectId);
-          logger.info('Restored saved repository:', savedPath);
-        } catch (error) {
-          logger.error('Failed to restore saved repository:', error);
-          // Clear invalid saved path
-          settingsManager.setCurrentRootPath('');
-        }
+      // Skip if no saved path, already have rootPath, or path previously failed
+      // The failedPaths check prevents infinite retry loops when directory is renamed/deleted
+      if (!savedPath || rootPath || failedPaths.has(savedPath)) {
+        return;
+      }
+
+      try {
+        await openRepository(savedPath, projectId);
+        logger.info('Restored saved repository:', savedPath);
+      } catch (error) {
+        logger.error('Failed to restore saved repository:', error);
+        // Mark this path as failed to prevent infinite retries
+        failedPaths.add(savedPath);
+        // Clear invalid saved path
+        settingsManager.setCurrentRootPath('');
       }
     };
 
     loadSavedRepository();
-  }, [openRepository, rootPath]); // Only run once on mount
+  }, [openRepository, rootPath, failedPaths]); // Include failedPaths in dependencies
 
   // Initialize Git when repository changes
   useEffect(() => {
@@ -296,8 +294,18 @@ export function RepositoryLayout() {
             >
               <EmptyRepositoryState
                 isLoading={isLoading}
-                onSelectRepository={selectRepository}
-                onOpenRepository={openRepository}
+                onSelectRepository={async () => {
+                  const newProject = await selectRepository();
+                  if (newProject) {
+                    setCurrentProjectId(newProject.id);
+                    await refreshProjects();
+                  }
+                }}
+                onOpenRepository={async (path, projectId) => {
+                  await openRepository(path, projectId);
+                  setCurrentProjectId(projectId);
+                  await refreshProjects();
+                }}
               />
             </ResizablePanel>
 
@@ -435,6 +443,7 @@ export function RepositoryLayout() {
             const newProject = await selectRepository();
             if (newProject) {
               setCurrentProjectId(newProject.id);
+              await refreshProjects();
             }
           }}
           isLoadingProject={isLoading}

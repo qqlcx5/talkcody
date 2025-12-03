@@ -55,7 +55,7 @@ export interface AgentLoopState {
   currentIteration: number;
   isComplete: boolean;
   lastFinishReason?: string;
-  lastRequestTokens?: number; // Total tokens from the last AI request (not cumulative)
+  lastRequestTokens: number; // Total tokens from the last AI request (not cumulative)
   unknownFinishReasonCount?: number; // Counter for unknown finish reasons to prevent infinite loops
   rawChunks?: unknown[]; // Raw chunks from provider for debugging
   hasSkillScripts?: boolean; // Flag to track if skills with scripts have been loaded

@@ -9,7 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useLocale } from '@/hooks/use-locale';
 import { useAppSettings } from '@/hooks/use-settings';
-import { DOC_LINKS } from '@/lib/doc-links';
+import { getDocLinks } from '@/lib/doc-links';
 import { logger } from '@/lib/logger';
 import { getAvailableToolsForUISync } from '@/services/agents/tool-registry';
 import { useAgentStore } from '@/stores/agent-store';
@@ -173,7 +173,7 @@ export function ToolSelectorButton() {
             <h4 className="font-medium text-sm">{t.Chat.tools.title}</h4>
             <p className="text-xs text-muted-foreground">{t.Chat.tools.description}</p>
             <a
-              href={DOC_LINKS.features.tools}
+              href={getDocLinks().features.tools}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-xs text-primary hover:underline"

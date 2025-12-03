@@ -1,12 +1,14 @@
+import { exists } from '@tauri-apps/plugin-fs';
 import { Clock, FolderGit2, FolderOpen } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useLocale } from '@/hooks/use-locale';
 import { logger } from '@/lib/logger';
-import { databaseService, type Project } from '@/services/database-service';
+import type { Project } from '@/services/database-service';
+import { useProjectStore } from '@/stores/project-store';
 
 interface EmptyRepositoryStateProps {
   onSelectRepository: () => void;
@@ -20,27 +22,21 @@ export function EmptyRepositoryState({
   isLoading,
 }: EmptyRepositoryStateProps) {
   const { t } = useLocale();
-  const [recentProjects, setRecentProjects] = useState<Project[]>([]);
-  const [_isLoadingProjects, setIsLoadingProjects] = useState(false);
   const [isOpeningRepository, setIsOpeningRepository] = useState<string | null>(null);
 
-  useEffect(() => {
-    const loadRecentProjects = async () => {
-      try {
-        setIsLoadingProjects(true);
-        const projects = await databaseService.getProjects();
-        // Sort by updated_at (most recent first)
-        const recent = projects.sort((a, b) => b.updated_at - a.updated_at);
-        setRecentProjects(recent);
-      } catch (error) {
-        logger.error('Failed to load recent projects:', error);
-      } finally {
-        setIsLoadingProjects(false);
-      }
-    };
+  // Use project store for shared state
+  const loadProjects = useProjectStore((state) => state.loadProjects);
+  const projects = useProjectStore((state) => state.projects);
 
-    loadRecentProjects();
-  }, []);
+  // Sort projects by updated_at descending (most recent first)
+  const recentProjects = useMemo(
+    () => [...projects].sort((a, b) => b.updated_at - a.updated_at),
+    [projects]
+  );
+
+  useEffect(() => {
+    loadProjects();
+  }, [loadProjects]);
 
   const handleOpenRepository = async (project: Project) => {
     if (!project.root_path) {
@@ -49,6 +45,15 @@ export function EmptyRepositoryState({
     }
 
     try {
+      // Validate path exists before opening to prevent unnecessary error loops
+      const pathExists = await exists(project.root_path);
+      if (!pathExists) {
+        toast.error(
+          t.Repository.directoryNotFound || `Directory no longer exists: ${project.root_path}`
+        );
+        return;
+      }
+
       setIsOpeningRepository(project.id);
       await onOpenRepository(project.root_path, project.id);
     } catch (error) {

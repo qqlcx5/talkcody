@@ -1,5 +1,5 @@
 import { ChevronDown, FolderPlus } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
@@ -10,7 +10,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { logger } from '@/lib/logger';
-import { databaseService, type Project } from '@/services/database-service';
+import type { Project } from '@/services/database-service';
+import { useProjectStore } from '@/stores/project-store';
 
 interface ProjectSelectorProps {
   currentProjectId: string | null;
@@ -25,44 +26,21 @@ export function ProjectDropdown({
   onImportRepository,
   isLoading,
 }: ProjectSelectorProps) {
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [isLoadingProjects, setIsLoadingProjects] = useState(false);
-  const [currentProject, setCurrentProject] = useState<Project | null>(null);
+  // Use project store for shared state
+  const projects = useProjectStore((state) => state.projects);
+  const isLoadingProjects = useProjectStore((state) => state.isLoading);
+  const loadProjects = useProjectStore((state) => state.loadProjects);
+  const refreshProjects = useProjectStore((state) => state.refreshProjects);
 
-  const loadProjects = useCallback(async () => {
-    try {
-      setIsLoadingProjects(true);
-      const allProjects = await databaseService.getProjects();
-      setProjects(allProjects);
-
-      if (currentProjectId) {
-        const project = allProjects.find((p) => p.id === currentProjectId);
-        setCurrentProject(project || null);
-      } else {
-        setCurrentProject(null);
-      }
-    } catch (error) {
-      logger.error('Failed to load projects:', error);
-      toast.error('Failed to load projects');
-    } finally {
-      setIsLoadingProjects(false);
-    }
-  }, [currentProjectId]);
+  // Derive current project from projects list
+  const currentProject = useMemo(
+    () => projects.find((p) => p.id === currentProjectId) || null,
+    [projects, currentProjectId]
+  );
 
   useEffect(() => {
     loadProjects();
   }, [loadProjects]);
-
-  // Additional effect to update currentProject when projects list changes
-  // This handles the case where projects are reloaded after import
-  useEffect(() => {
-    if (currentProjectId && projects.length > 0) {
-      const project = projects.find((p) => p.id === currentProjectId);
-      if (project && project !== currentProject) {
-        setCurrentProject(project);
-      }
-    }
-  }, [projects, currentProjectId, currentProject]);
 
   const handleProjectSelect = async (projectId: string) => {
     try {
@@ -77,7 +55,7 @@ export function ProjectDropdown({
     try {
       await onImportRepository();
       // Reload projects after importing a new repository
-      await loadProjects();
+      await refreshProjects();
     } catch (error) {
       logger.error('Failed to import repository:', error);
       toast.error('Failed to import repository');

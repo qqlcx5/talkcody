@@ -6,7 +6,8 @@ export const CODE_STARL = 'codestral';
 export const CLAUDE_HAIKU = 'claude-haiku-4.5';
 export const GROK_CODE_FAST = 'grok-code-fast-1';
 export const GLM_46 = 'glm-4.6';
-export const NANO_BANANA = 'gemini-2.5-flash-image';
+export const NANO_BANANA_PRO = 'gemini-3-pro-image';
+export const SCRIBE_V2_REALTIME = 'scribe-v2-realtime';
 
 import { logger } from '@/lib/logger';
 import { modelLoader } from '@/lib/model-loader';
@@ -93,4 +94,10 @@ export function getProvidersForModel(model: string): ProviderConfig[] {
   return config.providers
     .map((id) => providerRegistry.getProvider(String(id)))
     .filter((p) => p !== undefined) as ProviderConfig[];
+}
+
+// Get context length for a model
+export function getContextLength(model: string): number {
+  const config = MODEL_CONFIGS[model as ModelKey];
+  return config?.context_length ?? 200000; // Default fallback
 }

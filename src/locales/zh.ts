@@ -64,6 +64,8 @@ const zh: LocaleDefinition = {
     copied: '已复制！',
     newChat: '新对话',
     clearHistory: '清除历史',
+    chatHistory: '对话历史',
+    searchConversations: '搜索对话...',
     emptyState: {
       title: 'AI 助手',
       description: '开始与 AI 聊天！',
@@ -77,6 +79,16 @@ const zh: LocaleDefinition = {
       transcribing: '正在转录...',
       notSupported: '当前环境不支持语音录制',
       error: (message) => `错误：${message}`,
+      modal: {
+        connectingTitle: '正在连接实时转录服务...',
+        transcribingTitle: '正在转录音频',
+        recordingTitle: '正在录制语音',
+        connecting: '连接中...',
+        recording: '录制中：',
+        processing: '正在处理您的音频...',
+        liveTranscript: '实时转录：',
+        stopAndTranscribe: '停止并转录',
+      },
     },
     image: {
       notSupported: '不支持图片输入',
@@ -120,6 +132,16 @@ const zh: LocaleDefinition = {
     model: {
       switchSuccess: '模型已切换',
       switchFailed: '切换模型失败，请重试。',
+    },
+    toolbar: {
+      model: '模型',
+      planMode: '计划模式',
+      actMode: '执行模式',
+      planModeTooltip: 'AI 将先创建详细计划供您审批，然后再进行更改',
+      actModeTooltip: 'AI 将直接执行任务，无需计划审批',
+      toggleTerminal: '切换终端',
+      inputTokens: 'Tokens',
+      outputTokens: 'Tokens',
     },
   },
 
@@ -192,19 +214,23 @@ const zh: LocaleDefinition = {
       description: '为不同用途配置模型',
       mainModel: {
         title: '主模型',
-        description: '用于复杂任务和对话的主要模型',
+        description: '用于代码生成和复杂任务的模型',
       },
       smallModel: {
         title: '小模型',
-        description: '用于简单任务和代码补全的快速模型',
+        description: '用于简单任务的快速模型',
       },
       imageGenerator: {
-        title: '图像生成器',
-        description: '用于生成图像的模型',
+        title: '生成图像的模型',
+        description: '',
       },
       transcription: {
-        title: '语音转录',
-        description: '用于音频转录的模型',
+        title: '语音转录的模型',
+        description: '',
+      },
+      messageCompaction: {
+        title: '消息压缩模型',
+        description: '当上下文达到限制时用于压缩对话历史的模型',
       },
       resetToDefault: '重置为默认',
       updated: (type) => `${type} 已更新`,
@@ -416,6 +442,14 @@ const zh: LocaleDefinition = {
       noRepositoryPath: '此项目没有关联的仓库路径',
       openedInNewWindow: (name) => `已在新窗口中打开 ${name}`,
       failedToOpenInWindow: '无法在新窗口中打开项目',
+      deleteProject: '删除项目',
+      deleteProjectTitle: '删除项目',
+      deleteProjectDescription: (name) => `确定要删除项目 "${name}" 吗？此操作无法撤销。`,
+      deleteProjectCancel: '取消',
+      deleteProjectConfirm: '删除',
+      deleteProjectDeleting: '删除中...',
+      deleteProjectSuccess: (name) => `项目 "${name}" 已删除`,
+      deleteProjectError: '删除项目失败',
     },
   },
 
@@ -428,6 +462,7 @@ const zh: LocaleDefinition = {
       description: '导入代码仓库以开始浏览文件',
     },
     openFailed: (path) => `打开仓库失败：${path}`,
+    directoryNotFound: '目录不存在',
   },
 
   Skills: {
@@ -448,6 +483,21 @@ const zh: LocaleDefinition = {
     docs: (count) => `文档 (${count})`,
     scripts: '脚本',
     marketplace: '市场',
+    selector: {
+      title: 'Agent 技能',
+      description:
+        '预配置的提示词和工作流，为 AI 代理提供专业知识。技能可以增强编码任务、文档编写、测试等。',
+      learnMore: '了解更多',
+      active: '已激活',
+      searchPlaceholder: '搜索技能...',
+      loading: '加载技能中...',
+      noSkillsFound: '未找到技能',
+      noSkillsAvailable: '没有可用的技能',
+      browseMarketplace: '浏览技能市场',
+      skillRemoved: '技能已移除',
+      skillAdded: '技能已添加',
+      updateFailed: '更新技能失败',
+    },
     page: {
       description: '为您的项目发现领域知识包',
       createNew: '创建新技能',
@@ -536,6 +586,26 @@ const zh: LocaleDefinition = {
     builtIn: '内置',
     connected: (count) => `已连接（${count} 个工具）`,
     disconnected: '已断开',
+    selector: {
+      title: 'MCP 服务器',
+      description:
+        '模型上下文协议（MCP）服务器提供外部工具和集成。连接到数据库、API 和其他外部系统，以扩展 AI 代理的能力。',
+      learnMore: '了解更多',
+      toolsTitle: 'MCP 工具',
+      modified: '已修改',
+      selected: '已选择',
+      reset: '重置',
+      noServersAvailable: '没有可用的 MCP 服务器',
+      connected: '已连接',
+      error: '错误',
+      noToolsFromServer: '此服务器没有可用的工具',
+      noActiveAgent: '没有活动的 Agent',
+      toolRemoved: 'MCP 工具已移除（临时）',
+      toolAdded: 'MCP 工具已添加（临时）',
+      updateFailed: '更新 MCP 工具失败',
+      overridesReset: 'MCP 工具覆盖已重置',
+      resetFailed: '重置失败',
+    },
     refreshConnection: '刷新连接',
     enableServer: '启用服务器',
     disableServer: '禁用服务器',
@@ -610,6 +680,26 @@ const zh: LocaleDefinition = {
     lmstudio: { description: '本地 LM Studio 模型（无需 API 密钥）' },
     tavily: { description: 'Tavily 网络搜索 API' },
     elevenlabs: { description: 'Eleven Labs 语音合成 API' },
+  },
+
+  Onboarding: {
+    title: '欢迎使用 TalkCody',
+    subtitle: '让我们设置您的偏好',
+    skip: '跳过',
+    getStarted: '开始使用',
+    steps: {
+      language: {
+        title: '选择语言',
+        description: '选择您偏好的显示语言',
+      },
+      theme: {
+        title: '选择主题',
+        description: '选择您偏好的外观',
+        light: '浅色',
+        dark: '深色',
+        system: '跟随系统',
+      },
+    },
   },
 };
 

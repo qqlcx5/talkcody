@@ -1,6 +1,6 @@
 import type { ModelMessage } from 'ai';
 import { logger } from '@/lib/logger';
-import { GEMINI_25_FLASH_LITE } from '@/lib/models';
+import { GEMINI_25_FLASH_LITE, getContextLength } from '@/lib/models';
 import type {
   AgentLoopCallbacks,
   AgentLoopOptions,
@@ -12,7 +12,6 @@ import type {
 } from '@/types/agent';
 
 export class MessageCompactor {
-  private compressionCache = new Map<string, CompressionResult>();
   private readonly MAX_CACHE_SIZE = 10;
   private readonly COMPRESSION_TIMEOUT_MS = 30000; // 30 seconds timeout
   private compressionStats = {
@@ -61,14 +60,6 @@ Please be comprehensive and technical in your summary. Include specific file pat
       preserveRecentMessages: config.preserveRecentMessages,
     });
 
-    // Check cache first
-    const cacheKey = this.generateCacheKey(messages);
-    const cachedResult = this.compressionCache.get(cacheKey);
-    if (cachedResult) {
-      logger.info('Using cached compression result');
-      return cachedResult;
-    }
-
     // Determine which messages to compress and which to preserve
     const preserveCount = Math.min(config.preserveRecentMessages, messages.length);
     const preservedMessages = messages.slice(-preserveCount);
@@ -113,15 +104,10 @@ Please be comprehensive and technical in your summary. Include specific file pat
     // Update statistics
     this.updateStats(result);
 
-    // Cache the result
-    this.manageCacheSize();
-    this.compressionCache.set(cacheKey, result);
-
     logger.info('Message compaction completed', {
       originalCount: result.originalMessageCount,
       compressedCount: result.compressedMessageCount,
       ratio: result.compressionRatio,
-      cacheSize: this.compressionCache.size,
     });
 
     return result;
@@ -299,7 +285,8 @@ Please provide a comprehensive structured summary following the 8-section format
   public shouldCompress(
     _messages: ModelMessage[],
     config: CompressionConfig,
-    lastTokenCount?: number
+    lastTokenCount: number,
+    currentModel: string
   ): boolean {
     if (!config.enabled) {
       return false;
@@ -312,13 +299,16 @@ Please provide a comprehensive structured summary following the 8-section format
     }
 
     logger.info('Actual token count for messages', { lastTokenCount });
-    const maxContextTokens = 200000; // Conservative estimate for most models
+    const maxContextTokens = currentModel ? getContextLength(currentModel) : 200000;
+    logger.info('Max context tokens for model', { currentModel, maxContextTokens });
     const thresholdTokens = maxContextTokens * config.compressionThreshold;
 
     if (lastTokenCount > thresholdTokens) {
       logger.info('Compression triggered by token count', {
         actualTokens: lastTokenCount,
         threshold: thresholdTokens,
+        model: currentModel,
+        maxContextTokens,
         ratio: lastTokenCount / maxContextTokens,
       });
       return true;
@@ -348,15 +338,6 @@ Please provide a comprehensive structured summary following the 8-section format
     return { ...this.compressionStats };
   }
 
-  public clearCache(): void {
-    this.compressionCache.clear();
-    logger.info('Compression cache cleared');
-  }
-
-  public getCacheSize(): number {
-    return this.compressionCache.size;
-  }
-
   private updateStats(result: CompressionResult): void {
     this.compressionStats.totalCompressions++;
 
@@ -366,61 +347,5 @@ Please provide a comprehensive structured summary following the 8-section format
     this.compressionStats.averageCompressionRatio =
       (currentAvg * (this.compressionStats.totalCompressions - 1) + newRatio) /
       this.compressionStats.totalCompressions;
-  }
-
-  private generateCacheKey(messages: ModelMessage[]): string {
-    // Generate a more robust hash based on message content, roles, and count
-    const content = messages
-      .map((m) => {
-        const role = m.role || '';
-        const contentStr = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
-        return `${role}:${contentStr}`;
-      })
-      .join('||');
-
-    // Use a better hash function (DJB2 algorithm)
-    let hash = 5381;
-    for (let i = 0; i < content.length; i++) {
-      const char = content.charCodeAt(i);
-      hash = (hash << 5) + hash + char; // hash * 33 + char
-    }
-
-    // Convert to unsigned 32-bit integer and then to hex
-    const hashHex = (hash >>> 0).toString(16).padStart(8, '0');
-
-    // Include message count and first/last message snippet for better uniqueness
-    const firstMessage = messages[0];
-    const firstSnippet =
-      messages.length > 0 && firstMessage
-        ? String(typeof firstMessage.content === 'string' ? firstMessage.content : '').slice(0, 20)
-        : '';
-    const lastMessage = messages[messages.length - 1];
-    const lastSnippet =
-      messages.length > 0 && lastMessage
-        ? String(typeof lastMessage.content === 'string' ? lastMessage.content : '').slice(0, 20)
-        : '';
-
-    const snippetHash = this.simpleHash(firstSnippet + lastSnippet);
-
-    return `${messages.length}_${hashHex}_${snippetHash}`;
-  }
-
-  private simpleHash(str: string): string {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      hash = (hash << 5) - hash + str.charCodeAt(i);
-      hash = hash & hash;
-    }
-    return (hash >>> 0).toString(16).padStart(8, '0');
-  }
-
-  private manageCacheSize(): void {
-    if (this.compressionCache.size >= this.MAX_CACHE_SIZE) {
-      // Remove the oldest entry (first key)
-      const firstKey = this.compressionCache.keys().next().value;
-      if (firstKey) {
-        this.compressionCache.delete(firstKey);
-      }
-    }
   }
 }

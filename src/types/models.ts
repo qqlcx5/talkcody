@@ -6,6 +6,7 @@ export interface ModelConfig {
   providers: string[]; // Will be validated against ProviderIds at runtime
   providerMappings?: Record<string, string>;
   pricing?: { input: string; output: string };
+  context_length?: number;
 }
 
 /**

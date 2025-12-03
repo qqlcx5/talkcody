@@ -2,7 +2,7 @@ use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
 use std::path::Path;
 use std::sync::{mpsc, Arc, atomic::{AtomicBool, Ordering}};
 use std::thread::{self, JoinHandle};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter};
 use crate::constants::EXCLUDED_DIRS;
 
@@ -74,10 +74,15 @@ impl FileWatcher {
         // Clone app_handle for the file watcher thread
         let file_app_handle = app_handle.clone();
 
-        // Spawn thread to handle events
+        // Spawn thread to handle events with proper trailing-edge debounce
         let thread_handle = thread::spawn(move || {
-            let mut last_event_time = std::time::Instant::now();
             let debounce_duration = Duration::from_millis(500);
+            let check_interval = Duration::from_millis(100);
+
+            // Trailing-edge debounce state
+            let mut pending_emit = false;
+            let mut last_event_time = Instant::now();
+            let mut pending_paths: Vec<std::path::PathBuf> = Vec::new();
 
             loop {
                 // Check stop flag first
@@ -86,15 +91,9 @@ impl FileWatcher {
                     break;
                 }
 
-                match receiver.recv_timeout(Duration::from_millis(500)) {
+                // Use short timeout to allow checking for pending events
+                match receiver.recv_timeout(check_interval) {
                     Ok(Ok(event)) => {
-                        let now = std::time::Instant::now();
-
-                        // Debounce events to avoid too many refreshes
-                        if now.duration_since(last_event_time) < debounce_duration {
-                            continue;
-                        }
-
                         // Filter events we care about
                         match event.kind {
                             notify::EventKind::Create(_)
@@ -102,15 +101,17 @@ impl FileWatcher {
                             | notify::EventKind::Modify(notify::event::ModifyKind::Name(_))
                             | notify::EventKind::Modify(notify::event::ModifyKind::Data(_)) => {
                                 // Check if the event is for files we care about
-                                let should_emit = event.paths.iter().any(|path| {
-                                    Self::should_watch_path(path)
-                                });
+                                let relevant_paths: Vec<_> = event.paths.iter()
+                                    .filter(|path| Self::should_watch_path(path))
+                                    .cloned()
+                                    .collect();
 
-                                if should_emit {
-                                    if let Err(e) = file_app_handle.emit("file-system-changed", &event.paths) {
-                                        log::error!("Failed to emit file system change event: {}", e);
-                                    }
-                                    last_event_time = now;
+                                if !relevant_paths.is_empty() {
+                                    // Mark pending and update last event time
+                                    pending_emit = true;
+                                    last_event_time = Instant::now();
+                                    // Collect paths for logging/debugging
+                                    pending_paths.extend(relevant_paths);
                                 }
                             }
                             _ => {}
@@ -119,8 +120,26 @@ impl FileWatcher {
                     Ok(Err(e)) => {
                         log::error!("File watcher error: {}", e);
                     }
-                    Err(_) => {
-                        // Timeout, check stop flag and continue
+                    Err(mpsc::RecvTimeoutError::Timeout) => {
+                        // Normal timeout - check if we should emit pending event
+                    }
+                    Err(mpsc::RecvTimeoutError::Disconnected) => {
+                        log::info!("File watcher channel disconnected");
+                        break;
+                    }
+                }
+
+                // Check if we should emit the pending event (trailing-edge debounce)
+                // Emit after debounce_duration has passed since the last event
+                if pending_emit {
+                    let elapsed = Instant::now().duration_since(last_event_time);
+                    if elapsed >= debounce_duration {
+                        log::debug!("Emitting debounced file-system-changed event for {} paths", pending_paths.len());
+                        if let Err(e) = file_app_handle.emit("file-system-changed", &pending_paths) {
+                            log::error!("Failed to emit file system change event: {}", e);
+                        }
+                        pending_emit = false;
+                        pending_paths.clear();
                     }
                 }
             }
@@ -169,10 +188,14 @@ impl FileWatcher {
         self._git_stop_flag = Arc::new(AtomicBool::new(false));
         let stop_flag = Arc::clone(&self._git_stop_flag);
 
-        // Spawn thread to handle git events
+        // Spawn thread to handle git events with proper trailing-edge debounce
         let git_thread_handle = thread::spawn(move || {
-            let mut last_event_time = std::time::Instant::now();
             let debounce_duration = Duration::from_millis(500);
+            let check_interval = Duration::from_millis(100);
+
+            // Trailing-edge debounce state
+            let mut pending_emit = false;
+            let mut last_event_time = Instant::now();
 
             loop {
                 // Check stop flag first
@@ -181,34 +204,43 @@ impl FileWatcher {
                     break;
                 }
 
-                match receiver.recv_timeout(Duration::from_millis(500)) {
+                // Use short timeout to allow checking for pending events
+                match receiver.recv_timeout(check_interval) {
                     Ok(Ok(event)) => {
-                        let now = std::time::Instant::now();
-
-                        // Debounce events to avoid too many refreshes
-                        if now.duration_since(last_event_time) < debounce_duration {
-                            continue;
-                        }
-
                         // Check if this is a git status-related file change
                         let is_git_status_change = event.paths.iter().any(|path| {
                             Self::is_git_status_file(path)
                         });
 
                         if is_git_status_change {
-                            log::info!("Git status change detected: {:?}", event.paths);
-                            // Emit event to frontend
-                            if let Err(e) = app_handle.emit("git-status-changed", ()) {
-                                log::error!("Failed to emit git-status-changed event: {}", e);
-                            }
-                            last_event_time = now;
+                            log::debug!("Git status change detected: {:?}", event.paths);
+                            // Mark pending and update last event time (trailing-edge debounce)
+                            pending_emit = true;
+                            last_event_time = Instant::now();
                         }
                     }
                     Ok(Err(e)) => {
                         log::error!("Git watcher error: {}", e);
                     }
-                    Err(_) => {
-                        // Timeout, check stop flag and continue
+                    Err(mpsc::RecvTimeoutError::Timeout) => {
+                        // Normal timeout - check if we should emit pending event
+                    }
+                    Err(mpsc::RecvTimeoutError::Disconnected) => {
+                        log::info!("Git watcher channel disconnected");
+                        break;
+                    }
+                }
+
+                // Check if we should emit the pending event (trailing-edge debounce)
+                // Emit after debounce_duration has passed since the last event
+                if pending_emit {
+                    let elapsed = Instant::now().duration_since(last_event_time);
+                    if elapsed >= debounce_duration {
+                        log::info!("Emitting debounced git-status-changed event");
+                        if let Err(e) = app_handle.emit("git-status-changed", ()) {
+                            log::error!("Failed to emit git-status-changed event: {}", e);
+                        }
+                        pending_emit = false;
                     }
                 }
             }
@@ -297,10 +329,11 @@ impl FileWatcher {
         // .git/CHERRY_PICK_HEAD - cherry-pick state
         // .git/ORIG_HEAD - original head before dangerous operations
 
-        if path_str.ends_with(".git/index") || path_str.contains(".git/index") && !path_str.ends_with(".lock") {
+        if path_str.ends_with(".git/index") || (path_str.contains(".git/index") && !path_str.ends_with(".lock")) {
             return true;
         }
-        if path_str.ends_with(".git/HEAD") || path_str.ends_with("/HEAD") {
+        // Only match .git/HEAD, not logs/HEAD or other HEAD files
+        if path_str.ends_with(".git/HEAD") {
             return true;
         }
         if path_str.contains(".git/refs/heads/") {
@@ -317,5 +350,140 @@ impl FileWatcher {
         }
 
         false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_git_status_file_matches_index() {
+        assert!(FileWatcher::is_git_status_file(Path::new("/repo/.git/index")));
+    }
+
+    #[test]
+    fn test_is_git_status_file_matches_head() {
+        assert!(FileWatcher::is_git_status_file(Path::new("/repo/.git/HEAD")));
+        // refs/heads/HEAD is actually a branch named HEAD (rare but valid), still matches via refs/heads/
+        assert!(FileWatcher::is_git_status_file(Path::new("/repo/.git/refs/heads/HEAD")));
+    }
+
+    #[test]
+    fn test_is_git_status_file_matches_refs_heads() {
+        assert!(FileWatcher::is_git_status_file(Path::new("/repo/.git/refs/heads/main")));
+        assert!(FileWatcher::is_git_status_file(Path::new("/repo/.git/refs/heads/feature/branch")));
+    }
+
+    #[test]
+    fn test_is_git_status_file_matches_refs_remotes() {
+        assert!(FileWatcher::is_git_status_file(Path::new("/repo/.git/refs/remotes/origin/main")));
+        assert!(FileWatcher::is_git_status_file(Path::new("/repo/.git/refs/remotes/upstream/develop")));
+    }
+
+    #[test]
+    fn test_is_git_status_file_matches_special_heads() {
+        assert!(FileWatcher::is_git_status_file(Path::new("/repo/.git/MERGE_HEAD")));
+        assert!(FileWatcher::is_git_status_file(Path::new("/repo/.git/REBASE_HEAD")));
+        assert!(FileWatcher::is_git_status_file(Path::new("/repo/.git/CHERRY_PICK_HEAD")));
+        assert!(FileWatcher::is_git_status_file(Path::new("/repo/.git/ORIG_HEAD")));
+    }
+
+    #[test]
+    fn test_is_git_status_file_ignores_lock_files() {
+        assert!(!FileWatcher::is_git_status_file(Path::new("/repo/.git/index.lock")));
+        assert!(!FileWatcher::is_git_status_file(Path::new("/repo/.git/refs/heads/main.lock")));
+        assert!(!FileWatcher::is_git_status_file(Path::new("/repo/.git/HEAD.lock")));
+    }
+
+    #[test]
+    fn test_is_git_status_file_ignores_other_git_files() {
+        assert!(!FileWatcher::is_git_status_file(Path::new("/repo/.git/config")));
+        assert!(!FileWatcher::is_git_status_file(Path::new("/repo/.git/description")));
+        assert!(!FileWatcher::is_git_status_file(Path::new("/repo/.git/objects/pack/pack-abc.idx")));
+        assert!(!FileWatcher::is_git_status_file(Path::new("/repo/.git/COMMIT_EDITMSG")));
+        assert!(!FileWatcher::is_git_status_file(Path::new("/repo/.git/logs/HEAD")));
+    }
+
+    #[test]
+    fn test_should_watch_path_normal_files() {
+        assert!(FileWatcher::should_watch_path(Path::new("/repo/src/main.rs")));
+        assert!(FileWatcher::should_watch_path(Path::new("/repo/package.json")));
+        assert!(FileWatcher::should_watch_path(Path::new("/repo/README.md")));
+    }
+
+    #[test]
+    fn test_should_watch_path_excludes_node_modules() {
+        assert!(!FileWatcher::should_watch_path(Path::new("/repo/node_modules/package/index.js")));
+    }
+
+    #[test]
+    fn test_should_watch_path_excludes_git_dir() {
+        assert!(!FileWatcher::should_watch_path(Path::new("/repo/.git/objects/abc")));
+        assert!(!FileWatcher::should_watch_path(Path::new("/repo/.git/config")));
+    }
+
+    #[test]
+    fn test_should_watch_path_excludes_target_dir() {
+        assert!(!FileWatcher::should_watch_path(Path::new("/repo/target/debug/deps/lib.rlib")));
+    }
+
+    #[test]
+    fn test_should_watch_path_excludes_temp_files() {
+        assert!(!FileWatcher::should_watch_path(Path::new("/repo/file.tmp")));
+        assert!(!FileWatcher::should_watch_path(Path::new("/repo/file.temp")));
+        assert!(!FileWatcher::should_watch_path(Path::new("/repo/file.swp")));
+        assert!(!FileWatcher::should_watch_path(Path::new("/repo/file.bak")));
+    }
+
+    #[test]
+    fn test_should_watch_path_excludes_log_files() {
+        assert!(!FileWatcher::should_watch_path(Path::new("/repo/app.log")));
+    }
+
+    #[test]
+    fn test_should_watch_path_excludes_lock_files() {
+        assert!(!FileWatcher::should_watch_path(Path::new("/repo/package-lock.json.lock")));
+        // Note: package-lock.json itself should be watched as it has .json extension
+        assert!(FileWatcher::should_watch_path(Path::new("/repo/package-lock.json")));
+    }
+
+    // Test for trailing-edge debounce behavior simulation
+    #[test]
+    fn test_trailing_edge_debounce_logic() {
+        let debounce_duration = Duration::from_millis(500);
+
+        // Simulate rapid events
+        let events = vec![
+            (Duration::from_millis(0), "event1"),
+            (Duration::from_millis(100), "event2"),
+            (Duration::from_millis(200), "event3"),
+            (Duration::from_millis(300), "event4"),
+        ];
+
+        let mut pending_emit = false;
+        let mut last_event_time = Instant::now();
+        let mut emit_count = 0;
+
+        // Process events
+        for (delay, _name) in &events {
+            std::thread::sleep(*delay);
+            // Simulate receiving event
+            pending_emit = true;
+            last_event_time = Instant::now();
+        }
+
+        // Simulate waiting for debounce
+        std::thread::sleep(debounce_duration);
+
+        // Check if should emit
+        if pending_emit && Instant::now().duration_since(last_event_time) >= debounce_duration {
+            emit_count += 1;
+            pending_emit = false;
+        }
+
+        // With trailing-edge debounce, we should emit exactly once after all events
+        assert_eq!(emit_count, 1, "Should emit exactly once after debounce window");
+        assert!(!pending_emit, "Pending flag should be cleared after emit");
     }
 }

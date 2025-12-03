@@ -21,7 +21,9 @@ TalkCody 支持多个 AI 提供商,每个都需要自己的 API 密钥:
 - **Alibaba Qwen** - Qwen 模型
 - **Zhipu AI** - GLM 模型
 - **MiniMax** - MiniMax 模型
+- **DeepSeek** - DeepSeek 模型
 - **Ollama** - 本地模型(无需密钥)
+- **LM Studio** - 本地模型(无需密钥)
 
 <Callout type="success">
 TalkCody 支持任意兼容 OpenAI 或 Anthropic API 的第三方提供商。只需输入相应的 API 密钥和可选的自定义 Base URL 即可。
@@ -206,6 +208,46 @@ MiniMax 提供免费试用额度，新用户注册后可获得一定的免费调
 
 <Callout type="tip">
 Ollama 完全免费且支持离线使用，但需要足够的本地计算资源（建议 8GB+ 内存）。
+</Callout>
+
+### DeepSeek
+
+DeepSeek 提供的高性能大语言模型，以极具竞争力的价格提供强大的代码生成和推理能力。
+
+**获取步骤**：
+1. 访问 [platform.deepseek.com](https://platform.deepseek.com)
+2. 点击右上角 "Sign Up" 或 "登录" 创建账户
+3. 完成邮箱验证和账户设置
+4. 登录后进入控制台
+5. 在左侧菜单选择 "API Keys"
+6. 点击 "Create new API key" 创建新密钥
+7. 为密钥命名并点击确认
+8. 复制生成的密钥（格式：`sk-...`）
+9. 粘贴到 TalkCody 的 DeepSeek 字段
+
+<Callout type="info">
+DeepSeek 提供极具竞争力的定价，DeepSeek-V3 模型性能接近 GPT-4，但价格仅为其 1/10。新用户注册可获得免费额度。
+</Callout>
+
+### LM Studio
+
+LM Studio 是一个桌面应用程序，让您可以在本地运行开源大语言模型，提供图形化界面管理和运行模型。
+
+**配置步骤**：
+1. 访问 [lmstudio.ai](https://lmstudio.ai) 下载并安装 LM Studio
+2. 打开 LM Studio 应用
+3. 在 "Discover" 标签页搜索并下载您想使用的模型
+4. 下载完成后，进入 "Developer" 标签页
+5. 点击 "Start Server" 启动本地服务器
+6. 服务器默认运行在 `http://localhost:1234`
+7. 在 TalkCody 中无需 API 密钥，直接选择 LM Studio 模型即可
+
+<Callout type="tip">
+LM Studio 完全免费且支持离线使用，提供友好的图形界面管理本地模型。支持 Apple Silicon 加速和 NVIDIA GPU 加速。
+</Callout>
+
+<Callout type="info">
+LM Studio 支持 GGUF 格式的模型，可以从 Hugging Face 下载大量开源模型，如 Llama、Mistral、Phi 等。
 </Callout>
 
 ### Tavily

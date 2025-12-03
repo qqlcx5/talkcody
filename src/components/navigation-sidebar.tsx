@@ -30,37 +30,37 @@ export function NavigationSidebar({ activeView, onViewChange }: NavigationSideba
       id: NavigationView.EXPLORER,
       icon: Files,
       label: t.Navigation.explorer,
-      tooltip: `${t.Navigation.explorerTooltip} (⇧⌘E)`,
+      tooltip: `${t.Navigation.explorerTooltip}`,
     },
     {
       id: NavigationView.CHAT,
       icon: MessageSquare,
       label: t.Navigation.chat,
-      tooltip: `${t.Navigation.chatTooltip} (⇧⌘C)`,
+      tooltip: `${t.Navigation.chatTooltip}`,
     },
     {
       id: NavigationView.PROJECTS,
       icon: FolderOpen,
       label: t.Navigation.projects,
-      tooltip: `${t.Navigation.projectsTooltip} (⇧⌘P)`,
+      tooltip: `${t.Navigation.projectsTooltip}`,
     },
     {
       id: NavigationView.AGENTS,
       icon: Bot,
       label: t.Navigation.agents,
-      tooltip: `${t.Navigation.agentsTooltip} (⇧⌘A)`,
+      tooltip: `${t.Navigation.agentsTooltip}`,
     },
     {
       id: NavigationView.SKILLS_MARKETPLACE,
       icon: Zap,
       label: t.Navigation.skills,
-      tooltip: `${t.Navigation.skillsTooltip} (⇧⌘S)`,
+      tooltip: `${t.Navigation.skillsTooltip}`,
     },
     {
       id: NavigationView.MCP_SERVERS,
       icon: Server,
       label: t.Navigation.mcpServers,
-      tooltip: `${t.Navigation.mcpServersTooltip} (⇧⌘M)`,
+      tooltip: `${t.Navigation.mcpServersTooltip}`,
     },
   ];
 

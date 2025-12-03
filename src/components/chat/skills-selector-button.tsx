@@ -9,8 +9,9 @@ import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import { useTranslation } from '@/hooks/use-locale';
 import { useSkills } from '@/hooks/use-skills';
-import { DOC_LINKS } from '@/lib/doc-links';
+import { getDocLinks } from '@/lib/doc-links';
 import { logger } from '@/lib/logger';
 import { useSkillsStore } from '@/stores/skills-store';
 
@@ -23,6 +24,7 @@ export function SkillsSelectorButton({
   conversationId: _conversationId,
   onBrowseMarketplace,
 }: SkillsSelectorButtonProps) {
+  const t = useTranslation();
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -55,10 +57,10 @@ export function SkillsSelectorButton({
       // Toggle skill in global active skills list
       await toggleSkill(skillId);
 
-      toast.success(isSelected ? 'Skill removed' : 'Skill added');
+      toast.success(isSelected ? t.Skills.selector.skillRemoved : t.Skills.selector.skillAdded);
     } catch (error) {
       logger.error('Failed to toggle skill:', error);
-      toast.error('Failed to update skill');
+      toast.error(t.Skills.selector.updateFailed);
     }
   };
 
@@ -81,18 +83,15 @@ export function SkillsSelectorButton({
         </HoverCardTrigger>
         <HoverCardContent side="top" className="w-72">
           <div className="space-y-2">
-            <h4 className="font-medium text-sm">Agent Skills</h4>
-            <p className="text-xs text-muted-foreground">
-              Pre-configured prompts and workflows that give the AI agent specialized knowledge.
-              Skills can enhance coding tasks, documentation, testing, and more.
-            </p>
+            <h4 className="font-medium text-sm">{t.Skills.selector.title}</h4>
+            <p className="text-xs text-muted-foreground">{t.Skills.selector.description}</p>
             <a
-              href={DOC_LINKS.features.skills}
+              href={getDocLinks().features.skills}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
             >
-              Learn more
+              {t.Skills.selector.learnMore}
               <ExternalLink className="h-3 w-3" />
             </a>
           </div>
@@ -100,16 +99,18 @@ export function SkillsSelectorButton({
 
         <PopoverContent className="w-80 p-0" align="start">
           <div className="flex items-center justify-between px-3 py-2 border-b">
-            <div className="font-semibold text-sm">Agent Skills</div>
+            <div className="font-semibold text-sm">{t.Skills.selector.title}</div>
             {activeCount > 0 && (
-              <span className="text-xs text-muted-foreground">{activeCount} active</span>
+              <span className="text-xs text-muted-foreground">
+                {activeCount} {t.Skills.selector.active}
+              </span>
             )}
           </div>
 
           {/* Search */}
           <div className="p-3 border-b">
             <Input
-              placeholder="Search skills..."
+              placeholder={t.Skills.selector.searchPlaceholder}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="h-8"
@@ -119,10 +120,14 @@ export function SkillsSelectorButton({
           {/* Skills list */}
           <ScrollArea className="h-[400px]">
             {loading ? (
-              <div className="p-4 text-center text-sm text-muted-foreground">Loading skills...</div>
+              <div className="p-4 text-center text-sm text-muted-foreground">
+                {t.Skills.selector.loading}
+              </div>
             ) : filteredSkills.length === 0 ? (
               <div className="p-4 text-center text-sm text-muted-foreground">
-                {searchQuery ? 'No skills found' : 'No skills available'}
+                {searchQuery
+                  ? t.Skills.selector.noSkillsFound
+                  : t.Skills.selector.noSkillsAvailable}
               </div>
             ) : (
               <div className="p-2 space-y-1">
@@ -193,7 +198,7 @@ export function SkillsSelectorButton({
                   }}
                 >
                   <Plus className="h-4 w-4" />
-                  Browse Skills Marketplace
+                  {t.Skills.selector.browseMarketplace}
                 </Button>
               </div>
             </>

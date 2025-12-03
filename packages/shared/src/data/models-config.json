@@ -1,5 +1,5 @@
 {
-  "version": "2025-12-02T13:44:44.416Z",
+  "version": "2025-12-03T09:04:36.255Z",
   "models": {
     "gpt-5-nano": {
       "name": "GPT-5 Nano",
@@ -17,7 +17,8 @@
       "pricing": {
         "input": "0.00000005",
         "output": "0.0000004"
-      }
+      },
+      "context_length": 400000
     },
     "gpt-51": {
       "name": "GPT 5.1",
@@ -35,7 +36,8 @@
       "pricing": {
         "input": "0.00000125",
         "output": "0.00001"
-      }
+      },
+      "context_length": 400000
     },
     "gpt-5-mini": {
       "name": "GPT-5 Mini",
@@ -53,7 +55,8 @@
       "pricing": {
         "input": "0.00000025",
         "output": "0.000002"
-      }
+      },
+      "context_length": 400000
     },
     "gpt-51-codex": {
       "name": "GPT 5.1 Codex",
@@ -71,7 +74,8 @@
       "pricing": {
         "input": "0.00000125",
         "output": "0.00001"
-      }
+      },
+      "context_length": 400000
     },
     "gpt-5.1-codex-mini": {
       "name": "GPT 5.1 Codex Mini",
@@ -89,7 +93,8 @@
       "pricing": {
         "input": "0.00000025",
         "output": "0.000002"
-      }
+      },
+      "context_length": 400000
     },
     "gemini-2.5-flash": {
       "name": "Gemini 2.5 Flash",
@@ -107,7 +112,8 @@
       "pricing": {
         "input": "0.0000003",
         "output": "0.0000025"
-      }
+      },
+      "context_length": 1048576
     },
     "gemini-2.5-pro": {
       "name": "Gemini 2.5 Pro",
@@ -125,7 +131,8 @@
       "pricing": {
         "input": "0.00000125",
         "output": "0.00001"
-      }
+      },
+      "context_length": 1048576
     },
     "gemini-3-pro-preview": {
       "name": "Gemini 3 Pro Preview",
@@ -143,7 +150,8 @@
       "pricing": {
         "input": "0.000002",
         "output": "0.000012"
-      }
+      },
+      "context_length": 1048576
     },
     "gemini-2.5-flash-lite": {
       "name": "Gemini 2.5 Flash Lite",
@@ -161,7 +169,8 @@
       "pricing": {
         "input": "0.0000001",
         "output": "0.0000004"
-      }
+      },
+      "context_length": 1048576
     },
     "claude-opus-4.5": {
       "name": "Claude Opus 4.5",
@@ -179,7 +188,8 @@
       "pricing": {
         "input": "0.000005",
         "output": "0.000025"
-      }
+      },
+      "context_length": 200000
     },
     "claude-sonnet-4.5": {
       "name": "Claude Sonnet 4.5",
@@ -197,7 +207,8 @@
       "pricing": {
         "input": "0.000003",
         "output": "0.000015"
-      }
+      },
+      "context_length": 1000000
     },
     "claude-haiku-4.5": {
       "name": "Claude Haiku 4.5",
@@ -215,7 +226,8 @@
       "pricing": {
         "input": "0.000001",
         "output": "0.000005"
-      }
+      },
+      "context_length": 200000
     },
     "qwen3-coder-plus": {
       "name": "Qwen 3 Coder",
@@ -232,7 +244,8 @@
       "pricing": {
         "input": "0.000001",
         "output": "0.000005"
-      }
+      },
+      "context_length": 128000
     },
     "qwen3-max": {
       "name": "Qwen 3 Max",
@@ -257,7 +270,8 @@
       "pricing": {
         "input": "0.0000006",
         "output": "0.0000025"
-      }
+      },
+      "context_length": 262144
     },
     "deepseek-v3.2": {
       "name": "Deepseek V3.2",
@@ -274,7 +288,8 @@
       "pricing": {
         "input": "0.00000028",
         "output": "0.00000042"
-      }
+      },
+      "context_length": 163840
     },
     "grok-code-fast-1": {
       "name": "Grok Code Fast",
@@ -289,7 +304,8 @@
       "pricing": {
         "input": "0.0000002",
         "output": "0.0000015"
-      }
+      },
+      "context_length": 256000
     },
     "grok-4.1-fast": {
       "name": "Grok 4.1 Fast",
@@ -300,12 +316,13 @@
       ],
       "providerMappings": {
         "aiGateway": "xai/grok-4.1-fast-reasoning",
-        "openRouter": "x-ai/grok-4-fast"
+        "openRouter": "x-ai/grok-4.1-fast:free"
       },
       "pricing": {
         "input": "0.0000002",
         "output": "0.0000005"
-      }
+      },
+      "context_length": 2000000
     },
     "glm-4.6": {
       "name": "GLM 4.6",
@@ -313,12 +330,10 @@
         "zhipu",
         "openRouter",
         "aiGateway",
-        "anthropic",
         "ollama"
       ],
       "providerMappings": {
         "zhipu": "glm-4.6",
-        "anthropic": "glm-4.6",
         "aiGateway": "zai/glm-4.6",
         "openRouter": "z-ai/glm-4.6:exacto",
         "ollama": "glm-4.6:cloud"
@@ -326,7 +341,8 @@
       "pricing": {
         "input": "0.00000045",
         "output": "0.0000018"
-      }
+      },
+      "context_length": 202752
     },
     "minimax-m2": {
       "name": "MiniMax 2",
@@ -343,7 +359,8 @@
       "pricing": {
         "input": "0.00000027",
         "output": "0.00000115"
-      }
+      },
+      "context_length": 204800
     },
     "gpt-oss:20b": {
       "name": "GPT-OSS 20B (Local)",
@@ -368,7 +385,8 @@
       "pricing": {
         "input": "0",
         "output": "0"
-      }
+      },
+      "context_length": 131072
     },
     "qwen/qwen3-coder:free": {
       "name": "Qwen 3 Coder (Free)",
@@ -378,7 +396,8 @@
       "pricing": {
         "input": "0",
         "output": "0"
-      }
+      },
+      "context_length": 262000
     },
     "gemini-2.5-flash-image": {
       "name": "Nano Banana",
@@ -386,6 +405,7 @@
       "imageOutput": true,
       "providers": [
         "openRouter",
+        "aiGateway",
         "google"
       ],
       "providerMappings": {
@@ -396,7 +416,28 @@
       "pricing": {
         "input": "0.0000003",
         "output": "0.0000025"
-      }
+      },
+      "context_length": 32768
+    },
+    "gemini-3-pro-image": {
+      "name": "Nano Banana Pro",
+      "imageInput": true,
+      "imageOutput": true,
+      "providers": [
+        "openRouter",
+        "aiGateway",
+        "google"
+      ],
+      "providerMappings": {
+        "google": "gemini-3-pro-image-preview",
+        "aiGateway": "google/gemini-3-pro-image",
+        "openRouter": "google/gemini-3-pro-image-preview"
+      },
+      "pricing": {
+        "input": "0.000002",
+        "output": "0.00012"
+      },
+      "context_length": 65536
     },
     "whisper-1": {
       "name": "Whisper 1",

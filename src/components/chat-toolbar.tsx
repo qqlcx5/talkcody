@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { useTranslation } from '@/hooks/use-locale';
 import { logger } from '@/lib/logger';
 import { modelService } from '@/services/model-service';
 import { useAgentExecutionStore } from '@/stores/agent-execution-store';
@@ -11,8 +12,6 @@ import { usePlanModeStore } from '@/stores/plan-mode-store';
 import { useSettingsStore } from '@/stores/settings-store';
 import { ChatHistory } from './chat-history';
 import { ProjectDropdown } from './project-dropdown';
-
-// Conversation mode removed - users directly select agents now
 
 interface ChatToolbarProps {
   currentConversationId?: string;
@@ -42,15 +41,14 @@ export function ChatToolbar({
   onProjectSelect,
   onImportRepository,
   isLoadingProject,
-
-  rootPath,
   isTerminalVisible,
   onToggleTerminal,
 }: ChatToolbarProps) {
+  const t = useTranslation();
   const [modelName, setModelName] = useState<string>('');
   const { isPlanModeEnabled } = usePlanModeStore();
   const { isAgentRunning } = useAgentExecutionStore();
-  const { cost, inputTokens, outputTokens } = useConversationUsageStore();
+  const { cost, inputTokens, outputTokens, contextUsage } = useConversationUsageStore();
 
   const formatTokens = (tokens: number): string => {
     if (tokens >= 1000) {
@@ -61,6 +59,18 @@ export function ChatToolbar({
 
   const formatCost = (costValue: number): string => {
     return `$${costValue.toFixed(4)}`;
+  };
+
+  const getContextUsageColor = (usage: number): string => {
+    if (usage >= 90) return 'text-red-600 dark:text-red-400';
+    if (usage >= 70) return 'text-yellow-600 dark:text-yellow-400';
+    return 'text-emerald-600 dark:text-emerald-400';
+  };
+
+  const getContextUsageBgColor = (usage: number): string => {
+    if (usage >= 90) return 'bg-red-100 dark:bg-red-900/30';
+    if (usage >= 70) return 'bg-yellow-100 dark:bg-yellow-900/30';
+    return 'bg-emerald-100 dark:bg-emerald-900/30';
   };
 
   // Subscribe to settings store for reactive updates
@@ -119,28 +129,25 @@ export function ChatToolbar({
 
   return (
     <div className="flex flex-shrink-0 items-center justify-between border-b bg-gray-50 px-3 py-2 dark:bg-gray-900">
-      <div className="flex min-w-0 flex-1 items-center gap-4">
+      {/* Left: Project Dropdown */}
+      <div className="flex min-w-0 flex-1 items-center">
         {onProjectSelect && onImportRepository && (
-          <>
-            <ProjectDropdown
-              currentProjectId={currentProjectId || null}
-              onProjectSelect={onProjectSelect}
-              onImportRepository={onImportRepository}
-              isLoading={isLoadingProject || false}
-            />
-            {rootPath && (
-              <div className="flex flex-col">
-                <p className="truncate font-medium text-sm" title={rootPath}>
-                  {rootPath.split('/').pop()}
-                </p>
-                <p className="truncate text-gray-500 text-xs">{rootPath}</p>
-              </div>
-            )}
-          </>
+          <ProjectDropdown
+            currentProjectId={currentProjectId || null}
+            onProjectSelect={onProjectSelect}
+            onImportRepository={onImportRepository}
+            isLoading={isLoadingProject || false}
+          />
         )}
+      </div>
+
+      {/* Center: Model, Plan Mode, Cost/Tokens */}
+      <div className="flex items-center justify-center gap-3">
         {modelName && (
           <div className="flex items-center gap-1.5 rounded-md bg-blue-100 px-2 py-1 dark:bg-blue-900/30">
-            <span className="font-medium text-blue-700 text-xs dark:text-blue-300">Model:</span>
+            <span className="font-medium text-blue-700 text-xs dark:text-blue-300">
+              {t.Chat.toolbar.model}:
+            </span>
             <span className="font-medium text-blue-900 text-xs dark:text-blue-100">
               {modelName}
             </span>
@@ -165,21 +172,19 @@ export function ChatToolbar({
                       d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
                     />
                   </svg>
-                  Plan Mode
+                  {t.Chat.toolbar.planMode}
                 </>
               ) : (
                 <>
                   <Zap className="mr-1 h-3 w-3" />
-                  Act Mode
+                  {t.Chat.toolbar.actMode}
                 </>
               )}
             </Badge>
           </TooltipTrigger>
           <TooltipContent>
             <p>
-              {isPlanModeEnabled
-                ? 'AI will create a detailed plan for your approval before making changes'
-                : 'AI will execute tasks directly without requiring plan approval'}
+              {isPlanModeEnabled ? t.Chat.toolbar.planModeTooltip : t.Chat.toolbar.actModeTooltip}
             </p>
           </TooltipContent>
         </Tooltip>
@@ -191,16 +196,28 @@ export function ChatToolbar({
             </span>
             <span className="flex items-center text-emerald-600 text-xs dark:text-emerald-400">
               <ArrowUp className="h-3 w-3" />
-              {formatTokens(inputTokens)} Tokens
+              {formatTokens(inputTokens)} {t.Chat.toolbar.inputTokens}
             </span>
             <span className="flex items-center text-emerald-600 text-xs dark:text-emerald-400">
               <ArrowDown className="h-3 w-3" />
-              {formatTokens(outputTokens)} Tokens
+              {formatTokens(outputTokens)} {t.Chat.toolbar.outputTokens}
+            </span>
+          </div>
+        )}
+
+        {contextUsage > 0 && (
+          <div
+            className={`flex items-center gap-1.5 rounded-md px-2 py-1 ${getContextUsageBgColor(contextUsage)}`}
+          >
+            <span className={`font-medium text-xs ${getContextUsageColor(contextUsage)}`}>
+              Context: {contextUsage.toFixed(0)}%
             </span>
           </div>
         )}
       </div>
-      <div className="flex items-center gap-1">
+
+      {/* Right: Actions */}
+      <div className="flex min-w-0 flex-1 items-center justify-end gap-1">
         {onToggleTerminal && (
           <Tooltip>
             <TooltipTrigger asChild>
@@ -216,7 +233,7 @@ export function ChatToolbar({
               </Button>
             </TooltipTrigger>
             <TooltipContent>
-              <p>Toggle Terminal</p>
+              <p>{t.Chat.toolbar.toggleTerminal}</p>
             </TooltipContent>
           </Tooltip>
         )}
@@ -233,7 +250,7 @@ export function ChatToolbar({
             </Button>
           </TooltipTrigger>
           <TooltipContent>
-            <p>New Chat</p>
+            <p>{t.Chat.newChat}</p>
           </TooltipContent>
         </Tooltip>
         <Tooltip>
@@ -249,7 +266,7 @@ export function ChatToolbar({
             </div>
           </TooltipTrigger>
           <TooltipContent>
-            <p>Chat History</p>
+            <p>{t.Chat.chatHistory}</p>
           </TooltipContent>
         </Tooltip>
       </div>

@@ -29,7 +29,7 @@ export function useVoiceInput() {
     isConnecting: false,
   });
 
-  const { model_type_transcription, getProviderApiKey } = useSettingsStore();
+  const { model_type_transcription, getProviderApiKey, language } = useSettingsStore();
 
   // MediaRecorder refs (for Whisper)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -117,7 +117,7 @@ export function useVoiceInput() {
         logger.info('[Realtime] Service connected');
       });
 
-      await service.connect(apiKey);
+      await service.connect(apiKey, language);
       realtimeServiceRef.current = service;
 
       // 4. Get microphone stream
@@ -189,7 +189,7 @@ export function useVoiceInput() {
       toast.error(errorMessage);
       logger.error('[Realtime] Start error:', error);
     }
-  }, [getProviderApiKey]);
+  }, [getProviderApiKey, language]);
 
   // Stop real-time recording
   const stopRealtimeRecording = useCallback((): Promise<string> => {

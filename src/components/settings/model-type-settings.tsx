@@ -44,6 +44,11 @@ const getModelTypeLocale = (
         title: t.Settings.models.transcription.title,
         description: t.Settings.models.transcription.description,
       };
+    case ModelType.MESSAGE_COMPACTION:
+      return {
+        title: t.Settings.models.messageCompaction.title,
+        description: t.Settings.models.messageCompaction.description,
+      };
     default:
       return { title: modelType, description: '' };
   }
@@ -59,6 +64,7 @@ export function ModelTypeSettings() {
     [ModelType.SMALL]: '',
     [ModelType.IMAGE_GENERATOR]: '',
     [ModelType.TRANSCRIPTION]: '',
+    [ModelType.MESSAGE_COMPACTION]: '',
   });
 
   // Store selected provider for each model type
@@ -67,6 +73,7 @@ export function ModelTypeSettings() {
     [ModelType.SMALL]: '',
     [ModelType.IMAGE_GENERATOR]: '',
     [ModelType.TRANSCRIPTION]: '',
+    [ModelType.MESSAGE_COMPACTION]: '',
   });
 
   const [isLoading, setIsLoading] = useState(false);
@@ -116,14 +123,7 @@ export function ModelTypeSettings() {
   useEffect(() => {
     // Initial load
     const initializeSettings = async () => {
-      logger.info('[ModelTypeSettings] Component mounted, starting initialization');
-
-      // First load the model type settings
       await loadModelTypeSettings();
-
-      // Check if models need to be refreshed (e.g., if API keys changed)
-      // This ensures we always show the latest data when the page opens
-      logger.info('[ModelTypeSettings] Checking if models refresh is needed');
       await refreshModels();
 
       logger.info('[ModelTypeSettings] Initialization completed');
@@ -133,18 +133,9 @@ export function ModelTypeSettings() {
 
     // Listen for API key updates to refresh models
     const handleApiKeysUpdated = async () => {
-      logger.info('[ModelTypeSettings] API keys updated event received, starting refresh');
       try {
-        logger.info('[ModelTypeSettings] Calling refreshModels()');
         await refreshModels();
-        logger.info('[ModelTypeSettings] refreshModels() completed');
-
-        // Reload model type settings after models are refreshed
-        logger.info('[ModelTypeSettings] Calling loadModelTypeSettings()');
         await loadModelTypeSettings();
-        logger.info('[ModelTypeSettings] loadModelTypeSettings() completed');
-
-        logger.info('[ModelTypeSettings] Full refresh cycle completed successfully');
       } catch (error) {
         logger.error('[ModelTypeSettings] Failed to refresh models after API key update:', error);
       }
@@ -301,9 +292,9 @@ export function ModelTypeSettings() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="flex gap-3">
-              <div className="flex-1 space-y-2">
-                <Label htmlFor={`model-type-${modelType}`} className="font-medium text-sm">
+            <div className="flex flex-wrap items-center gap-x-32 gap-y-4">
+              <div className="flex items-center gap-2">
+                <Label htmlFor={`model-type-${modelType}`} className="shrink-0 font-medium text-sm">
                   {t.Settings.models.customModels.model}
                 </Label>
                 <ModelSelector
@@ -323,8 +314,11 @@ export function ModelTypeSettings() {
               {/* Show provider selector only if model has multiple providers */}
               {selectedModels[modelType] &&
                 getAvailableProviders(selectedModels[modelType]).length > 1 && (
-                  <div className="flex-1 space-y-2">
-                    <Label htmlFor={`provider-type-${modelType}`} className="font-medium text-sm">
+                  <div className="flex items-center gap-2">
+                    <Label
+                      htmlFor={`provider-type-${modelType}`}
+                      className="shrink-0 font-medium text-sm"
+                    >
                       {t.Settings.models.customModels.provider}
                     </Label>
                     <ProviderSelector

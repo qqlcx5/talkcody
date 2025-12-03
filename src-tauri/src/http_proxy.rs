@@ -443,11 +443,6 @@ pub async fn stream_fetch(
         .get("content-type")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("none");
-    log::info!(
-        "Stream response Content-Type: {} (request_id: {})",
-        content_type,
-        request_id
-    );
 
     // Spawn async task to stream chunks
     let window_clone = window.clone();
@@ -482,13 +477,6 @@ pub async fn stream_fetch(
                         );
                         break;
                     }
-
-                    log::debug!(
-                        "Emitted chunk {} ({} bytes) (request_id: {})",
-                        chunk_count,
-                        chunk_size,
-                        request_id
-                    );
                 }
                 Ok(Some(Err(e))) => {
                     log::error!(
@@ -500,12 +488,6 @@ pub async fn stream_fetch(
                     break;
                 }
                 Ok(None) => {
-                    // Stream ended normally
-                    log::info!(
-                        "Stream ended successfully after {} chunks (request_id: {})",
-                        chunk_count,
-                        request_id
-                    );
                     break;
                 }
                 Err(_) => {
@@ -530,8 +512,6 @@ pub async fn stream_fetch(
             },
         ) {
             log::error!("Failed to emit end payload (request_id: {}): {:?}", request_id, e);
-        } else {
-            log::info!("Emitted end signal (request_id: {})", request_id);
         }
     });
 

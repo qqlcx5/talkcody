@@ -5,6 +5,7 @@ interface ConversationUsageState {
   cost: number;
   inputTokens: number;
   outputTokens: number;
+  contextUsage: number; // Percentage of context window used (0-100)
 
   // Actions
   setUsage: (
@@ -14,6 +15,7 @@ interface ConversationUsageState {
     outputTokens: number
   ) => void;
   addUsage: (cost: number, inputTokens: number, outputTokens: number) => void;
+  setContextUsage: (contextUsage: number) => void;
   resetUsage: (conversationId?: string) => void;
 }
 
@@ -22,6 +24,7 @@ export const useConversationUsageStore = create<ConversationUsageState>((set) =>
   cost: 0,
   inputTokens: 0,
   outputTokens: 0,
+  contextUsage: 0,
 
   setUsage: (conversationId, cost, inputTokens, outputTokens) =>
     set({ conversationId, cost, inputTokens, outputTokens }),
@@ -33,6 +36,14 @@ export const useConversationUsageStore = create<ConversationUsageState>((set) =>
       outputTokens: state.outputTokens + outputTokens,
     })),
 
+  setContextUsage: (contextUsage) => set({ contextUsage }),
+
   resetUsage: (conversationId) =>
-    set({ conversationId: conversationId ?? null, cost: 0, inputTokens: 0, outputTokens: 0 }),
+    set({
+      conversationId: conversationId ?? null,
+      cost: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+      contextUsage: 0,
+    }),
 }));

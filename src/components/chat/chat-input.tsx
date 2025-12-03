@@ -133,6 +133,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     const isShowingAlertRef = useRef(false); // Guard flag to prevent double-triggering alert
 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const isComposingRef = useRef(false); // Track IME composition state
 
     // Helper function to check if attachment already exists
     const isAttachmentExists = useCallback(
@@ -579,10 +580,24 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       }
 
       // Don't submit if IME composition is in progress (e.g., Chinese input method)
-      if (e.code === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+      // Check both the ref and the native event for maximum compatibility
+      if (
+        e.code === 'Enter' &&
+        !e.shiftKey &&
+        !isComposingRef.current &&
+        !e.nativeEvent.isComposing
+      ) {
         e.preventDefault();
         handleSubmit(e);
       }
+    };
+
+    const handleCompositionStart = () => {
+      isComposingRef.current = true;
+    };
+
+    const handleCompositionEnd = () => {
+      isComposingRef.current = false;
     };
 
     const handleAddCurrentFile = () => {
@@ -839,6 +854,8 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
                 maxRows={10}
                 minRows={1}
                 onChange={handleInputChange}
+                onCompositionStart={handleCompositionStart}
+                onCompositionEnd={handleCompositionEnd}
                 onKeyDown={handleInputKeydown}
                 onPaste={handlePaste}
                 placeholder={t.Chat.placeholder}

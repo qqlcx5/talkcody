@@ -8,6 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { useTranslation } from '@/hooks/use-locale';
 
 interface VoiceRecordingModalProps {
   isOpen: boolean;
@@ -28,6 +29,8 @@ export function VoiceRecordingModal({
   onStop,
   onCancel,
 }: VoiceRecordingModalProps) {
+  const t = useTranslation();
+
   // Format duration as MM:SS
   const formatDuration = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
@@ -41,10 +44,10 @@ export function VoiceRecordingModal({
         <DialogHeader>
           <DialogTitle>
             {isConnecting
-              ? 'Connecting to Real-time Transcription...'
+              ? t.Chat.voice.modal.connectingTitle
               : isTranscribing
-                ? 'Transcribing Audio'
-                : 'Recording Voice Input'}
+                ? t.Chat.voice.modal.transcribingTitle
+                : t.Chat.voice.modal.recordingTitle}
           </DialogTitle>
         </DialogHeader>
 
@@ -87,22 +90,26 @@ export function VoiceRecordingModal({
           {/* Recording duration / Transcribing message / Connecting */}
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             {isConnecting ? (
-              <span className="animate-pulse">Connecting...</span>
+              <span className="animate-pulse">{t.Chat.voice.modal.connecting}</span>
             ) : !isTranscribing ? (
               <>
                 {/* Pulsing red dot */}
                 <div className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
-                <span>Recording: {formatDuration(recordingDuration)}</span>
+                <span>
+                  {t.Chat.voice.modal.recording} {formatDuration(recordingDuration)}
+                </span>
               </>
             ) : (
-              <span className="animate-pulse">Processing your audio...</span>
+              <span className="animate-pulse">{t.Chat.voice.modal.processing}</span>
             )}
           </div>
 
           {/* Real-time transcript display */}
           {partialTranscript && !isTranscribing && (
             <div className="w-full rounded-lg bg-muted p-4">
-              <p className="text-xs text-muted-foreground mb-2">Live transcript:</p>
+              <p className="text-xs text-muted-foreground mb-2">
+                {t.Chat.voice.modal.liveTranscript}
+              </p>
               <p className="text-sm italic text-foreground">{partialTranscript}</p>
             </div>
           )}
@@ -117,7 +124,7 @@ export function VoiceRecordingModal({
             className="flex-1 sm:flex-1"
           >
             <X className="mr-2 h-4 w-4" />
-            Cancel
+            {t.Common.cancel}
           </Button>
           <Button
             variant="default"
@@ -126,7 +133,7 @@ export function VoiceRecordingModal({
             className="flex-1 sm:flex-1"
           >
             <Square className="mr-2 h-4 w-4" />
-            Stop & Transcribe
+            {t.Chat.voice.modal.stopAndTranscribe}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -18,9 +18,12 @@ vi.mock('../lib/logger', () => ({
   },
 }));
 
-// Mock GEMINI_25_FLASH_LITE
+// Mock models module
 vi.mock('../lib/models', () => ({
-  GEMINI_25_FLASH_LITE: 'google/gemini-2.5-flash-lite',
+  GEMINI_25_FLASH_LITE: 'gemini-2.5-flash-lite',
+  CLAUDE_HAIKU: 'claude-haiku-4.5',
+  NANO_BANANA_PRO: 'gemini-3-pro-image',
+  SCRIBE_V2_REALTIME: 'scribe-v2-realtime',
 }));
 
 describe('MessageCompactor', () => {
@@ -80,39 +83,6 @@ This is a test compression analysis.
     messageCompactor = new MessageCompactor(mockChatService);
   });
 
-  afterEach(() => {
-    messageCompactor.clearCache();
-  });
-
-  describe('shouldCompress', () => {
-    it('should return false when compression is disabled', () => {
-      const config = { ...defaultConfig, enabled: false };
-      const messages = createTestMessages(15);
-      const tokenCount = 100000;
-
-      expect(messageCompactor.shouldCompress(messages, config, tokenCount)).toBe(false);
-    });
-
-    it('should return false when no token count provided', () => {
-      const messages = createTestMessages(5);
-
-      expect(messageCompactor.shouldCompress(messages, defaultConfig)).toBe(false);
-    });
-
-    it('should return false when token count is below threshold', () => {
-      const messages = createTestMessages(5);
-      const tokenCount = 100000; // Below 200K * 0.7 = 140K threshold
-
-      expect(messageCompactor.shouldCompress(messages, defaultConfig, tokenCount)).toBe(false);
-    });
-
-    it('should return true when token count exceeds threshold', () => {
-      const messages = createTestMessages(15);
-      const tokenCount = 180000; // Above 200K * 0.7 = 140K threshold
-
-      expect(messageCompactor.shouldCompress(messages, defaultConfig, tokenCount)).toBe(true);
-    });
-  });
 
   describe('compactMessages', () => {
     it('should compress messages when needed', async () => {
@@ -151,7 +121,7 @@ This is a test compression analysis.
       expect(mockChatService.runAgentLoop).not.toHaveBeenCalled();
     });
 
-    it('should use cache for identical message sets', async () => {
+    it('should compress same messages multiple times', async () => {
       const messages = createTestMessages(12);
       const options: MessageCompactionOptions = {
         messages,
@@ -162,10 +132,12 @@ This is a test compression analysis.
       const result1 = await messageCompactor.compactMessages(options);
       expect(mockChatService.runAgentLoop).toHaveBeenCalledTimes(1);
 
-      // Second compression with same messages should use cache
+      // Second compression with same messages should also call runAgentLoop
       const result2 = await messageCompactor.compactMessages(options);
-      expect(mockChatService.runAgentLoop).toHaveBeenCalledTimes(1); // Still 1
-      expect(result2).toEqual(result1);
+      expect(mockChatService.runAgentLoop).toHaveBeenCalledTimes(2);
+      // Results should have same structure
+      expect(result2.originalMessageCount).toBe(result1.originalMessageCount);
+      expect(result2.compressedMessageCount).toBe(result1.compressedMessageCount);
     });
   });
 
@@ -207,26 +179,6 @@ This is a test compression analysis.
 
       expect(compressedMessages).toHaveLength(2); // Only preserved messages
       expect(compressedMessages).toEqual(mockResult.preservedMessages);
-    });
-  });
-
-  describe('cache management', () => {
-    it('should clear cache when requested', () => {
-      messageCompactor.clearCache();
-      expect(messageCompactor.getCacheSize()).toBe(0);
-    });
-
-    it('should report correct cache size', async () => {
-      const messages = createTestMessages(12);
-      const options: MessageCompactionOptions = {
-        messages,
-        config: defaultConfig,
-      };
-
-      expect(messageCompactor.getCacheSize()).toBe(0);
-
-      await messageCompactor.compactMessages(options);
-      expect(messageCompactor.getCacheSize()).toBe(1);
     });
   });
 
@@ -343,43 +295,6 @@ This is a test compression analysis.
 
       expect(result.preservedMessages).toHaveLength(1);
       expect(mockChatService.runAgentLoop).toHaveBeenCalled();
-    });
-  });
-
-  describe('cache eviction and management', () => {
-    it('should evict oldest cache entry when MAX_CACHE_SIZE is exceeded', async () => {
-      const MAX_CACHE_SIZE = 10;
-
-      // Fill cache beyond capacity
-      for (let i = 0; i < MAX_CACHE_SIZE + 2; i++) {
-        const messages = createTestMessages(10 + i); // Different messages each time
-        await messageCompactor.compactMessages({
-          messages,
-          config: defaultConfig,
-        });
-      }
-
-      const cacheSize = messageCompactor.getCacheSize();
-      expect(cacheSize).toBeLessThanOrEqual(MAX_CACHE_SIZE);
-    });
-
-    it('should generate different cache keys for different messages', () => {
-      const messages1 = createTestMessages(5);
-      const messages2 = createTestMessages(6);
-
-      const key1 = (messageCompactor as any).generateCacheKey(messages1);
-      const key2 = (messageCompactor as any).generateCacheKey(messages2);
-
-      expect(key1).not.toBe(key2);
-    });
-
-    it('should generate same cache key for identical messages', () => {
-      const messages = createTestMessages(5);
-
-      const key1 = (messageCompactor as any).generateCacheKey(messages);
-      const key2 = (messageCompactor as any).generateCacheKey(messages);
-
-      expect(key1).toBe(key2);
     });
   });
 

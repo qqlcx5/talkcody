@@ -32,7 +32,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useTranslation } from '@/hooks/use-locale';
 import { useMarketplaceSkills } from '@/hooks/use-marketplace-skills';
 import { useSkillMutations, useSkills } from '@/hooks/use-skills';
-import { DOC_LINKS } from '@/lib/doc-links';
+import { getDocLinks } from '@/lib/doc-links';
 import { logger } from '@/lib/logger';
 import type { MarketplaceSkill, Skill, SkillSortOption } from '@/types/skill';
 
@@ -407,7 +407,7 @@ export function SkillsMarketplacePage() {
                 <HelpTooltip
                   title={t.Skills.page.tooltipTitle}
                   description={t.Skills.page.tooltipDescription}
-                  docUrl={DOC_LINKS.features.skills}
+                  docUrl={getDocLinks().features.skills}
                 />
               </div>
               <p className="text-sm text-muted-foreground">{t.Skills.page.description}</p>

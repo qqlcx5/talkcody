@@ -1,10 +1,13 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { logger } from '@/lib/logger';
 import { fastDirectoryTreeService } from '@/services/fast-directory-tree-service';
 import { useGitStore } from '@/stores/git-store';
 import { useRepositoryStore } from '@/stores/repository-store';
+
+const GIT_STATUS_DEBOUNCE_DELAY = 300; // ms
+const FILE_TREE_DEBOUNCE_DELAY = 200; // ms
 
 /**
  * Hook to set up file system watching for the currently open repository
@@ -13,6 +16,48 @@ import { useRepositoryStore } from '@/stores/repository-store';
 export function useRepositoryWatcher() {
   const rootPath = useRepositoryStore((state) => state.rootPath);
   const refreshFileTree = useRepositoryStore((state) => state.refreshFileTree);
+
+  // Use refs to store timeout IDs for proper cleanup and debouncing
+  const gitStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fileTreeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fileChangeGitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Properly debounced git status refresh - cancels previous timeout
+  const debouncedRefreshGitStatus = useCallback(() => {
+    if (gitStatusTimeoutRef.current) {
+      clearTimeout(gitStatusTimeoutRef.current);
+    }
+
+    gitStatusTimeoutRef.current = setTimeout(() => {
+      logger.info('Executing debounced git status refresh');
+      useGitStore.getState().refreshStatus();
+      gitStatusTimeoutRef.current = null;
+    }, GIT_STATUS_DEBOUNCE_DELAY);
+  }, []);
+
+  // Properly debounced file tree refresh - cancels previous timeout
+  const debouncedRefreshFileTree = useCallback(() => {
+    if (fileTreeTimeoutRef.current) {
+      clearTimeout(fileTreeTimeoutRef.current);
+    }
+
+    fileTreeTimeoutRef.current = setTimeout(() => {
+      refreshFileTree();
+      fileTreeTimeoutRef.current = null;
+    }, FILE_TREE_DEBOUNCE_DELAY);
+  }, [refreshFileTree]);
+
+  // Properly debounced git status refresh for file changes - cancels previous timeout
+  const debouncedRefreshGitStatusForFileChange = useCallback(() => {
+    if (fileChangeGitTimeoutRef.current) {
+      clearTimeout(fileChangeGitTimeoutRef.current);
+    }
+
+    fileChangeGitTimeoutRef.current = setTimeout(() => {
+      useGitStore.getState().refreshStatus();
+      fileChangeGitTimeoutRef.current = null;
+    }, GIT_STATUS_DEBOUNCE_DELAY);
+  }, []);
 
   useEffect(() => {
     if (!rootPath) {
@@ -33,10 +78,8 @@ export function useRepositoryWatcher() {
 
     // Listen for file system changes
     const unlistenFileSystem = listen('file-system-changed', (event) => {
-      // logger.info('File system changed:', event.payload);
-
       // Intelligently invalidate cache for changed paths
-      const payload = event.payload as any;
+      const payload = event.payload as { path?: string };
       if (payload?.path) {
         fastDirectoryTreeService.invalidatePath(payload.path);
 
@@ -52,32 +95,43 @@ export function useRepositoryWatcher() {
       }
 
       // Debounced refresh of file tree
-      setTimeout(() => {
-        refreshFileTree();
-      }, 200);
+      debouncedRefreshFileTree();
 
-      // Also refresh git status when working directory files change
+      // Also debounced refresh git status when working directory files change
       // This is needed because .git directory only changes on git add/commit,
       // but git status should reflect working directory changes immediately
-      setTimeout(() => {
-        useGitStore.getState().refreshStatus();
-      }, 300);
+      debouncedRefreshGitStatusForFileChange();
     });
 
     // Listen for git status changes (from .git directory watcher)
     const unlistenGitStatus = listen('git-status-changed', () => {
-      logger.info('Git status changed, refreshing...');
-
-      // Debounced refresh of git status
-      setTimeout(() => {
-        useGitStore.getState().refreshStatus();
-      }, 200);
+      logger.info('Git status changed event received, scheduling debounced refresh...');
+      debouncedRefreshGitStatus();
     });
 
     return () => {
+      // Clear all pending timeouts on cleanup
+      if (gitStatusTimeoutRef.current) {
+        clearTimeout(gitStatusTimeoutRef.current);
+        gitStatusTimeoutRef.current = null;
+      }
+      if (fileTreeTimeoutRef.current) {
+        clearTimeout(fileTreeTimeoutRef.current);
+        fileTreeTimeoutRef.current = null;
+      }
+      if (fileChangeGitTimeoutRef.current) {
+        clearTimeout(fileChangeGitTimeoutRef.current);
+        fileChangeGitTimeoutRef.current = null;
+      }
+
       unlistenFileSystem.then((fn) => fn());
       unlistenGitStatus.then((fn) => fn());
       invoke('stop_file_watching').catch(logger.error);
     };
-  }, [rootPath, refreshFileTree]);
+  }, [
+    rootPath,
+    debouncedRefreshGitStatus,
+    debouncedRefreshFileTree,
+    debouncedRefreshGitStatusForFileChange,
+  ]);
 }

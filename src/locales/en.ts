@@ -64,6 +64,8 @@ const en: LocaleDefinition = {
     copied: 'Copied!',
     newChat: 'New Chat',
     clearHistory: 'Clear History',
+    chatHistory: 'Chat History',
+    searchConversations: 'Search conversations...',
     emptyState: {
       title: 'AI Assistant',
       description: 'Start chatting with AI!',
@@ -77,6 +79,16 @@ const en: LocaleDefinition = {
       transcribing: 'Transcribing...',
       notSupported: 'Voice recording not supported in this environment',
       error: (message) => `Error: ${message}`,
+      modal: {
+        connectingTitle: 'Connecting to Real-time Transcription...',
+        transcribingTitle: 'Transcribing Audio',
+        recordingTitle: 'Recording Voice Input',
+        connecting: 'Connecting...',
+        recording: 'Recording:',
+        processing: 'Processing your audio...',
+        liveTranscript: 'Live transcript:',
+        stopAndTranscribe: 'Stop & Transcribe',
+      },
     },
     image: {
       notSupported: 'Image Input Not Supported',
@@ -122,6 +134,16 @@ const en: LocaleDefinition = {
     model: {
       switchSuccess: 'Model switched',
       switchFailed: 'Failed to switch model. Please try again.',
+    },
+    toolbar: {
+      model: 'Model',
+      planMode: 'Plan Mode',
+      actMode: 'Act Mode',
+      planModeTooltip: 'AI will create a detailed plan for your approval before making changes',
+      actModeTooltip: 'AI will execute tasks directly without requiring plan approval',
+      toggleTerminal: 'Toggle Terminal',
+      inputTokens: 'Tokens',
+      outputTokens: 'Tokens',
     },
   },
 
@@ -197,19 +219,23 @@ const en: LocaleDefinition = {
       description: 'Configure models for different purposes',
       mainModel: {
         title: 'Main Model',
-        description: 'Primary model for complex tasks and conversations',
+        description: 'Primary model for coding and complex tasks',
       },
       smallModel: {
         title: 'Small Model',
-        description: 'Fast model for simple tasks and code completion',
+        description: 'Fast model for simple tasks',
       },
       imageGenerator: {
-        title: 'Image Generator',
-        description: 'Model for generating images',
+        title: 'Image Generator Model',
+        description: '',
       },
       transcription: {
-        title: 'Transcription',
-        description: 'Model for audio transcription',
+        title: 'Transcription Model',
+        description: '',
+      },
+      messageCompaction: {
+        title: 'Message Compaction Model',
+        description: 'Model for compressing conversation history when context limit is reached',
       },
       resetToDefault: 'Reset to Default',
       updated: (type) => `${type} updated`,
@@ -428,6 +454,15 @@ const en: LocaleDefinition = {
       noRepositoryPath: 'This project has no repository path',
       openedInNewWindow: (name) => `Opened ${name} in new window`,
       failedToOpenInWindow: 'Failed to open project in new window',
+      deleteProject: 'Delete Project',
+      deleteProjectTitle: 'Delete Project',
+      deleteProjectDescription: (name) =>
+        `Are you sure you want to delete "${name}"? This action cannot be undone.`,
+      deleteProjectCancel: 'Cancel',
+      deleteProjectConfirm: 'Delete',
+      deleteProjectDeleting: 'Deleting...',
+      deleteProjectSuccess: (name) => `Project "${name}" has been deleted`,
+      deleteProjectError: 'Failed to delete project',
     },
   },
 
@@ -440,6 +475,7 @@ const en: LocaleDefinition = {
       description: 'Import a code repository to start browsing files',
     },
     openFailed: (path) => `Failed to open repository: ${path}`,
+    directoryNotFound: 'Directory no longer exists',
   },
 
   Skills: {
@@ -460,6 +496,21 @@ const en: LocaleDefinition = {
     docs: (count) => `Docs (${count})`,
     scripts: 'Scripts',
     marketplace: 'Marketplace',
+    selector: {
+      title: 'Agent Skills',
+      description:
+        'Pre-configured prompts and workflows that give the AI agent specialized knowledge. Skills can enhance coding tasks, documentation, testing, and more.',
+      learnMore: 'Learn more',
+      active: 'active',
+      searchPlaceholder: 'Search skills...',
+      loading: 'Loading skills...',
+      noSkillsFound: 'No skills found',
+      noSkillsAvailable: 'No skills available',
+      browseMarketplace: 'Browse Skills Marketplace',
+      skillRemoved: 'Skill removed',
+      skillAdded: 'Skill added',
+      updateFailed: 'Failed to update skill',
+    },
     page: {
       description: 'Discover domain knowledge packages for your projects',
       createNew: 'Create New Skill',
@@ -549,6 +600,26 @@ const en: LocaleDefinition = {
     builtIn: 'Built-in',
     connected: (count) => `Connected (${count} tools)`,
     disconnected: 'Disconnected',
+    selector: {
+      title: 'MCP Servers',
+      description:
+        "Model Context Protocol (MCP) servers provide external tools and integrations. Connect to services like databases, APIs, and other external systems to extend the AI agent's capabilities.",
+      learnMore: 'Learn more',
+      toolsTitle: 'MCP Tools',
+      modified: 'Modified',
+      selected: 'selected',
+      reset: 'Reset',
+      noServersAvailable: 'No MCP servers available',
+      connected: 'Connected',
+      error: 'Error',
+      noToolsFromServer: 'No tools available from this server',
+      noActiveAgent: 'No active agent',
+      toolRemoved: 'MCP tool removed (temporary)',
+      toolAdded: 'MCP tool added (temporary)',
+      updateFailed: 'Failed to update MCP tool',
+      overridesReset: 'MCP tool overrides reset',
+      resetFailed: 'Failed to reset',
+    },
     refreshConnection: 'Refresh connection',
     enableServer: 'Enable server',
     disableServer: 'Disable server',
@@ -625,6 +696,26 @@ const en: LocaleDefinition = {
     lmstudio: { description: 'Local LM Studio Models (No API Key Required)' },
     tavily: { description: 'Tavily Web Search API' },
     elevenlabs: { description: 'Eleven Labs API' },
+  },
+
+  Onboarding: {
+    title: 'Welcome to TalkCody',
+    subtitle: "Let's set up your preferences",
+    skip: 'Skip',
+    getStarted: 'Get Started',
+    steps: {
+      language: {
+        title: 'Choose Your Language',
+        description: 'Select your preferred display language',
+      },
+      theme: {
+        title: 'Choose Your Theme',
+        description: 'Select your preferred appearance',
+        light: 'Light',
+        dark: 'Dark',
+        system: 'System',
+      },
+    },
   },
 };
 

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useConversations } from '@/hooks/use-conversations';
+import { useTranslation } from '@/hooks/use-locale';
 import { useAgentExecutionStore } from '@/stores/agent-execution-store';
 import { ConversationList } from './conversation-list';
 
@@ -22,6 +23,7 @@ export function ChatHistory({
   onConversationSelect,
   onNewChat,
 }: ChatHistoryProps) {
+  const t = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
   const { isAgentRunning } = useAgentExecutionStore();
 
@@ -67,7 +69,7 @@ export function ChatHistory({
         <Button
           className="h-6 w-6 p-0 hover:bg-gray-200 dark:hover:bg-gray-700"
           size="sm"
-          title="Chat History"
+          title={t.Chat.chatHistory}
           variant="ghost"
         >
           <History className="h-3.5 w-3.5" />
@@ -78,7 +80,7 @@ export function ChatHistory({
           {/* Search Header */}
           <div className="border-b p-3">
             <div className="mb-2 flex items-center justify-between">
-              <h4 className="font-medium text-sm">Chat History</h4>
+              <h4 className="font-medium text-sm">{t.Chat.chatHistory}</h4>
               <Button
                 className="h-6 px-2 text-xs"
                 disabled={isAgentRunning}
@@ -87,7 +89,7 @@ export function ChatHistory({
                 variant="ghost"
               >
                 <Plus className="mr-1 h-3 w-3" />
-                New
+                {t.Common.add}
               </Button>
             </div>
             <div className="relative">
@@ -95,7 +97,7 @@ export function ChatHistory({
               <Input
                 className="h-8 pl-9"
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search conversations..."
+                placeholder={t.Chat.searchConversations}
                 value={searchQuery}
               />
             </div>

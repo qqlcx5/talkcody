@@ -1,5 +1,6 @@
-import { ExternalLink, FolderOpen, MoreVertical, Plus } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { ask } from '@tauri-apps/plugin-dialog';
+import { ExternalLink, FolderOpen, MoreVertical, Plus, Trash2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,6 +8,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useUiNavigation } from '@/contexts/ui-navigation';
@@ -15,13 +17,12 @@ import { logger } from '@/lib/logger';
 import type { Project } from '@/services/database/types';
 import { databaseService } from '@/services/database-service';
 import { WindowManagerService } from '@/services/window-manager-service';
+import { useProjectStore } from '@/stores/project-store';
 import { useRepositoryStore } from '@/stores/repository-store';
 import { settingsManager } from '@/stores/settings-store';
 import { NavigationView } from '@/types/navigation';
 
 export function ProjectsPage() {
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
 
   const t = useTranslation();
@@ -29,17 +30,12 @@ export function ProjectsPage() {
   const openRepository = useRepositoryStore((state) => state.openRepository);
   const { setActiveView } = useUiNavigation();
 
-  const loadProjects = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      const allProjects = await databaseService.getProjects();
-      setProjects(allProjects);
-    } catch (error) {
-      logger.error('Failed to load projects:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  // Use project store for shared state
+  const projects = useProjectStore((state) => state.projects);
+  const isLoading = useProjectStore((state) => state.isLoading);
+  const loadProjects = useProjectStore((state) => state.loadProjects);
+  const refreshProjects = useProjectStore((state) => state.refreshProjects);
+  const deleteProjectFromStore = useProjectStore((state) => state.deleteProject);
 
   useEffect(() => {
     loadProjects();
@@ -71,7 +67,7 @@ export function ProjectsPage() {
       const newProject = await selectRepository();
       if (newProject) {
         setCurrentProjectId(newProject.id);
-        await loadProjects();
+        await refreshProjects();
       }
     } catch (error) {
       logger.error('Failed to import repository:', error);
@@ -91,6 +87,25 @@ export function ProjectsPage() {
     } catch (error) {
       logger.error('Failed to open project in new window:', error);
       toast.error(t.Projects.page.failedToOpenInWindow);
+    }
+  };
+
+  const handleDeleteProject = async (event: React.MouseEvent, project: Project) => {
+    event.stopPropagation();
+
+    try {
+      const shouldDelete = await ask(t.Projects.page.deleteProjectDescription(project.name), {
+        title: t.Projects.page.deleteProjectTitle,
+        kind: 'warning',
+      });
+
+      if (shouldDelete) {
+        await deleteProjectFromStore(project.id);
+        toast.success(t.Projects.page.deleteProjectSuccess(project.name));
+      }
+    } catch (error) {
+      logger.error('Failed to delete project:', error);
+      toast.error(t.Projects.page.deleteProjectError);
     }
   };
 
@@ -148,18 +163,18 @@ export function ProjectsPage() {
                     <FolderOpen className="h-5 w-5" />
                     {project.name}
                   </div>
-                  {project.root_path && (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0 hover:bg-gray-200 dark:hover:bg-gray-700"
-                        >
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 hover:bg-gray-200 dark:hover:bg-gray-700"
+                      >
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      {project.root_path && (
                         <DropdownMenuItem
                           onClick={(e) => handleOpenInNewWindow(e, project)}
                           className="flex items-center gap-2"
@@ -167,9 +182,17 @@ export function ProjectsPage() {
                           <ExternalLink className="h-4 w-4" />
                           {t.Projects.page.openInNewWindow}
                         </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  )}
+                      )}
+                      {project.root_path && <DropdownMenuSeparator />}
+                      <DropdownMenuItem
+                        onClick={(e) => handleDeleteProject(e, project)}
+                        className="flex items-center gap-2 text-red-600 focus:text-red-600"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        {t.Projects.page.deleteProject}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </CardTitle>
               </CardHeader>
               <CardContent>

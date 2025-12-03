@@ -33,7 +33,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useTranslation } from '@/hooks/use-locale';
 import { useUnifiedAgents } from '@/hooks/use-unified-agents';
-import { DOC_LINKS } from '@/lib/doc-links';
+import { getDocLinks } from '@/lib/doc-links';
 import { logger } from '@/lib/logger';
 import { agentRegistry } from '@/services/agents/agent-registry';
 import { forkAgent } from '@/services/agents/fork-agent';
@@ -387,7 +387,7 @@ export function AgentMarketplacePage() {
                 <HelpTooltip
                   title={t.Agents.page.tooltipTitle}
                   description={t.Agents.page.tooltipDescription}
-                  docUrl={DOC_LINKS.features.agents}
+                  docUrl={getDocLinks().features.agents}
                 />
               </div>
               <p className="text-sm text-muted-foreground">

@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { useLocale } from '@/hooks/use-locale';
-import { DOC_LINKS } from '@/lib/doc-links';
+import { getDocLinks } from '@/lib/doc-links';
 import { logger } from '@/lib/logger';
 import { CLAUDE_HAIKU, GEMINI_25_FLASH_LITE, GLM_46, GPT5_NANO } from '@/lib/models';
 import { createTauriFetch } from '@/lib/tauri-fetch';
@@ -271,7 +271,7 @@ export function ApiKeysSettings() {
           <HelpTooltip
             title={t.Settings.apiKeys.tooltipTitle}
             description={t.Settings.apiKeys.tooltipDescription}
-            docUrl={DOC_LINKS.configuration.apiKeys}
+            docUrl={getDocLinks().configuration.apiKeys}
           />
         </div>
         <CardDescription>{t.Settings.apiKeys.description}</CardDescription>
@@ -294,13 +294,13 @@ export function ApiKeysSettings() {
                         {t.Settings.apiKeys.configured}
                       </span>
                     )}
-                    {DOC_LINKS.apiKeysProviders[
-                      providerId as keyof typeof DOC_LINKS.apiKeysProviders
+                    {getDocLinks().apiKeysProviders[
+                      providerId as keyof ReturnType<typeof getDocLinks>['apiKeysProviders']
                     ] && (
                       <a
                         href={
-                          DOC_LINKS.apiKeysProviders[
-                            providerId as keyof typeof DOC_LINKS.apiKeysProviders
+                          getDocLinks().apiKeysProviders[
+                            providerId as keyof ReturnType<typeof getDocLinks>['apiKeysProviders']
                           ]
                         }
                         target="_blank"

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { InitializationScreen } from '@/components/initialization-screen';
 import { MainContent } from '@/components/main-content';
 import { NavigationSidebar } from '@/components/navigation-sidebar';
+import { OnboardingWizard } from '@/components/onboarding';
 import { Toaster } from '@/components/ui/sonner';
 import { UpdateNotification } from '@/components/update-notification';
 import { UiNavigationProvider, useUiNavigation } from '@/contexts/ui-navigation';
@@ -14,6 +15,7 @@ import { logger } from '@/lib/logger';
 import { initializationManager } from '@/services/initialization-manager';
 import { WindowRestoreService } from '@/services/window-restore-service';
 import { useAuthStore } from '@/stores/auth-store';
+import { useSettingsStore } from '@/stores/settings-store';
 import { RepositoryStoreProvider } from '@/stores/window-scoped-repository-store';
 import { NavigationView } from '@/types/navigation';
 
@@ -25,6 +27,7 @@ function AppContent() {
   // Initialization state
   const [isInitializing, setIsInitializing] = useState(true);
   const [initError, setInitError] = useState<string | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   // Register global keyboard shortcuts
   useGlobalShortcuts({
@@ -48,6 +51,13 @@ function AppContent() {
 
         const initTime = performance.now() - startTime;
         logger.info(`App initialization completed in ${initTime.toFixed(0)}ms`);
+
+        // Check if onboarding is needed
+        const { onboarding_completed } = useSettingsStore.getState();
+        if (!onboarding_completed) {
+          setShowOnboarding(true);
+        }
+
         setIsInitializing(false);
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
@@ -264,6 +274,11 @@ function AppContent() {
   // Show initialization screen while loading or if there's an error
   if (isInitializing || initError) {
     return <InitializationScreen error={initError} />;
+  }
+
+  // Show onboarding for first-time users
+  if (showOnboarding) {
+    return <OnboardingWizard onComplete={() => setShowOnboarding(false)} />;
   }
 
   return (

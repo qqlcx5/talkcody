@@ -30,7 +30,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useTranslation } from '@/hooks/use-locale';
 import { useMultiMCPTools } from '@/hooks/use-multi-mcp-tools';
-import { DOC_LINKS } from '@/lib/doc-links';
+import { getDocLinks } from '@/lib/doc-links';
 import { logger } from '@/lib/logger';
 import { TransportFactory } from '@/lib/mcp/transport-factory';
 import {
@@ -301,7 +301,7 @@ export function MCPServersPage() {
             <HelpTooltip
               title={t.MCPServers.tooltipTitle}
               description={t.MCPServers.tooltipDescription}
-              docUrl={DOC_LINKS.features.mcpServers}
+              docUrl={getDocLinks().features.mcpServers}
             />
           </div>
           <p className="text-gray-600 dark:text-gray-400 mt-1">{t.MCPServers.description}</p>

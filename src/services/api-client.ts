@@ -1,4 +1,5 @@
 import { getApiUrl } from '@/lib/config';
+import { tauriFetch } from '@/lib/tauri-fetch';
 import { useAuthStore } from '@/stores/auth-store';
 import { secureStorage } from './secure-storage';
 
@@ -39,7 +40,7 @@ class ApiClient {
 
     // Make request
     const url = getApiUrl(endpoint);
-    const response = await fetch(url, {
+    const response = await tauriFetch(url, {
       ...fetchOptions,
       headers,
     });

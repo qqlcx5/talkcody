@@ -133,15 +133,7 @@ export function createTauriFetch(): TauriFetchFunction {
 
       if (chunk) {
         chunkCount++;
-        // Reset timeout on each chunk received
         resetStreamTimeout();
-        // // Log first chunk and every 100th chunk
-        // if (chunkCount === 1 || chunkCount % 100 === 0) {
-        //   logger.info(
-        //     `[Tauri Fetch] Received chunk #${chunkCount} (${chunk.length} bytes) for request_id: ${rid}`
-        //   );
-        // }
-        // Write chunk to stream
         writer.ready.then(() => {
           writer.write(new Uint8Array(chunk)).catch((e) => {
             logger.error('[Tauri Fetch] Error writing chunk:', e);
@@ -185,7 +177,6 @@ export function createTauriFetch(): TauriFetchFunction {
 
       // Set the request ID and process any queued events
       currentRequestId = request_id;
-      logger.info(`[Tauri Fetch] Stream started for request_id: ${request_id}`);
 
       // Start the stream timeout
       resetStreamTimeout();
@@ -215,3 +206,9 @@ export function createTauriFetch(): TauriFetchFunction {
     }
   };
 }
+
+/**
+ * Singleton instance of tauriFetch for convenient imports
+ * Use this instead of calling createTauriFetch() repeatedly
+ */
+export const tauriFetch = createTauriFetch();

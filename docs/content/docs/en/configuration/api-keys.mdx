@@ -21,7 +21,9 @@ TalkCody supports multiple AI providers, each requiring their own API key:
 - **Alibaba Qwen** - Qwen models
 - **Zhipu AI** - GLM models
 - **MiniMax** - MiniMax models
+- **DeepSeek** - DeepSeek models
 - **Ollama** - Local models (no key needed)
+- **LM Studio** - Local models (no key needed)
 
 <Callout type="success">
 TalkCody supports any third-party provider compatible with OpenAI or Anthropic APIs. Simply enter the corresponding API key and optional custom Base URL.
@@ -206,6 +208,50 @@ Locally running open-source models, completely offline, privacy-focused.
 
 <Callout type="tip">
 Ollama is completely free and supports offline use, but requires sufficient local computing resources (8GB+ RAM recommended).
+</Callout>
+
+### DeepSeek
+
+DeepSeek's high-performance large language models, offering powerful code generation and reasoning capabilities at highly competitive prices.
+
+**Steps to obtain:**
+1. Visit [platform.deepseek.com](https://platform.deepseek.com)
+2. Click "Sign Up" or "Login" in the top right corner
+3. Complete email verification and account setup
+4. After logging in, enter the console
+5. Select "API Keys" from the left menu
+6. Click "Create new API key"
+7. Name your key and confirm
+8. Copy the generated key (format: `sk-...`)
+9. Paste it into TalkCody's DeepSeek field
+
+<Callout type="info">
+DeepSeek offers highly competitive pricing. The DeepSeek-V3 model performs close to GPT-4 but costs only 1/10 of the price. New users receive free credits upon registration.
+</Callout>
+
+<Callout type="tip">
+DeepSeek's DeepSeek-R1 model is designed for complex reasoning tasks, excelling in mathematics, code, and logical reasoning.
+</Callout>
+
+### LM Studio
+
+LM Studio is a desktop application that lets you run open-source large language models locally, providing a graphical interface to manage and run models.
+
+**Configuration steps:**
+1. Visit [lmstudio.ai](https://lmstudio.ai) to download and install LM Studio
+2. Open the LM Studio application
+3. Search and download your desired model in the "Discover" tab
+4. After download completes, go to the "Developer" tab
+5. Click "Start Server" to start the local server
+6. Server runs by default at `http://localhost:1234`
+7. No API key needed in TalkCody, simply select LM Studio models
+
+<Callout type="tip">
+LM Studio is completely free and supports offline use, providing a friendly graphical interface to manage local models. Supports Apple Silicon acceleration and NVIDIA GPU acceleration.
+</Callout>
+
+<Callout type="info">
+LM Studio supports GGUF format models and can download many open-source models from Hugging Face, such as Llama, Mistral, Phi, and more.
 </Callout>
 
 ### Tavily
