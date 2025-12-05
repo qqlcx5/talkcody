@@ -36,10 +36,13 @@ export function formatToolInputSummary(
   if (toolName === 'codeSearch') {
     return `${input.pattern} in ${input.path}`;
   }
-  if (toolName === 'exitPlanModeTool') {
+  if (toolName === 'exitPlanMode') {
     return (output as { action?: string })?.action ?? '';
   }
-  if (toolName === 'todoWriteTool' && Array.isArray(input.todos)) {
+  if (toolName === 'listFiles') {
+    return `${input.directory_path}`;
+  }
+  if (toolName === 'todoWrite' && Array.isArray(input.todos)) {
     const inProgressTodo = (input.todos as TodoItem[]).find(
       (todo) => todo.status === 'in_progress'
     );

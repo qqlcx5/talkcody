@@ -117,19 +117,10 @@ export function createTauriFetch(): TauriFetchFunction {
       signal.addEventListener('abort', () => close());
     }
 
-    // Track current request_id (will be set after invoke completes)
-    let currentRequestId: number | undefined;
-    // Queue events that arrive before request_id is set
-    const pendingEvents: StreamEvent[] = [];
-
     // Process a single stream event
     let chunkCount = 0;
     const processEvent = (payload: StreamEvent) => {
-      const { request_id: rid, chunk, status } = payload || {};
-
-      if (currentRequestId !== rid) {
-        return;
-      }
+      const { chunk, status } = payload || {};
 
       if (chunk) {
         chunkCount++;
@@ -141,51 +132,25 @@ export function createTauriFetch(): TauriFetchFunction {
         });
       } else if (status === 0) {
         // End of stream
-        logger.info(
-          `[Tauri Fetch] Stream ended for request_id: ${rid} (total chunks: ${chunkCount})`
-        );
+        logger.info(`[Tauri Fetch] Stream ended (total chunks: ${chunkCount})`);
         close();
       }
     };
 
-    // Listen for streaming events - MUST await to ensure listener is registered
-    let totalEventsReceived = 0;
-    unlisten = await listen<StreamEvent>('stream-response', (event) => {
-      totalEventsReceived++;
-      // Log first event received to confirm listener is working
-      if (totalEventsReceived === 1) {
-        logger.info(
-          `[Tauri Fetch] First event received (total: ${totalEventsReceived}), currentRequestId: ${currentRequestId}, event.payload.request_id: ${event.payload?.request_id}`
-        );
-      }
-      if (currentRequestId === undefined) {
-        // Request ID not yet set, queue the event
-        pendingEvents.push(event.payload);
-        logger.info(
-          `[Tauri Fetch] Queued event (request_id not set yet), queue size: ${pendingEvents.length}`
-        );
-      } else {
-        processEvent(event.payload);
-      }
-    });
-
     try {
-      // Invoke stream_fetch command
+      // First, invoke stream_fetch to get request_id
       const response = await invoke<StreamResponse>('stream_fetch', { request: proxyRequest });
-
       const { request_id, status, headers: responseHeaders } = response;
 
-      // Set the request ID and process any queued events
-      currentRequestId = request_id;
+      // Now register listener with request-specific event name
+      // This avoids receiving events from other concurrent requests
+      const eventName = `stream-response-${request_id}`;
+      unlisten = await listen<StreamEvent>(eventName, (event) => {
+        processEvent(event.payload);
+      });
 
       // Start the stream timeout
       resetStreamTimeout();
-
-      // Process any events that arrived before request_id was set
-      for (const pendingEvent of pendingEvents) {
-        processEvent(pendingEvent);
-      }
-      pendingEvents.length = 0; // Clear the queue
 
       // Create Response object with streaming body
       const streamingResponse = new Response(ts.readable, {

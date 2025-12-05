@@ -33,16 +33,15 @@ export function normalizeToolName(toolName: string): string | null {
   }
 
   // Common mappings from AI-generated names to actual tool names
-  // This handles cases like "bash Tool" -> "bashTool", "Bash Tool" -> "bashTool", etc.
-  // Note: The key in TOOL_DEFINITIONS is 'bashTool', but the tool's name property is 'bash'
+  // This handles cases like "bash Tool" -> "bash", "Bash Tool" -> "bash", etc.
   const commonMappings: Record<string, string> = {
     // Bash tool variations
-    bash: 'bashTool',
-    bashTool: 'bashTool',
-    Bash: 'bashTool',
-    BashTool: 'bashTool',
-    bashtool: 'bashTool',
-    BASH: 'bashTool',
+    bash: 'bash',
+    bashTool: 'bash',
+    Bash: 'bash',
+    BashTool: 'bash',
+    bashtool: 'bash',
+    BASH: 'bash',
 
     // Read file variations
     readFile: 'readFile',
@@ -69,12 +68,12 @@ export function normalizeToolName(toolName: string): string | null {
     EditFileTool: 'editFile',
 
     // Glob tool variations
-    globTool: 'globTool',
-    GlobTool: 'globTool',
-    glob: 'globTool',
-    Glob: 'globTool',
-    GLOB: 'globTool',
-    globtool: 'globTool',
+    glob: 'glob',
+    globTool: 'glob',
+    GlobTool: 'glob',
+    Glob: 'glob',
+    GLOB: 'glob',
+    globtool: 'glob',
 
     // Code search variations
     codeSearch: 'codeSearch',
@@ -104,52 +103,66 @@ export function normalizeToolName(toolName: string): string | null {
     CallAgentTool: 'callAgent',
 
     // Todo write variations
-    todoWriteTool: 'todoWriteTool',
-    TodoWriteTool: 'todoWriteTool',
-    todoWrite: 'todoWriteTool',
-    TodoWrite: 'todoWriteTool',
-    todowrite: 'todoWriteTool',
-    TODOWRITE: 'todoWriteTool',
-    todowritetool: 'todoWriteTool',
+    todoWrite: 'todoWrite',
+    todoWriteTool: 'todoWrite',
+    TodoWriteTool: 'todoWrite',
+    TodoWrite: 'todoWrite',
+    todowrite: 'todoWrite',
+    TODOWRITE: 'todoWrite',
+    todowritetool: 'todoWrite',
 
     // Web search variations
-    webSearchTool: 'webSearchTool',
-    WebSearchTool: 'webSearchTool',
-    webSearch: 'webSearchTool',
-    WebSearch: 'webSearchTool',
-    websearch: 'webSearchTool',
-    WEBSEARCH: 'webSearchTool',
-    websearchtool: 'webSearchTool',
+    webSearch: 'webSearch',
+    webSearchTool: 'webSearch',
+    WebSearchTool: 'webSearch',
+    WebSearch: 'webSearch',
+    websearch: 'webSearch',
+    WEBSEARCH: 'webSearch',
+    websearchtool: 'webSearch',
 
     // Web fetch variations
-    webFetchTool: 'webFetchTool',
-    WebFetchTool: 'webFetchTool',
-    webFetch: 'webFetchTool',
-    WebFetch: 'webFetchTool',
-    webfetch: 'webFetchTool',
-    WEBFETCH: 'webFetchTool',
-    webfetchtool: 'webFetchTool',
+    webFetch: 'webFetch',
+    webFetchTool: 'webFetch',
+    WebFetchTool: 'webFetch',
+    WebFetch: 'webFetch',
+    webfetch: 'webFetch',
+    WEBFETCH: 'webFetch',
+    webfetchtool: 'webFetch',
 
     // Ask user questions variations
-    askUserQuestionsTool: 'askUserQuestionsTool',
-    AskUserQuestionsTool: 'askUserQuestionsTool',
-    askUserQuestions: 'askUserQuestionsTool',
-    AskUserQuestions: 'askUserQuestionsTool',
-    askuserquestions: 'askUserQuestionsTool',
+    askUserQuestions: 'askUserQuestions',
+    askUserQuestionsTool: 'askUserQuestions',
+    AskUserQuestionsTool: 'askUserQuestions',
+    AskUserQuestions: 'askUserQuestions',
+    askuserquestions: 'askUserQuestions',
 
     // Exit plan mode variations
-    exitPlanModeTool: 'exitPlanModeTool',
-    ExitPlanModeTool: 'exitPlanModeTool',
-    exitPlanMode: 'exitPlanModeTool',
-    ExitPlanMode: 'exitPlanModeTool',
-    exitplanmode: 'exitPlanModeTool',
+    exitPlanMode: 'exitPlanMode',
+    exitPlanModeTool: 'exitPlanMode',
+    ExitPlanModeTool: 'exitPlanMode',
+    ExitPlanMode: 'exitPlanMode',
+    exitplanmode: 'exitPlanMode',
 
     // Get skill variations
-    getSkillTool: 'getSkillTool',
-    GetSkillTool: 'getSkillTool',
-    getSkill: 'getSkillTool',
-    GetSkill: 'getSkillTool',
-    getskill: 'getSkillTool',
+    getSkill: 'getSkill',
+    getSkillTool: 'getSkill',
+    GetSkillTool: 'getSkill',
+    GetSkill: 'getSkill',
+    getskill: 'getSkill',
+
+    // GitHub PR variations
+    githubPR: 'githubPR',
+    githubPRTool: 'githubPR',
+    GithubPRTool: 'githubPR',
+    GithubPR: 'githubPR',
+    githubpr: 'githubPR',
+
+    // Execute skill script variations
+    executeSkillScript: 'executeSkillScript',
+    executeSkillScriptTool: 'executeSkillScript',
+    ExecuteSkillScriptTool: 'executeSkillScript',
+    ExecuteSkillScript: 'executeSkillScript',
+    executeskillscript: 'executeSkillScript',
   };
 
   // Try exact match first

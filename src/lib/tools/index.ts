@@ -11,10 +11,6 @@
 
 import type { ToolWithUI } from '@/types/tool';
 import { logger } from '../logger';
-import type { ToolCategory, ToolMetadata } from './tool-metadata';
-
-// Re-export ToolCategory from tool-metadata for external use
-export type { ToolCategory } from './tool-metadata';
 
 // Import all tools explicitly to avoid dynamic import issues
 import { askUserQuestionsTool } from './ask-user-questions-tool';
@@ -33,6 +29,21 @@ import { todoWriteTool } from './todo-write-tool';
 import { webFetchTool } from './web-fetch-tool';
 import { webSearchTool } from './web-search-tool';
 import { writeFile } from './write-file-tool';
+
+export type ToolCategory = 'read' | 'write' | 'edit' | 'other';
+
+export interface ToolMetadata {
+  /** Category of the tool: read, write, edit, or other */
+  category: ToolCategory;
+  /** Whether this tool can run concurrently with tools of the same type */
+  canConcurrent: boolean;
+  /** Whether this tool operates on files */
+  fileOperation: boolean;
+  /** Extract target file path from tool input (for file operations) */
+  getTargetFile?: (input: any) => string | null;
+  /** Whether to render "doing" UI for this tool. Set to false for fast operations to avoid UI flash. Default: true */
+  renderDoingUI?: boolean;
+}
 
 interface ToolDefinition {
   /** Direct reference to the tool */
@@ -63,7 +74,7 @@ export const TOOL_DEFINITIONS = {
       renderDoingUI: false,
     },
   },
-  globTool: {
+  glob: {
     tool: globTool,
     label: 'Glob',
     metadata: {
@@ -90,6 +101,7 @@ export const TOOL_DEFINITIONS = {
       category: 'read' as ToolCategory,
       canConcurrent: true,
       fileOperation: false,
+      renderDoingUI: false,
     },
   },
 
@@ -101,6 +113,7 @@ export const TOOL_DEFINITIONS = {
       category: 'write' as ToolCategory,
       canConcurrent: false,
       fileOperation: true,
+      renderDoingUI: true,
       getTargetFile: (input) => (input?.file_path as string) || null,
     },
   },
@@ -113,45 +126,50 @@ export const TOOL_DEFINITIONS = {
       category: 'edit' as ToolCategory,
       canConcurrent: false,
       fileOperation: true,
+      renderDoingUI: true,
       getTargetFile: (input) => (input?.file_path as string) || null,
     },
   },
 
   // Other tools
-  askUserQuestionsTool: {
+  askUserQuestions: {
     tool: askUserQuestionsTool,
     label: 'Ask User Questions',
     metadata: {
       category: 'other' as ToolCategory,
       canConcurrent: false,
       fileOperation: false,
+      renderDoingUI: true,
     },
   },
-  exitPlanModeTool: {
+  exitPlanMode: {
     tool: exitPlanModeTool,
     label: 'Exit Plan Mode',
     metadata: {
       category: 'other' as ToolCategory,
       canConcurrent: false,
       fileOperation: false,
+      renderDoingUI: true,
     },
   },
-  bashTool: {
+  bash: {
     tool: bashTool,
     label: 'Bash',
     metadata: {
       category: 'other' as ToolCategory,
       canConcurrent: false,
       fileOperation: false,
+      renderDoingUI: true,
     },
   },
-  executeSkillScriptTool: {
+  executeSkillScript: {
     tool: executeSkillScriptTool,
     label: 'Execute Skill Script',
     metadata: {
       category: 'other' as ToolCategory,
       canConcurrent: false,
       fileOperation: false,
+      renderDoingUI: true,
     },
   },
   callAgent: {
@@ -161,51 +179,57 @@ export const TOOL_DEFINITIONS = {
       category: 'other' as ToolCategory,
       canConcurrent: false,
       fileOperation: false,
+      renderDoingUI: true,
     },
   },
-  todoWriteTool: {
+  todoWrite: {
     tool: todoWriteTool,
     label: 'Todo',
     metadata: {
       category: 'other' as ToolCategory,
       canConcurrent: false,
       fileOperation: false,
+      renderDoingUI: false,
     },
   },
-  webSearchTool: {
+  webSearch: {
     tool: webSearchTool,
     label: 'Web Search',
     metadata: {
       category: 'other' as ToolCategory,
       canConcurrent: true,
       fileOperation: false,
+      renderDoingUI: true,
     },
   },
-  webFetchTool: {
+  webFetch: {
     tool: webFetchTool,
     label: 'Web Fetch',
     metadata: {
       category: 'other' as ToolCategory,
       canConcurrent: true,
       fileOperation: false,
+      renderDoingUI: true,
     },
   },
-  githubPRTool: {
+  githubPR: {
     tool: githubPRTool,
     label: 'GitHub PR',
     metadata: {
       category: 'read' as ToolCategory,
       canConcurrent: true,
       fileOperation: false,
+      renderDoingUI: true,
     },
   },
-  getSkillTool: {
+  getSkill: {
     tool: getSkillTool,
     label: 'Get Skill',
     metadata: {
       category: 'other' as ToolCategory,
       canConcurrent: true,
       fileOperation: false,
+      renderDoingUI: false,
     },
   },
 } as const satisfies Record<string, ToolDefinition>;
@@ -307,6 +331,7 @@ export function getToolMetadata(toolName: string): ToolMetadata {
       category: 'other',
       canConcurrent: false,
       fileOperation: false,
+      renderDoingUI: true,
     };
   }
 

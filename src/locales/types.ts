@@ -138,6 +138,8 @@ export interface LocaleDefinition {
       planModeTooltip: string;
       actModeTooltip: string;
       toggleTerminal: string;
+      searchFiles: string;
+      searchContent: string;
       inputTokens: string;
       outputTokens: string;
     };
@@ -537,9 +539,12 @@ export interface LocaleDefinition {
     skillsTooltip: string;
     mcpServers: string;
     mcpServersTooltip: string;
+    logs: string;
+    logsTooltip: string;
     settings: string;
     settingsTooltip: string;
     switchTheme: (theme: 'light' | 'dark') => string;
+    githubTooltip: string;
   };
 
   Initialization: {
@@ -558,6 +563,18 @@ export interface LocaleDefinition {
     saveFailed: (item: string) => string;
     deleteFailed: (item: string) => string;
     updateFailed: (item: string) => string;
+  };
+
+  Logs: {
+    title: string;
+    description: string;
+    openLogDirectory: string;
+    refresh: string;
+    logDirectory: string;
+    logDirectoryDescription: string;
+    latestEntries: string;
+    latestEntriesDescription: string;
+    noLogsFound: string;
   };
 
   Toast: {
@@ -693,6 +710,161 @@ export interface LocaleDefinition {
         dark: string;
         system: string;
       };
+    };
+  };
+
+  LLMService: {
+    status: {
+      initializing: string;
+      step: (iteration: number) => string;
+      compacting: string;
+      compressed: (ratio: string) => string;
+      compressionFailed: string;
+    };
+    errors: {
+      noProvider: (model: string, provider: string) => string;
+      streamResultNull: string;
+      unknownFinishReason: string;
+    };
+  };
+
+  VoiceInput: {
+    success: {
+      transcriptionCompleted: string;
+      realtimeStarted: string;
+      recordingStarted: string;
+      recordingCancelled: string;
+    };
+    errors: {
+      apiKeyNotConfigured: string;
+      transcriptionError: (message: string) => string;
+      failedToStart: string;
+      microphoneAccessDenied: string;
+      noMicrophoneFound: string;
+      microphoneInUse: string;
+      serviceNotAvailable: string;
+      stopFailed: (message: string) => string;
+      recordingError: string;
+      failedToStartRecording: string;
+      noActiveRecording: string;
+      noAudioData: string;
+      emptyAudio: string;
+      noTranscriptionText: string;
+      transcriptionFailed: (message: string) => string;
+    };
+  };
+
+  Auth: {
+    success: {
+      signedIn: string;
+      signedOut: string;
+    };
+    errors: {
+      failedToInitiate: (message: string) => string;
+      signOutFailed: (message: string) => string;
+      completionFailed: string;
+      completionFailedWithMessage: (message: string) => string;
+    };
+  };
+
+  RepositoryStore: {
+    success: {
+      repositoryOpened: string;
+      fileSaved: (name: string) => string;
+      fileRefreshed: string;
+    };
+    errors: {
+      failedToLoadDirectory: string;
+      failedToOpen: (message: string) => string;
+      failedToRead: (message: string) => string;
+      failedToSave: (message: string) => string;
+      searchFailed: string;
+      failedToRefresh: (message: string) => string;
+      failedToRefreshTree: (message: string) => string;
+    };
+  };
+
+  FileTree: {
+    success: {
+      renamed: (name: string) => string;
+      deleted: (name: string) => string;
+      pathCopied: string;
+      relativePathCopied: string;
+      cutToClipboard: (name: string) => string;
+      copiedToClipboard: (name: string) => string;
+      moved: (name: string) => string;
+      copied: (name: string) => string;
+      itemCreated: (type: string) => string;
+      refreshed: string;
+    };
+    errors: {
+      failedToLoadDirectory: string;
+      nothingToPaste: string;
+      pasteFailed: (message: string) => string;
+      deleteFailed: (name: string, message: string) => string;
+      repositoryPathNotAvailable: string;
+    };
+    contextMenu: {
+      newFile: string;
+      newFolder: string;
+      cut: string;
+      copy: string;
+      paste: string;
+      rename: string;
+      delete: string;
+      deleting: string;
+      copyPath: string;
+      copyRelativePath: string;
+      refresh: string;
+    };
+    placeholder: {
+      folderName: string;
+      fileName: string;
+    };
+    states: {
+      loading: string;
+    };
+  };
+
+  ApiClient: {
+    errors: {
+      authenticationRequired: string;
+      sessionExpired: string;
+    };
+  };
+
+  MCPServersExtra: {
+    alerts: {
+      cannotDeleteBuiltIn: string;
+      operationFailed: (message: string) => string;
+    };
+    github: {
+      setupRequired: string;
+      setupInstructions: {
+        intro: string;
+        step1: string;
+        step2: string;
+        step3: string;
+        step4: string;
+      };
+      connectionFailed: {
+        title: string;
+        checkScopes: string;
+        checkExpiry: string;
+        checkNetwork: string;
+        checkApi: string;
+      };
+    };
+    tooltip: {
+      deleteServer: string;
+    };
+  };
+
+  StreamProcessor: {
+    status: {
+      answering: string;
+      thinking: string;
+      callingTool: (toolName: string) => string;
     };
   };
 }

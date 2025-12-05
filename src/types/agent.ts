@@ -14,6 +14,7 @@ export interface UIMessage {
   toolName?: string;
   parentToolCallId?: string; // For nested tool messages - indicates this message belongs to a parent tool
   nestedTools?: UIMessage[]; // For parent tools - stores nested tool messages
+  renderDoingUI?: boolean; // For tool-call messages - indicates whether UI should render "doing" state
 }
 
 export interface ToolMessageContent {

@@ -107,12 +107,12 @@ export class ContextGathererAgent {
   static getDefinition(): AgentDefinition {
     const selectedTools = {
       readFile: getToolSync('readFile'),
-      globTool: getToolSync('globTool'),
+      glob: getToolSync('glob'),
       codeSearch: getToolSync('codeSearch'),
       listFiles: getToolSync('listFiles'),
-      bashTool: getToolSync('bashTool'),
-      webSearchTool: getToolSync('webSearchTool'),
-      webFetchTool: getToolSync('webFetchTool'),
+      bash: getToolSync('bash'),
+      webSearch: getToolSync('webSearch'),
+      webFetch: getToolSync('webFetch'),
     };
 
     return {

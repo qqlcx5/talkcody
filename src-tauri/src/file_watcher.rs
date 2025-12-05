@@ -353,6 +353,13 @@ impl FileWatcher {
     }
 }
 
+impl Drop for FileWatcher {
+    fn drop(&mut self) {
+        log::info!("FileWatcher being dropped, stopping watchers");
+        self.stop();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -485,5 +492,55 @@ mod tests {
         // With trailing-edge debounce, we should emit exactly once after all events
         assert_eq!(emit_count, 1, "Should emit exactly once after debounce window");
         assert!(!pending_emit, "Pending flag should be cleared after emit");
+    }
+
+    #[test]
+    fn test_file_watcher_new_creates_valid_instance() {
+        // Test that FileWatcher::new() creates a valid instance
+        let watcher = FileWatcher::new();
+        assert!(watcher.is_ok(), "FileWatcher::new() should succeed");
+    }
+
+    #[test]
+    fn test_file_watcher_stop_is_idempotent() {
+        // Test that calling stop() multiple times doesn't panic
+        let mut watcher = FileWatcher::new().unwrap();
+        watcher.stop();
+        watcher.stop(); // Second call should not panic
+        watcher.stop(); // Third call should not panic
+    }
+
+    #[test]
+    fn test_file_watcher_drop_calls_stop() {
+        // Test that Drop trait properly cleans up resources
+        // This test verifies that the FileWatcher can be dropped without panicking
+        {
+            let _watcher = FileWatcher::new().unwrap();
+            // watcher will be dropped here
+        }
+        // If we reach here without panic, the Drop impl worked correctly
+    }
+
+    #[test]
+    fn test_file_watcher_drop_after_stop() {
+        // Test that Drop works correctly even after manual stop() call
+        {
+            let mut watcher = FileWatcher::new().unwrap();
+            watcher.stop();
+            // watcher will be dropped here, stop() will be called again via Drop
+        }
+        // If we reach here without panic, the Drop impl handled double-stop correctly
+    }
+
+    #[test]
+    fn test_multiple_file_watchers_can_be_created_and_dropped() {
+        // Test that multiple FileWatcher instances can coexist and be dropped
+        let mut watchers = Vec::new();
+        for _ in 0..5 {
+            watchers.push(FileWatcher::new().unwrap());
+        }
+        // All watchers will be dropped here
+        drop(watchers);
+        // If we reach here without panic, multiple watchers were handled correctly
     }
 }

@@ -104,7 +104,7 @@ function extractLines(
 }
 
 export const readFile = createTool({
-  name: 'read-file',
+  name: 'readFile',
   description: `Use this tool to read the contents of an existing file.
 
 This tool will return the complete file content as a string by default.

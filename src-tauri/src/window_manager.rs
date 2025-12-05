@@ -103,6 +103,22 @@ impl WindowRegistry {
         }
         Ok(())
     }
+
+    /// Stop all file watchers across all windows
+    /// This should be called when the application exits to release file handles
+    pub fn cleanup_all_watchers(&self) {
+        log::info!("Cleaning up all window file watchers");
+        if let Ok(mut windows) = self.windows.lock() {
+            for (label, state) in windows.iter_mut() {
+                if let Some(mut watcher) = state.file_watcher.take() {
+                    log::info!("Stopping file watcher for window: {}", label);
+                    watcher.stop();
+                }
+            }
+        } else {
+            log::error!("Failed to acquire lock for cleanup_all_watchers");
+        }
+    }
 }
 
 pub fn create_window(
@@ -429,5 +445,139 @@ mod tests {
 
         let windows = registry.get_all_windows().unwrap();
         assert_eq!(windows.len(), 10);
+    }
+
+    #[test]
+    fn test_cleanup_all_watchers_empty_registry() {
+        // Test cleanup_all_watchers on empty registry doesn't panic
+        let registry = WindowRegistry::new();
+        registry.cleanup_all_watchers();
+        // Should complete without panic
+    }
+
+    #[test]
+    fn test_cleanup_all_watchers_no_watchers() {
+        // Test cleanup_all_watchers when windows have no file watchers
+        let registry = WindowRegistry::new();
+
+        for i in 0..3 {
+            let state = WindowState {
+                project_id: Some(format!("project-{}", i)),
+                root_path: Some(format!("/path/{}", i)),
+                file_watcher: None, // No watcher
+            };
+            registry.register_window(format!("window-{}", i), state).unwrap();
+        }
+
+        // Should complete without panic
+        registry.cleanup_all_watchers();
+
+        // Windows should still exist (cleanup doesn't remove them)
+        let windows = registry.get_all_windows().unwrap();
+        assert_eq!(windows.len(), 3);
+    }
+
+    #[test]
+    fn test_cleanup_all_watchers_with_watchers() {
+        // Test cleanup_all_watchers properly cleans up file watchers
+        let registry = WindowRegistry::new();
+
+        // Create windows with actual file watchers
+        for i in 0..3 {
+            let watcher = FileWatcher::new().ok();
+            let state = WindowState {
+                project_id: Some(format!("project-{}", i)),
+                root_path: Some(format!("/path/{}", i)),
+                file_watcher: watcher,
+            };
+            registry.register_window(format!("window-{}", i), state).unwrap();
+        }
+
+        // Should complete without panic and clean up all watchers
+        registry.cleanup_all_watchers();
+
+        // Windows should still exist
+        let windows = registry.get_all_windows().unwrap();
+        assert_eq!(windows.len(), 3);
+    }
+
+    #[test]
+    fn test_cleanup_all_watchers_is_idempotent() {
+        // Test that calling cleanup_all_watchers multiple times is safe
+        let registry = WindowRegistry::new();
+
+        for i in 0..2 {
+            let watcher = FileWatcher::new().ok();
+            let state = WindowState {
+                project_id: Some(format!("project-{}", i)),
+                root_path: Some(format!("/path/{}", i)),
+                file_watcher: watcher,
+            };
+            registry.register_window(format!("window-{}", i), state).unwrap();
+        }
+
+        // Call cleanup multiple times - should not panic
+        registry.cleanup_all_watchers();
+        registry.cleanup_all_watchers();
+        registry.cleanup_all_watchers();
+    }
+
+    #[test]
+    fn test_cleanup_all_watchers_thread_safety() {
+        use std::thread;
+
+        let registry = Arc::new(WindowRegistry::new());
+
+        // Register windows with watchers
+        for i in 0..5 {
+            let watcher = FileWatcher::new().ok();
+            let state = WindowState {
+                project_id: Some(format!("project-{}", i)),
+                root_path: Some(format!("/path/{}", i)),
+                file_watcher: watcher,
+            };
+            registry.register_window(format!("window-{}", i), state).unwrap();
+        }
+
+        // Call cleanup from multiple threads
+        let mut handles = vec![];
+        for _ in 0..3 {
+            let registry_clone = Arc::clone(&registry);
+            let handle = thread::spawn(move || {
+                registry_clone.cleanup_all_watchers();
+            });
+            handles.push(handle);
+        }
+
+        for handle in handles {
+            handle.join().unwrap();
+        }
+
+        // Should complete without panic or deadlock
+    }
+
+    #[test]
+    fn test_set_window_file_watcher_then_cleanup() {
+        // Test the interaction between set_window_file_watcher and cleanup_all_watchers
+        let registry = WindowRegistry::new();
+
+        // Register window without watcher
+        let state = WindowState {
+            project_id: Some("project-1".to_string()),
+            root_path: Some("/path/1".to_string()),
+            file_watcher: None,
+        };
+        registry.register_window("window-1".to_string(), state).unwrap();
+
+        // Add watcher via set_window_file_watcher
+        let watcher = FileWatcher::new().unwrap();
+        registry.set_window_file_watcher("window-1", Some(watcher)).unwrap();
+
+        // Cleanup should handle this correctly
+        registry.cleanup_all_watchers();
+
+        // Window should still exist
+        let windows = registry.get_all_windows().unwrap();
+        assert_eq!(windows.len(), 1);
     }
 }

@@ -33,6 +33,15 @@ vi.mock('@/lib/logger', () => ({
   },
 }));
 
+// Mock settings store
+vi.mock('@/stores/settings-store', () => ({
+  useSettingsStore: {
+    getState: vi.fn(() => ({
+      language: 'en',
+    })),
+  },
+}));
+
 // Type assertions for mocked functions
 const mockStoreAuthToken = authService.storeAuthToken as Mock;
 const mockFetchUserProfile = authService.fetchUserProfile as Mock;

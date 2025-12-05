@@ -1,6 +1,7 @@
 // src/hooks/use-voice-input.ts
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { useTranslation } from '@/hooks/use-locale';
 import { logger } from '@/lib/logger';
 import { aiTranscriptionService } from '@/services/ai-transcription-service';
 import { ElevenLabsRealtimeService } from '@/services/elevenlabs-realtime-service';
@@ -18,6 +19,7 @@ interface VoiceInputState {
 }
 
 export function useVoiceInput() {
+  const t = useTranslation();
   const [state, setState] = useState<VoiceInputState>({
     isRecording: false,
     isTranscribing: false,
@@ -78,7 +80,7 @@ export function useVoiceInput() {
       // 1. Get API key
       const apiKey = getProviderApiKey('elevenlabs');
       if (!apiKey) {
-        throw new Error('Eleven Labs API key not configured. Please set it in Settings.');
+        throw new Error(t.VoiceInput.errors.apiKeyNotConfigured);
       }
 
       // 2. Create and connect real-time service (using API key directly)
@@ -97,7 +99,7 @@ export function useVoiceInput() {
           partialTranscript: '',
           recordingDuration: 0,
         }));
-        toast.success('Transcription completed');
+        toast.success(t.VoiceInput.success.transcriptionCompleted);
       });
 
       service.onError((error) => {
@@ -110,7 +112,7 @@ export function useVoiceInput() {
           error: error.message,
           partialTranscript: '',
         }));
-        toast.error(`Transcription error: ${error.message}`);
+        toast.error(t.VoiceInput.errors.transcriptionError(error.message));
       });
 
       service.onConnected(() => {
@@ -164,17 +166,17 @@ export function useVoiceInput() {
         recordingDuration: 0,
       }));
 
-      toast.success('Real-time transcription started');
+      toast.success(t.VoiceInput.success.realtimeStarted);
     } catch (error) {
-      let errorMessage = 'Failed to start real-time transcription';
+      let errorMessage = t.VoiceInput.errors.failedToStart;
 
       if (error instanceof Error) {
         if (error.name === 'NotAllowedError') {
-          errorMessage = 'Microphone access denied. Please allow microphone access and try again.';
+          errorMessage = t.VoiceInput.errors.microphoneAccessDenied;
         } else if (error.name === 'NotFoundError') {
-          errorMessage = 'No microphone found. Please connect a microphone and try again.';
+          errorMessage = t.VoiceInput.errors.noMicrophoneFound;
         } else if (error.name === 'NotReadableError') {
-          errorMessage = 'Microphone is already in use by another application.';
+          errorMessage = t.VoiceInput.errors.microphoneInUse;
         } else {
           errorMessage = error.message;
         }
@@ -189,7 +191,7 @@ export function useVoiceInput() {
       toast.error(errorMessage);
       logger.error('[Realtime] Start error:', error);
     }
-  }, [getProviderApiKey, language]);
+  }, [getProviderApiKey, language, t]);
 
   // Stop real-time recording
   const stopRealtimeRecording = useCallback((): Promise<string> => {
@@ -202,7 +204,7 @@ export function useVoiceInput() {
         // Set up one-time listener for final transcript
         const service = realtimeServiceRef.current;
         if (!service) {
-          reject(new Error('Real-time service not available'));
+          reject(new Error(t.VoiceInput.errors.serviceNotAvailable));
           return;
         }
 
@@ -230,14 +232,15 @@ export function useVoiceInput() {
             recordingDuration: 0,
           }));
 
-          toast.success('Transcription completed');
+          toast.success(t.VoiceInput.success.transcriptionCompleted);
           resolve(text);
         });
 
         // Send commit signal
         service.commit();
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Failed to stop recording';
+        const errorMessage =
+          error instanceof Error ? error.message : t.VoiceInput.errors.failedToStartRecording;
         setState((prev) => ({
           ...prev,
           isRecording: false,
@@ -245,11 +248,11 @@ export function useVoiceInput() {
           error: errorMessage,
           partialTranscript: '',
         }));
-        toast.error(`Stop recording failed: ${errorMessage}`);
+        toast.error(t.VoiceInput.errors.stopFailed(errorMessage));
         reject(error);
       }
     });
-  }, []);
+  }, [t]);
 
   const startRecording = useCallback(async () => {
     // Check if using real-time transcription
@@ -306,22 +309,22 @@ export function useVoiceInput() {
 
       mediaRecorder.onerror = (event) => {
         logger.error('MediaRecorder error:', event);
-        setState((prev) => ({ ...prev, error: 'Recording error occurred' }));
+        setState((prev) => ({ ...prev, error: t.VoiceInput.errors.recordingError }));
       };
 
       mediaRecorder.start(1000); // Collect data every second
       setState((prev) => ({ ...prev, isRecording: true, error: null, recordingDuration: 0 }));
-      toast.success('Recording started');
+      toast.success(t.VoiceInput.success.recordingStarted);
     } catch (error) {
-      let errorMessage = 'Failed to start recording';
+      let errorMessage = t.VoiceInput.errors.failedToStartRecording;
 
       if (error instanceof Error) {
         if (error.name === 'NotAllowedError') {
-          errorMessage = 'Microphone access denied. Please allow microphone access and try again.';
+          errorMessage = t.VoiceInput.errors.microphoneAccessDenied;
         } else if (error.name === 'NotFoundError') {
-          errorMessage = 'No microphone found. Please connect a microphone and try again.';
+          errorMessage = t.VoiceInput.errors.noMicrophoneFound;
         } else if (error.name === 'NotReadableError') {
-          errorMessage = 'Microphone is already in use by another application.';
+          errorMessage = t.VoiceInput.errors.microphoneInUse;
         } else {
           errorMessage = error.message;
         }
@@ -331,7 +334,7 @@ export function useVoiceInput() {
       toast.error(errorMessage);
       logger.error('Recording start error:', error);
     }
-  }, [model_type_transcription, startRealtimeRecording]);
+  }, [model_type_transcription, startRealtimeRecording, t]);
 
   const stopRecording = useCallback((): Promise<string> => {
     // Check if using real-time transcription
@@ -343,7 +346,7 @@ export function useVoiceInput() {
     // Original MediaRecorder implementation for Whisper
     return new Promise((resolve, reject) => {
       if (!(mediaRecorderRef.current && state.isRecording)) {
-        reject(new Error('No active recording'));
+        reject(new Error(t.VoiceInput.errors.noActiveRecording));
         return;
       }
 
@@ -366,7 +369,7 @@ export function useVoiceInput() {
           }
 
           if (audioChunksRef.current.length === 0) {
-            throw new Error('No audio data recorded');
+            throw new Error(t.VoiceInput.errors.noAudioData);
           }
 
           const audioBlob = new Blob(audioChunksRef.current, {
@@ -376,27 +379,28 @@ export function useVoiceInput() {
           logger.info('Audio blob created:', audioBlob.size, 'bytes, type:', audioBlob.type);
 
           if (audioBlob.size === 0) {
-            throw new Error('Recorded audio is empty');
+            throw new Error(t.VoiceInput.errors.emptyAudio);
           }
 
           const result = await aiTranscriptionService.transcribe({ audioBlob });
 
           if (!result || !result.text) {
-            throw new Error('No transcription text returned');
+            throw new Error(t.VoiceInput.errors.noTranscriptionText);
           }
 
           setState((prev) => ({ ...prev, isTranscribing: false, recordingDuration: 0 }));
-          toast.success('Transcription completed');
+          toast.success(t.VoiceInput.success.transcriptionCompleted);
           resolve(result.text);
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Transcription failed';
+          const errorMessage =
+            error instanceof Error ? error.message : t.VoiceInput.errors.transcriptionFailed('');
           setState((prev) => ({
             ...prev,
             isTranscribing: false,
             error: errorMessage,
             recordingDuration: 0,
           }));
-          toast.error(`Transcription failed: ${errorMessage}`);
+          toast.error(t.VoiceInput.errors.transcriptionFailed(errorMessage));
           reject(error);
         } finally {
           audioChunksRef.current = [];
@@ -405,7 +409,7 @@ export function useVoiceInput() {
 
       mediaRecorderRef.current.stop();
     });
-  }, [model_type_transcription, state.isRecording, stopRealtimeRecording]);
+  }, [model_type_transcription, state.isRecording, stopRealtimeRecording, t]);
 
   const cancelRecording = useCallback(() => {
     if (!state.isRecording) return;
@@ -439,7 +443,7 @@ export function useVoiceInput() {
         partialTranscript: '',
       }));
 
-      toast.info('Recording cancelled');
+      toast.info(t.VoiceInput.success.recordingCancelled);
       return;
     }
 
@@ -454,9 +458,9 @@ export function useVoiceInput() {
       }
       setState((prev) => ({ ...prev, isRecording: false, error: null, recordingDuration: 0 }));
       audioChunksRef.current = [];
-      toast.info('Recording cancelled');
+      toast.info(t.VoiceInput.success.recordingCancelled);
     }
-  }, [model_type_transcription, state.isRecording]);
+  }, [model_type_transcription, state.isRecording, t]);
 
   const retryInitialization = useCallback(() => {
     setState((prev) => ({ ...prev, isInitializing: true, error: null }));

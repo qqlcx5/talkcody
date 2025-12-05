@@ -142,6 +142,8 @@ const en: LocaleDefinition = {
       planModeTooltip: 'AI will create a detailed plan for your approval before making changes',
       actModeTooltip: 'AI will execute tasks directly without requiring plan approval',
       toggleTerminal: 'Toggle Terminal',
+      searchFiles: 'Search Files (Cmd+P)',
+      searchContent: 'Search Content (Cmd+G)',
       inputTokens: 'Tokens',
       outputTokens: 'Tokens',
     },
@@ -555,9 +557,25 @@ const en: LocaleDefinition = {
     skillsTooltip: 'Discover and install skills',
     mcpServers: 'MCP Servers',
     mcpServersTooltip: 'Model Context Protocol servers',
+    logs: 'Logs',
+    logsTooltip: 'View application logs',
     settings: 'Settings',
     settingsTooltip: 'Application settings',
     switchTheme: (theme) => `Switch to ${theme} mode`,
+    githubTooltip: 'Star TalkCody on GitHub',
+  },
+
+  Logs: {
+    title: 'Logs',
+    description: 'View application logs',
+    openLogDirectory: 'Open Log Directory',
+    refresh: 'Refresh',
+    logDirectory: 'Log Directory',
+    logDirectoryDescription: 'Log files are stored in the following directory:',
+    latestEntries: 'Latest 100 Log Entries',
+    latestEntriesDescription:
+      'Most recent application logs. Logs are automatically written by the application.',
+    noLogsFound: 'No logs found.',
   },
 
   Initialization: {
@@ -715,6 +733,164 @@ const en: LocaleDefinition = {
         dark: 'Dark',
         system: 'System',
       },
+    },
+  },
+
+  LLMService: {
+    status: {
+      initializing: 'Initializing agent loop',
+      step: (iteration) => `Step ${iteration}`,
+      compacting: 'Compacting message history...',
+      compressed: (ratio) => `Message history compressed (${ratio}x reduction)`,
+      compressionFailed: 'Message compression failed, continuing...',
+    },
+    errors: {
+      noProvider: (model, provider) =>
+        `No available provider for model: ${model}. Please configure API keys in settings. Provider: ${provider}`,
+      streamResultNull: 'Stream result is unexpectedly null after retry loop',
+      unknownFinishReason: 'LLM finished with unknown reason and no tool calls',
+    },
+  },
+
+  VoiceInput: {
+    success: {
+      transcriptionCompleted: 'Transcription completed',
+      realtimeStarted: 'Real-time transcription started',
+      recordingStarted: 'Recording started',
+      recordingCancelled: 'Recording cancelled',
+    },
+    errors: {
+      apiKeyNotConfigured: 'Eleven Labs API key not configured. Please set it in Settings.',
+      transcriptionError: (message) => `Transcription error: ${message}`,
+      failedToStart: 'Failed to start real-time transcription',
+      microphoneAccessDenied:
+        'Microphone access denied. Please allow microphone access and try again.',
+      noMicrophoneFound: 'No microphone found. Please connect a microphone and try again.',
+      microphoneInUse: 'Microphone is already in use by another application.',
+      serviceNotAvailable: 'Real-time service not available',
+      stopFailed: (message) => `Stop recording failed: ${message}`,
+      recordingError: 'Recording error occurred',
+      failedToStartRecording: 'Failed to start recording',
+      noActiveRecording: 'No active recording',
+      noAudioData: 'No audio data recorded',
+      emptyAudio: 'Recorded audio is empty',
+      noTranscriptionText: 'No transcription text returned',
+      transcriptionFailed: (message) => `Transcription failed: ${message}`,
+    },
+  },
+
+  Auth: {
+    success: {
+      signedIn: 'Signed in successfully',
+      signedOut: 'Signed out successfully',
+    },
+    errors: {
+      failedToInitiate: (message) => `Failed to initiate sign in: ${message}`,
+      signOutFailed: (message) => `Failed to sign out: ${message}`,
+      completionFailed: 'Failed to complete sign in',
+      completionFailedWithMessage: (message) => `Failed to complete sign in: ${message}`,
+    },
+  },
+
+  RepositoryStore: {
+    success: {
+      repositoryOpened: 'Repository opened successfully',
+      fileSaved: (name) => `File saved: ${name}`,
+      fileRefreshed: 'File refreshed successfully',
+    },
+    errors: {
+      failedToLoadDirectory: 'Failed to load directory contents',
+      failedToOpen: (message) => `Failed to open repository: ${message}`,
+      failedToRead: (message) => `Failed to read file: ${message}`,
+      failedToSave: (message) => `Failed to save file: ${message}`,
+      searchFailed: 'Search failed',
+      failedToRefresh: (message) => `Failed to refresh file: ${message}`,
+      failedToRefreshTree: (message) => `Failed to refresh file tree: ${message}`,
+    },
+  },
+
+  FileTree: {
+    success: {
+      renamed: (name) => `Renamed to "${name}"`,
+      deleted: (name) => `${name} deleted`,
+      pathCopied: 'Absolute path copied to clipboard',
+      relativePathCopied: 'Relative path copied to clipboard',
+      cutToClipboard: (name) => `${name} cut to clipboard`,
+      copiedToClipboard: (name) => `${name} copied to clipboard`,
+      moved: (name) => `Moved ${name}`,
+      copied: (name) => `Copied ${name}`,
+      itemCreated: (type) => `${type} created`,
+      refreshed: 'File tree refreshed',
+    },
+    errors: {
+      failedToLoadDirectory: 'Failed to load directory contents',
+      nothingToPaste: 'Nothing to paste',
+      pasteFailed: (message) => `Paste failed: ${message}`,
+      deleteFailed: (name, message) => `Failed to delete ${name}: ${message}`,
+      repositoryPathNotAvailable: 'Repository path not available',
+    },
+    contextMenu: {
+      newFile: 'New File',
+      newFolder: 'New Folder',
+      cut: 'Cut',
+      copy: 'Copy',
+      paste: 'Paste',
+      rename: 'Rename',
+      delete: 'Delete',
+      deleting: 'Deleting...',
+      copyPath: 'Copy Path',
+      copyRelativePath: 'Copy Relative Path',
+      refresh: 'Refresh',
+    },
+    placeholder: {
+      folderName: 'Folder name',
+      fileName: 'File name',
+    },
+    states: {
+      loading: 'Loading...',
+    },
+  },
+
+  ApiClient: {
+    errors: {
+      authenticationRequired: 'Authentication required',
+      sessionExpired: 'Session expired. Please sign in again.',
+    },
+  },
+
+  MCPServersExtra: {
+    alerts: {
+      cannotDeleteBuiltIn: 'Cannot delete built-in servers',
+      operationFailed: (message) => message,
+    },
+    github: {
+      setupRequired: 'Setup Required',
+      setupInstructions: {
+        intro: 'This server requires a GitHub Personal Access Token (PAT).',
+        step1:
+          '1. Go to GitHub Settings → Developer settings → Personal access tokens → Tokens (classic)',
+        step2: '2. Generate a new token with these scopes:',
+        step3: '3. Edit this server and add the token as the API Key',
+        step4: '4. Enable the server after adding the token',
+      },
+      connectionFailed: {
+        title: 'Connection Failed:',
+        checkScopes: 'Token has correct scopes:',
+        checkExpiry: 'Token is not expired',
+        checkNetwork: 'Network connection is available',
+        checkApi: 'GitHub API is accessible',
+      },
+    },
+    tooltip: {
+      deleteServer: 'Delete server',
+    },
+  },
+
+  StreamProcessor: {
+    status: {
+      answering: 'Answering',
+      thinking: 'Thinking',
+      callingTool: (toolName) => `Calling tool ${toolName}`,
     },
   },
 };

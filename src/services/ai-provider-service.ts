@@ -1,4 +1,3 @@
-import { createOllama } from 'ollama-ai-provider-v2';
 import { logger } from '@/lib/logger';
 import { MODEL_CONFIGS, type ModelKey, type ProviderType } from '@/lib/models';
 import { providerRegistry } from '@/providers';
@@ -87,21 +86,14 @@ export class AIProviderService {
       const providerId = provider.id;
       const apiKey = this.apiKeys[providerId as keyof ApiKeySettings];
 
-      // Skip if no API key (except for ollama which uses 'enabled')
-      if (providerId === 'ollama') {
-        if (apiKey === 'enabled') {
-          this.providers.set(
-            'ollama',
-            createOllama({
-              baseURL: 'http://localhost:11434/api',
-            })
-          );
-        }
+      // Skip if no API key (except for ollama/lmstudio which uses 'enabled')
+      if (!apiKey) {
+        logger.debug(`Skipping provider ${providerId}: no API key configured`);
         continue;
       }
 
-      if (!apiKey) {
-        logger.debug(`Skipping provider ${providerId}: no API key configured`);
+      // For ollama/lmstudio, check if enabled
+      if ((providerId === 'ollama' || providerId === 'lmstudio') && apiKey !== 'enabled') {
         continue;
       }
 

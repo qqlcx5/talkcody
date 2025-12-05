@@ -3,7 +3,7 @@
 ## Project Overview
 
 - Project Name: TalkCody
-- Description: Desktop AI Coding App for macOS
+- Description: Desktop AI Coding App for macOS, Windows, and Linux
 
 ## Technology Stack
 
@@ -140,8 +140,6 @@ TalkCody app data path:
 
 ## AI Code Generation Tips
 
-### Turso database
-
 ### Files import in TS code
 
 you should use '@tauri-apps/api/path'. like this:
@@ -159,6 +157,9 @@ When generating code, consider:
 - UI must support dark mode
 - Use accurate type definitions and do not use `any` types
 - Keep components modular and reusable
-- Use React hooks for state management
+- Use zustand for state management
 - Use Vercel AI SDK for AI-related functionality
 - Try to avoid using dynamic imports
+- User-visible messages and text need to support both English and Chinese.
+- Platform-related functions must be able to work simultaneously on macOS, Windows, and Linux platforms.
+- When adding test cases, you should minimize mocking as much as possible.

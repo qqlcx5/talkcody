@@ -244,9 +244,10 @@ export class ToolExecutor {
 
         // Get tool metadata to check if we should render the "doing" UI
         const toolMetadata = getToolMetadata(toolCall.toolName);
-        const shouldRenderDoingUI = toolMetadata.renderDoingUI !== false;
 
-        if (onToolMessage && shouldRenderDoingUI) {
+        // Always send tool-call message for persistence, regardless of renderDoingUI
+        // The UI can decide whether to render based on the metadata
+        if (onToolMessage) {
           const toolCallMessage: UIMessage = {
             id: toolCall.toolCallId,
             role: 'tool',
@@ -262,17 +263,11 @@ export class ToolExecutor {
             toolCallId: toolCall.toolCallId,
             toolName: toolCall.toolName,
             nestedTools: [],
+            // Add metadata flag so UI knows whether to render
+            renderDoingUI: toolMetadata.renderDoingUI,
           };
 
           onToolMessage(toolCallMessage);
-        } else if (!shouldRenderDoingUI) {
-          logger.info(
-            '[ToolExecutor] Skipping tool-call message for fast tool (renderDoingUI=false)',
-            {
-              toolName: toolCall.toolName,
-              toolCallId: toolCall.toolCallId,
-            }
-          );
         } else {
           logger.warn(
             '[ToolExecutor-Send] ⚠️ onToolMessage callback is undefined, skipping tool-call message',

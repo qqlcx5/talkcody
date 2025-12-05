@@ -110,7 +110,7 @@ async function executeTodoWrite(params: z.infer<typeof inputSchema>) {
 }
 
 export const todoWriteTool = createTool({
-  name: 'TodoWrite',
+  name: 'todoWrite',
   description: `${DESCRIPTION}\n${PROMPT}`,
   inputSchema,
   canConcurrent: false,

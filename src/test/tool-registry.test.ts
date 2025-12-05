@@ -18,20 +18,21 @@ describe('Tool Registry', () => {
     it('should have all required tools defined', () => {
       const requiredTools: ToolName[] = [
         'readFile',
-        'globTool',
+        'glob',
         'codeSearch',
         'listFiles',
         'writeFile',
         'editFile',
-        'bashTool',
+        'bash',
         'callAgent',
-        'todoWriteTool',
-        'webSearchTool',
-        'webFetchTool',
-        'getSkillTool',
-        'askUserQuestionsTool',
-        'exitPlanModeTool',
-        'executeSkillScriptTool',
+        'todoWrite',
+        'webSearch',
+        'webFetch',
+        'getSkill',
+        'askUserQuestions',
+        'exitPlanMode',
+        'executeSkillScript',
+        'githubPR',
       ];
 
       for (const toolName of requiredTools) {
@@ -109,7 +110,7 @@ describe('Tool Registry', () => {
       const readMetadata = getToolMetadata('readFile');
       const writeMetadata = getToolMetadata('writeFile');
       const editMetadata = getToolMetadata('editFile');
-      const bashMetadata = getToolMetadata('bashTool');
+      const bashMetadata = getToolMetadata('bash');
 
       expect(readMetadata.category).toBe('read');
       expect(writeMetadata.category).toBe('write');
@@ -132,20 +133,21 @@ describe('Tool Registry', () => {
     it('should have proper labels for all tools', () => {
       const expectedLabels: Record<ToolName, string> = {
         readFile: 'Read File',
-        globTool: 'Glob',
+        glob: 'Glob',
         codeSearch: 'Code Search',
         listFiles: 'List Files',
         writeFile: 'Write File',
         editFile: 'Edit File',
-        bashTool: 'Bash',
+        bash: 'Bash',
         callAgent: 'Call Agent',
-        todoWriteTool: 'Todo',
-        webSearchTool: 'Web Search',
-        webFetchTool: 'Web Fetch',
-        getSkillTool: 'Get Skill',
-        askUserQuestionsTool: 'Ask User Questions',
-        exitPlanModeTool: 'Exit Plan Mode',
-        executeSkillScriptTool: 'Execute Skill Script',
+        todoWrite: 'Todo',
+        webSearch: 'Web Search',
+        webFetch: 'Web Fetch',
+        getSkill: 'Get Skill',
+        askUserQuestions: 'Ask User Questions',
+        exitPlanMode: 'Exit Plan Mode',
+        executeSkillScript: 'Execute Skill Script',
+        githubPR: 'GitHub PR',
       };
 
       for (const [toolName, expectedLabel] of Object.entries(expectedLabels)) {
@@ -163,7 +165,7 @@ describe('Tool Registry', () => {
       expect(names.length).toBeGreaterThan(0);
       expect(names).toContain('readFile');
       expect(names).toContain('writeFile');
-      expect(names).toContain('bashTool');
+      expect(names).toContain('bash');
     });
 
     it('should match TOOL_DEFINITIONS keys', () => {
@@ -184,7 +186,7 @@ describe('Tool Registry', () => {
     it('should return true for valid tool names', () => {
       expect(isValidToolName('readFile')).toBe(true);
       expect(isValidToolName('writeFile')).toBe(true);
-      expect(isValidToolName('bashTool')).toBe(true);
+      expect(isValidToolName('bash')).toBe(true);
       expect(isValidToolName('editFile')).toBe(true);
       expect(isValidToolName('callAgent')).toBe(true);
     });
@@ -205,7 +207,7 @@ describe('Tool Registry', () => {
 
   describe('Tool Categories', () => {
     it('should categorize read tools correctly', () => {
-      const readTools = ['readFile', 'globTool', 'codeSearch', 'listFiles'];
+      const readTools = ['readFile', 'glob', 'codeSearch', 'listFiles', 'githubPR'];
 
       for (const toolName of readTools) {
         const metadata = getToolMetadata(toolName);
@@ -233,15 +235,15 @@ describe('Tool Registry', () => {
 
     it('should categorize other tools correctly', () => {
       const otherTools = [
-        'bashTool',
+        'bash',
         'callAgent',
-        'todoWriteTool',
-        'webSearchTool',
-        'webFetchTool',
-        'getSkillTool',
-        'askUserQuestionsTool',
-        'exitPlanModeTool',
-        'executeSkillScriptTool',
+        'todoWrite',
+        'webSearch',
+        'webFetch',
+        'getSkill',
+        'askUserQuestions',
+        'exitPlanMode',
+        'executeSkillScript',
       ];
 
       for (const toolName of otherTools) {
@@ -277,7 +279,7 @@ describe('Tool Registry', () => {
 
   describe('Concurrent Execution Metadata', () => {
     it('should mark read tools as concurrent', () => {
-      const readTools = ['readFile', 'globTool', 'codeSearch', 'listFiles'];
+      const readTools = ['readFile', 'glob', 'codeSearch', 'listFiles', 'githubPR'];
 
       for (const toolName of readTools) {
         const metadata = getToolMetadata(toolName);
@@ -286,7 +288,7 @@ describe('Tool Registry', () => {
     });
 
     it('should mark web tools as concurrent', () => {
-      const webTools = ['webSearchTool', 'webFetchTool'];
+      const webTools = ['webSearch', 'webFetch'];
 
       for (const toolName of webTools) {
         const metadata = getToolMetadata(toolName);
@@ -295,7 +297,7 @@ describe('Tool Registry', () => {
     });
 
     it('should mark write/edit tools as non-concurrent', () => {
-      const nonConcurrentTools = ['writeFile', 'editFile', 'bashTool'];
+      const nonConcurrentTools = ['writeFile', 'editFile', 'bash'];
 
       for (const toolName of nonConcurrentTools) {
         const metadata = getToolMetadata(toolName);
@@ -316,18 +318,19 @@ describe('Tool Registry', () => {
 
     it('should mark non-file-operation tools correctly', () => {
       const nonFileOpTools = [
-        'globTool',
+        'glob',
         'codeSearch',
         'listFiles',
-        'bashTool',
+        'bash',
         'callAgent',
-        'todoWriteTool',
-        'webSearchTool',
-        'webFetchTool',
-        'getSkillTool',
-        'askUserQuestionsTool',
-        'exitPlanModeTool',
-        'executeSkillScriptTool',
+        'todoWrite',
+        'webSearch',
+        'webFetch',
+        'getSkill',
+        'askUserQuestions',
+        'exitPlanMode',
+        'executeSkillScript',
+        'githubPR',
       ];
 
       for (const toolName of nonFileOpTools) {

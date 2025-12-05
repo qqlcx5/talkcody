@@ -1,6 +1,7 @@
 import { AgentMarketplacePage } from '@/pages/agent-marketplace-page';
 import { ChatOnlyPage } from '@/pages/chat-page';
 import { ExplorerPage } from '@/pages/explorer-page';
+import { LogsPage } from '@/pages/logs-page';
 import { MCPServersPage } from '@/pages/mcp-servers-page';
 import { ProjectsPage } from '@/pages/projects-page';
 import { SettingsPage } from '@/pages/settings-page';
@@ -41,6 +42,10 @@ export function MainContent({ activeView }: MainContentProps) {
 
       <div className={activeView === NavigationView.MCP_SERVERS ? 'h-full' : 'hidden'}>
         <MCPServersPage />
+      </div>
+
+      <div className={activeView === NavigationView.LOGS ? 'h-full' : 'hidden'}>
+        <LogsPage />
       </div>
 
       <div className={activeView === NavigationView.SETTINGS ? 'h-full' : 'hidden'}>

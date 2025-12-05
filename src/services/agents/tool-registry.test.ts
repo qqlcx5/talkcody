@@ -61,40 +61,40 @@ describe('tool-registry', () => {
   // Tests for tool availability are covered by getAvailableToolNames and getAvailableToolsForUI
 
   describe('restoreToolsFromConfig', () => {
-    it('should restore todoWriteTool from array config', async () => {
-      const config = ['todoWriteTool', 'readFile'];
+    it('should restore todoWrite from array config', async () => {
+      const config = ['todoWrite', 'readFile'];
 
       const result = await restoreToolsFromConfig(config);
 
-      expect(result).toHaveProperty('todoWriteTool');
+      expect(result).toHaveProperty('todoWrite');
       expect(result).toHaveProperty('readFile');
       expect(mockConvertToolsForAI).toHaveBeenCalled();
     });
 
-    it('should restore todoWriteTool from object config', async () => {
+    it('should restore todoWrite from object config', async () => {
       const config = {
-        todoWriteTool: {},
+        todoWrite: {},
         readFile: {},
       };
 
       const result = await restoreToolsFromConfig(config);
 
-      expect(result).toHaveProperty('todoWriteTool');
+      expect(result).toHaveProperty('todoWrite');
       expect(result).toHaveProperty('readFile');
       expect(mockConvertToolsForAI).toHaveBeenCalled();
     });
 
-    it('should restore todoWriteTool from JSON string config', async () => {
-      const config = JSON.stringify(['todoWriteTool', 'readFile']);
+    it('should restore todoWrite from JSON string config', async () => {
+      const config = JSON.stringify(['todoWrite', 'readFile']);
 
       const result = await restoreToolsFromConfig(config);
 
-      expect(result).toHaveProperty('todoWriteTool');
+      expect(result).toHaveProperty('todoWrite');
       expect(result).toHaveProperty('readFile');
     });
 
     it('should warn when tool name is not in registry', async () => {
-      const config = ['unknownTool', 'todoWriteTool'];
+      const config = ['unknownTool', 'todoWrite'];
 
       await restoreToolsFromConfig(config);
 
@@ -112,18 +112,18 @@ describe('tool-registry', () => {
       const mcpTool = { name: 'mcp__test-tool', execute: vi.fn() };
       mockMultiMCPAdapter.getAdaptedTool.mockResolvedValue(mcpTool);
 
-      const config = ['todoWriteTool', 'mcp__test-tool'];
+      const config = ['todoWrite', 'mcp__test-tool'];
 
       const result = await restoreToolsFromConfig(config);
 
       expect(mockMultiMCPAdapter.getAdaptedTool).toHaveBeenCalledWith('mcp__test-tool');
-      expect(result).toHaveProperty('todoWriteTool');
+      expect(result).toHaveProperty('todoWrite');
       expect(result).toHaveProperty('mcp__test-tool');
     });
 
     it('should handle already formatted ToolSet', async () => {
       const toolSet = {
-        todoWriteTool: {
+        todoWrite: {
           description: 'Test tool',
           execute: vi.fn(),
           inputSchema: {},
@@ -150,22 +150,22 @@ describe('tool-registry', () => {
   });
 
   describe('getAvailableToolNames', () => {
-    it('should include todoWriteTool in available tools', async () => {
+    it('should include todoWrite in available tools', async () => {
       const toolNames = await getAvailableToolNames();
 
-      expect(toolNames).toContain('todoWriteTool');
+      expect(toolNames).toContain('todoWrite');
       expect(toolNames).toContain('readFile');
       expect(toolNames).toContain('writeFile');
     });
   });
 
   describe('isValidToolName', () => {
-    it('should return true for todoWriteTool', () => {
-      expect(isValidToolName('todoWriteTool')).toBe(true);
+    it('should return true for todoWrite', () => {
+      expect(isValidToolName('todoWrite')).toBe(true);
     });
 
-    it('should return false for todoWrite (old key name)', () => {
-      expect(isValidToolName('todoWrite')).toBe(false);
+    it('should return false for todoWriteTool (old key name)', () => {
+      expect(isValidToolName('todoWriteTool')).toBe(false);
     });
 
     it('should return false for unknown tools', () => {
@@ -174,14 +174,14 @@ describe('tool-registry', () => {
   });
 
   describe('getToolByName', () => {
-    it('should return todoWriteTool by name', async () => {
-      const tool = await getToolByName('todoWriteTool');
+    it('should return todoWrite by name', async () => {
+      const tool = await getToolByName('todoWrite');
 
       expect(tool).toBeDefined();
     });
 
-    it('should return undefined for todoWrite (old key name)', async () => {
-      const tool = await getToolByName('todoWrite');
+    it('should return undefined for todoWriteTool (old key name)', async () => {
+      const tool = await getToolByName('todoWriteTool');
 
       expect(tool).toBeUndefined();
     });
@@ -194,29 +194,29 @@ describe('tool-registry', () => {
   });
 
   describe('getAvailableToolsForUI', () => {
-    it('should include todoWriteTool in UI tools list', async () => {
-      const tools = await getAvailableToolsForUI();
-
-      const todoWriteTool = tools.find((tool) => tool.id === 'todoWriteTool');
-      expect(todoWriteTool).toBeDefined();
-      expect(todoWriteTool?.label).toBe('Todo');
-    });
-
-    it('should not include todoWrite (old key name)', async () => {
+    it('should include todoWrite in UI tools list', async () => {
       const tools = await getAvailableToolsForUI();
 
       const todoWrite = tools.find((tool) => tool.id === 'todoWrite');
-      expect(todoWrite).toBeUndefined();
+      expect(todoWrite).toBeDefined();
+      expect(todoWrite?.label).toBe('Todo');
+    });
+
+    it('should not include todoWriteTool (old key name)', async () => {
+      const tools = await getAvailableToolsForUI();
+
+      const todoWriteTool = tools.find((tool) => tool.id === 'todoWriteTool');
+      expect(todoWriteTool).toBeUndefined();
     });
   });
 
-  describe('bug fix verification - todoWriteTool naming consistency', () => {
-    it('should not produce warning when restoring todoWriteTool from database', async () => {
+  describe('bug fix verification - todoWrite naming consistency', () => {
+    it('should not produce warning when restoring todoWrite from database', async () => {
       const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-      // Simulate restoring from database with shorthand object syntax key
+      // Simulate restoring from database with correct key
       const databaseConfig = {
-        todoWriteTool: {},
+        todoWrite: {},
         readFile: {},
         writeFile: {},
       };
@@ -225,16 +225,16 @@ describe('tool-registry', () => {
 
       // Should not warn about unknown tool
       expect(consoleWarnSpy).not.toHaveBeenCalledWith(
-        expect.stringContaining('Unknown tool in config: todoWriteTool')
+        expect.stringContaining('Unknown tool in config: todoWrite')
       );
 
       consoleWarnSpy.mockRestore();
     });
 
-    it('should produce warning for old todoWrite key name', async () => {
-      // Old configuration with incorrect key name
+    it('should produce warning for old todoWriteTool key name', async () => {
+      // Old configuration with incorrect key name (with Tool suffix)
       const oldConfig = {
-        todoWrite: {},
+        todoWriteTool: {},
         readFile: {},
       };
 
@@ -242,7 +242,7 @@ describe('tool-registry', () => {
 
       // Should warn about unknown tool for old key name
       expect(mockLogger.warn).toHaveBeenCalledWith(
-        expect.stringContaining('Unknown tool in config: todoWrite')
+        expect.stringContaining('Unknown tool in config: todoWriteTool')
       );
     });
   });

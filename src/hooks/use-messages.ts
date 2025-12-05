@@ -17,7 +17,8 @@ export function useMessages() {
       id?: string,
       toolCallId?: string,
       toolName?: string,
-      nestedTools?: UIMessage[]
+      nestedTools?: UIMessage[],
+      renderDoingUI?: boolean
     ) => {
       const newMessage: UIMessage = {
         id: id || generateId(),
@@ -30,6 +31,7 @@ export function useMessages() {
         toolCallId,
         toolName,
         nestedTools,
+        renderDoingUI,
       };
       setMessages((prev) => [...prev, newMessage]);
       return newMessage.id;

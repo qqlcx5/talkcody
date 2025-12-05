@@ -144,7 +144,7 @@ export class ErrorHandler {
     logger.error('Unknown stream error:', formattedError);
 
     const streamError = new Error(
-      `Unexpected error in manual agent loop (${errorDetails.name}): ${errorDetails.message}`
+      `Unexpected error in agent loop (${errorDetails.name}): ${errorDetails.message}`
     );
 
     // Note: onError callback will be invoked in handleMainLoopError when this error is caught
@@ -218,20 +218,15 @@ export class ErrorHandler {
     return false;
   }
 
-  /**
-   * Handle main loop error
-   */
   handleMainLoopError(error: unknown, model: string, onError?: (error: Error) => void): Error {
     const { errorDetails, formattedError } = extractAndFormatError(error, {
       model,
       phase: 'main-loop',
     });
 
-    logger.error('Manual agent loop error:', formattedError);
+    logger.error('Agent error:', formattedError);
 
-    const loopError = new Error(
-      `Manual agent loop failed (${errorDetails.name}): ${errorDetails.message}`
-    );
+    const loopError = new Error(`Agent failed (${errorDetails.name}): ${errorDetails.message}`);
 
     onError?.(loopError);
     return loopError;

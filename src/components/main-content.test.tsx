@@ -34,6 +34,10 @@ vi.mock('@/pages/settings-page', () => ({
   SettingsPage: () => <div data-testid="settings-page">Settings Page</div>,
 }));
 
+vi.mock('@/pages/logs-page', () => ({
+  LogsPage: () => <div data-testid="logs-page">Logs Page</div>,
+}));
+
 describe('MainContent - State Persistence on Page Switch', () => {
   it('should render all pages in the DOM but only show the active one', () => {
     const { container } = render(<MainContent activeView={NavigationView.CHAT} />);

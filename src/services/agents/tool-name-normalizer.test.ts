@@ -12,23 +12,25 @@ vi.mock('@/lib/logger', () => ({
 }));
 
 // Mock getAllToolNames to avoid importing the entire tools module
-// Note: These are the TOOL_DEFINITIONS keys, not the tool.name properties
+// Note: These are the TOOL_DEFINITIONS keys (now without Tool suffix)
 vi.mock('@/lib/tools', () => ({
   getAllToolNames: vi.fn(() => [
     'readFile',
     'writeFile',
     'editFile',
-    'globTool',
+    'glob',
     'codeSearch',
     'listFiles',
-    'bashTool', // Note: key is 'bashTool', not 'bash'
+    'bash',
     'callAgent',
-    'todoWriteTool',
-    'webSearchTool',
-    'webFetchTool',
-    'askUserQuestionsTool',
-    'exitPlanModeTool',
-    'getSkillTool',
+    'todoWrite',
+    'webSearch',
+    'webFetch',
+    'askUserQuestions',
+    'exitPlanMode',
+    'getSkill',
+    'executeSkillScript',
+    'githubPR',
   ]),
 }));
 
@@ -68,17 +70,22 @@ describe('ToolNameNormalizer', () => {
 
   describe('normalizeToolName', () => {
     it('should return valid tool names unchanged', () => {
-      expect(normalizeToolName('bash')).toBe('bashTool');
-      expect(normalizeToolName('bashTool')).toBe('bashTool');
+      expect(normalizeToolName('bash')).toBe('bash');
       expect(normalizeToolName('readFile')).toBe('readFile');
       expect(normalizeToolName('writeFile')).toBe('writeFile');
       expect(normalizeToolName('editFile')).toBe('editFile');
     });
 
-    it('should normalize "bash Tool" to "bashTool"', () => {
-      expect(normalizeToolName('bash Tool')).toBe('bashTool');
-      expect(normalizeToolName('Bash Tool')).toBe('bashTool');
-      expect(normalizeToolName('BASH TOOL')).toBe('bashTool');
+    it('should normalize "bash Tool" to "bash"', () => {
+      expect(normalizeToolName('bash Tool')).toBe('bash');
+      expect(normalizeToolName('Bash Tool')).toBe('bash');
+      expect(normalizeToolName('BASH TOOL')).toBe('bash');
+    });
+
+    it('should normalize bash variations with Tool suffix to bash', () => {
+      expect(normalizeToolName('bashTool')).toBe('bash');
+      expect(normalizeToolName('BashTool')).toBe('bash');
+      expect(normalizeToolName('bashtool')).toBe('bash');
     });
 
     it('should normalize read file variations', () => {
@@ -104,10 +111,12 @@ describe('ToolNameNormalizer', () => {
     });
 
     it('should normalize glob tool variations', () => {
-      expect(normalizeToolName('glob Tool')).toBe('globTool');
-      expect(normalizeToolName('Glob Tool')).toBe('globTool');
-      expect(normalizeToolName('glob')).toBe('globTool');
-      expect(normalizeToolName('Glob')).toBe('globTool');
+      expect(normalizeToolName('glob Tool')).toBe('glob');
+      expect(normalizeToolName('Glob Tool')).toBe('glob');
+      expect(normalizeToolName('glob')).toBe('glob');
+      expect(normalizeToolName('Glob')).toBe('glob');
+      expect(normalizeToolName('globTool')).toBe('glob');
+      expect(normalizeToolName('GlobTool')).toBe('glob');
     });
 
     it('should normalize code search variations', () => {
@@ -125,21 +134,57 @@ describe('ToolNameNormalizer', () => {
     });
 
     it('should normalize todo write variations', () => {
-      expect(normalizeToolName('todo Write Tool')).toBe('todoWriteTool');
-      expect(normalizeToolName('Todo Write Tool')).toBe('todoWriteTool');
-      expect(normalizeToolName('todoWrite')).toBe('todoWriteTool');
+      expect(normalizeToolName('todo Write Tool')).toBe('todoWrite');
+      expect(normalizeToolName('Todo Write Tool')).toBe('todoWrite');
+      expect(normalizeToolName('todoWrite')).toBe('todoWrite');
+      expect(normalizeToolName('todoWriteTool')).toBe('todoWrite');
+      expect(normalizeToolName('TodoWriteTool')).toBe('todoWrite');
     });
 
     it('should normalize web search variations', () => {
-      expect(normalizeToolName('web Search Tool')).toBe('webSearchTool');
-      expect(normalizeToolName('Web Search Tool')).toBe('webSearchTool');
-      expect(normalizeToolName('webSearch')).toBe('webSearchTool');
+      expect(normalizeToolName('web Search Tool')).toBe('webSearch');
+      expect(normalizeToolName('Web Search Tool')).toBe('webSearch');
+      expect(normalizeToolName('webSearch')).toBe('webSearch');
+      expect(normalizeToolName('webSearchTool')).toBe('webSearch');
+      expect(normalizeToolName('WebSearchTool')).toBe('webSearch');
     });
 
     it('should normalize web fetch variations', () => {
-      expect(normalizeToolName('web Fetch Tool')).toBe('webFetchTool');
-      expect(normalizeToolName('Web Fetch Tool')).toBe('webFetchTool');
-      expect(normalizeToolName('webFetch')).toBe('webFetchTool');
+      expect(normalizeToolName('web Fetch Tool')).toBe('webFetch');
+      expect(normalizeToolName('Web Fetch Tool')).toBe('webFetch');
+      expect(normalizeToolName('webFetch')).toBe('webFetch');
+      expect(normalizeToolName('webFetchTool')).toBe('webFetch');
+      expect(normalizeToolName('WebFetchTool')).toBe('webFetch');
+    });
+
+    it('should normalize askUserQuestions variations', () => {
+      expect(normalizeToolName('askUserQuestions')).toBe('askUserQuestions');
+      expect(normalizeToolName('askUserQuestionsTool')).toBe('askUserQuestions');
+      expect(normalizeToolName('AskUserQuestions')).toBe('askUserQuestions');
+    });
+
+    it('should normalize exitPlanMode variations', () => {
+      expect(normalizeToolName('exitPlanMode')).toBe('exitPlanMode');
+      expect(normalizeToolName('exitPlanModeTool')).toBe('exitPlanMode');
+      expect(normalizeToolName('ExitPlanMode')).toBe('exitPlanMode');
+    });
+
+    it('should normalize getSkill variations', () => {
+      expect(normalizeToolName('getSkill')).toBe('getSkill');
+      expect(normalizeToolName('getSkillTool')).toBe('getSkill');
+      expect(normalizeToolName('GetSkill')).toBe('getSkill');
+    });
+
+    it('should normalize githubPR variations', () => {
+      expect(normalizeToolName('githubPR')).toBe('githubPR');
+      expect(normalizeToolName('githubPRTool')).toBe('githubPR');
+      expect(normalizeToolName('GithubPR')).toBe('githubPR');
+    });
+
+    it('should normalize executeSkillScript variations', () => {
+      expect(normalizeToolName('executeSkillScript')).toBe('executeSkillScript');
+      expect(normalizeToolName('executeSkillScriptTool')).toBe('executeSkillScript');
+      expect(normalizeToolName('ExecuteSkillScript')).toBe('executeSkillScript');
     });
 
     it('should handle MCP tool names', () => {
@@ -148,7 +193,7 @@ describe('ToolNameNormalizer', () => {
     });
 
     it('should remove special characters and normalize', () => {
-      expect(normalizeToolName('bash@Tool')).toBe('bashTool');
+      expect(normalizeToolName('bash@Tool')).toBe('bash');
       expect(normalizeToolName('read.File')).toBe('readFile');
       expect(normalizeToolName('write$File')).toBe('writeFile');
     });
@@ -165,16 +210,16 @@ describe('ToolNameNormalizer', () => {
     });
 
     it('should handle case variations correctly', () => {
-      expect(normalizeToolName('BASH')).toBe('bashTool');
-      expect(normalizeToolName('BashTool')).toBe('bashTool');
-      expect(normalizeToolName('bashtool')).toBe('bashTool');
+      expect(normalizeToolName('BASH')).toBe('bash');
+      expect(normalizeToolName('BashTool')).toBe('bash');
+      expect(normalizeToolName('bashtool')).toBe('bash');
     });
   });
 
   describe('Real-world scenarios', () => {
     it('should handle the specific error case from bug report', () => {
       // The error showed toolName: "bash Tool"
-      expect(normalizeToolName('bash Tool')).toBe('bashTool');
+      expect(normalizeToolName('bash Tool')).toBe('bash');
     });
 
     it('should handle AI models that add descriptive suffixes', () => {
@@ -184,7 +229,7 @@ describe('ToolNameNormalizer', () => {
     });
 
     it('should handle mixed case with spaces', () => {
-      expect(normalizeToolName('Bash TOOL')).toBe('bashTool');
+      expect(normalizeToolName('Bash TOOL')).toBe('bash');
       expect(normalizeToolName('READ file')).toBe('readFile');
       expect(normalizeToolName('WRITE FILE')).toBe('writeFile');
     });

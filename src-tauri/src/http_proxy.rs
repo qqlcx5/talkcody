@@ -378,8 +378,9 @@ pub async fn stream_fetch(
     window: tauri::Window,
     request: ProxyRequest,
 ) -> Result<StreamResponse, String> {
-    let event_name = "stream-response";
     let request_id = REQUEST_COUNTER.fetch_add(1, Ordering::SeqCst);
+    // Use request-specific event name to avoid global event broadcasting
+    let event_name = format!("stream-response-{}", request_id);
 
     log::info!(
         "Stream fetch request to: {} {} (request_id: {})",
@@ -446,12 +447,13 @@ pub async fn stream_fetch(
 
     // Spawn async task to stream chunks
     let window_clone = window.clone();
+    let event_name_clone = event_name.clone();
     tauri::async_runtime::spawn(async move {
         let mut stream = response.bytes_stream();
         let chunk_timeout = Duration::from_secs(30);
         let mut chunk_count = 0;
 
-        log::info!("Starting to stream chunks (request_id: {})", request_id);
+        log::info!("Starting to stream chunks (request_id: {}, event: {})", request_id, event_name_clone);
 
         loop {
             let chunk_result = timeout(chunk_timeout, stream.next()).await;
@@ -461,9 +463,9 @@ pub async fn stream_fetch(
                     chunk_count += 1;
                     let _chunk_size = chunk.len();
 
-                    // Emit chunk to frontend
+                    // Emit chunk to frontend using request-specific event
                     if let Err(e) = window_clone.emit(
-                        event_name,
+                        &event_name_clone,
                         ChunkPayload {
                             request_id,
                             chunk: chunk.to_vec(),
@@ -505,7 +507,7 @@ pub async fn stream_fetch(
 
         // Emit end signal
         if let Err(e) = window_clone.emit(
-            event_name,
+            &event_name_clone,
             EndPayload {
                 request_id,
                 status: 0,

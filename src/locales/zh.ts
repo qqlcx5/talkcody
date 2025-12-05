@@ -140,6 +140,8 @@ const zh: LocaleDefinition = {
       planModeTooltip: 'AI 将先创建详细计划供您审批，然后再进行更改',
       actModeTooltip: 'AI 将直接执行任务，无需计划审批',
       toggleTerminal: '切换终端',
+      searchFiles: '搜索文件 (Cmd+P)',
+      searchContent: '搜索内容 (Cmd+G)',
       inputTokens: 'Tokens',
       outputTokens: 'Tokens',
     },
@@ -541,9 +543,24 @@ const zh: LocaleDefinition = {
     skillsTooltip: '发现和安装技能',
     mcpServers: 'MCP 服务器',
     mcpServersTooltip: '模型上下文协议服务器',
+    logs: '日志',
+    logsTooltip: '查看应用程序日志',
     settings: '设置',
     settingsTooltip: '应用程序设置',
     switchTheme: (theme) => `切换到${theme === 'light' ? '浅色' : '深色'}模式`,
+    githubTooltip: '在 GitHub 上为 TalkCody 点赞',
+  },
+
+  Logs: {
+    title: '日志',
+    description: '查看应用程序日志',
+    openLogDirectory: '打开日志目录',
+    refresh: '刷新',
+    logDirectory: '日志目录',
+    logDirectoryDescription: '日志文件存储在以下目录：',
+    latestEntries: '最新100条日志记录',
+    latestEntriesDescription: '最新的应用程序日志。日志由应用程序自动写入。',
+    noLogsFound: '未找到日志。',
   },
 
   Initialization: {
@@ -699,6 +716,162 @@ const zh: LocaleDefinition = {
         dark: '深色',
         system: '跟随系统',
       },
+    },
+  },
+
+  LLMService: {
+    status: {
+      initializing: '正在初始化 Agent 循环',
+      step: (iteration) => `步骤 ${iteration}`,
+      compacting: '正在压缩消息历史...',
+      compressed: (ratio) => `消息历史已压缩（${ratio}x 缩减）`,
+      compressionFailed: '消息压缩失败，继续执行...',
+    },
+    errors: {
+      noProvider: (model, provider) =>
+        `模型 ${model} 没有可用的供应商。请在设置中配置 API 密钥。供应商：${provider}`,
+      streamResultNull: '重试循环后流结果意外为空',
+      unknownFinishReason: 'LLM 以未知原因完成且没有工具调用',
+    },
+  },
+
+  VoiceInput: {
+    success: {
+      transcriptionCompleted: '转录完成',
+      realtimeStarted: '实时转录已启动',
+      recordingStarted: '录音已开始',
+      recordingCancelled: '录音已取消',
+    },
+    errors: {
+      apiKeyNotConfigured: 'Eleven Labs API 密钥未配置。请在设置中配置。',
+      transcriptionError: (message) => `转录错误：${message}`,
+      failedToStart: '无法启动实时转录',
+      microphoneAccessDenied: '麦克风访问被拒绝。请允许麦克风访问后重试。',
+      noMicrophoneFound: '未找到麦克风。请连接麦克风后重试。',
+      microphoneInUse: '麦克风正在被其他应用程序使用。',
+      serviceNotAvailable: '实时服务不可用',
+      stopFailed: (message) => `停止录音失败：${message}`,
+      recordingError: '录音发生错误',
+      failedToStartRecording: '无法开始录音',
+      noActiveRecording: '没有正在进行的录音',
+      noAudioData: '未录制到音频数据',
+      emptyAudio: '录制的音频为空',
+      noTranscriptionText: '未返回转录文本',
+      transcriptionFailed: (message) => `转录失败：${message}`,
+    },
+  },
+
+  Auth: {
+    success: {
+      signedIn: '登录成功',
+      signedOut: '退出登录成功',
+    },
+    errors: {
+      failedToInitiate: (message) => `无法发起登录：${message}`,
+      signOutFailed: (message) => `退出登录失败：${message}`,
+      completionFailed: '无法完成登录',
+      completionFailedWithMessage: (message) => `无法完成登录：${message}`,
+    },
+  },
+
+  RepositoryStore: {
+    success: {
+      repositoryOpened: '仓库打开成功',
+      fileSaved: (name) => `文件已保存：${name}`,
+      fileRefreshed: '文件刷新成功',
+    },
+    errors: {
+      failedToLoadDirectory: '无法加载目录内容',
+      failedToOpen: (message) => `无法打开仓库：${message}`,
+      failedToRead: (message) => `无法读取文件：${message}`,
+      failedToSave: (message) => `无法保存文件：${message}`,
+      searchFailed: '搜索失败',
+      failedToRefresh: (message) => `无法刷新文件：${message}`,
+      failedToRefreshTree: (message) => `无法刷新文件树：${message}`,
+    },
+  },
+
+  FileTree: {
+    success: {
+      renamed: (name) => `已重命名为"${name}"`,
+      deleted: (name) => `${name} 已删除`,
+      pathCopied: '绝对路径已复制到剪贴板',
+      relativePathCopied: '相对路径已复制到剪贴板',
+      cutToClipboard: (name) => `${name} 已剪切到剪贴板`,
+      copiedToClipboard: (name) => `${name} 已复制到剪贴板`,
+      moved: (name) => `已移动 ${name}`,
+      copied: (name) => `已复制 ${name}`,
+      itemCreated: (type) => `${type}已创建`,
+      refreshed: '文件树已刷新',
+    },
+    errors: {
+      failedToLoadDirectory: '无法加载目录内容',
+      nothingToPaste: '没有可粘贴的内容',
+      pasteFailed: (message) => `粘贴失败：${message}`,
+      deleteFailed: (name, message) => `无法删除 ${name}：${message}`,
+      repositoryPathNotAvailable: '仓库路径不可用',
+    },
+    contextMenu: {
+      newFile: '新建文件',
+      newFolder: '新建文件夹',
+      cut: '剪切',
+      copy: '复制',
+      paste: '粘贴',
+      rename: '重命名',
+      delete: '删除',
+      deleting: '删除中...',
+      copyPath: '复制路径',
+      copyRelativePath: '复制相对路径',
+      refresh: '刷新',
+    },
+    placeholder: {
+      folderName: '文件夹名称',
+      fileName: '文件名称',
+    },
+    states: {
+      loading: '加载中...',
+    },
+  },
+
+  ApiClient: {
+    errors: {
+      authenticationRequired: '需要身份验证',
+      sessionExpired: '会话已过期。请重新登录。',
+    },
+  },
+
+  MCPServersExtra: {
+    alerts: {
+      cannotDeleteBuiltIn: '无法删除内置服务器',
+      operationFailed: (message) => message,
+    },
+    github: {
+      setupRequired: '需要设置',
+      setupInstructions: {
+        intro: '此服务器需要 GitHub 个人访问令牌 (PAT)。',
+        step1: '1. 前往 GitHub 设置 → 开发者设置 → 个人访问令牌 → Tokens (classic)',
+        step2: '2. 生成一个具有以下权限的新令牌：',
+        step3: '3. 编辑此服务器并将令牌添加为 API 密钥',
+        step4: '4. 添加令牌后启用服务器',
+      },
+      connectionFailed: {
+        title: '连接失败：',
+        checkScopes: '令牌具有正确的权限：',
+        checkExpiry: '令牌未过期',
+        checkNetwork: '网络连接可用',
+        checkApi: 'GitHub API 可访问',
+      },
+    },
+    tooltip: {
+      deleteServer: '删除服务器',
+    },
+  },
+
+  StreamProcessor: {
+    status: {
+      answering: '正在回答',
+      thinking: '正在思考',
+      callingTool: (toolName) => `正在调用工具 ${toolName}`,
     },
   },
 };

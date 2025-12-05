@@ -76,7 +76,7 @@ function PlanRejectedResult({ feedback }: { feedback?: string }) {
 }
 
 export const exitPlanModeTool = createTool({
-  name: 'ExitPlanMode',
+  name: 'exitPlanMode',
   description: `Present an implementation plan to the user for review and approval. This tool is REQUIRED in Plan Mode before making any file modifications.
 
 When in Plan Mode, you must:

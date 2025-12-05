@@ -20,7 +20,7 @@ import { settingsManager } from '@/stores/settings-store';
 import { normalizeString } from '@/utils/text-replacement';
 
 export const writeFile = createTool({
-  name: 'write-file',
+  name: 'writeFile',
   description: `Use this tool to write content to a file.
 
 This tool will create or overwrite a file with the provided content. It will automatically create directories if they don't exist. It's useful for creating new files or updating existing files in the project.

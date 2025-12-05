@@ -205,6 +205,38 @@ impl Database {
 
         Ok(results)
     }
+
+    /// Close the database connection gracefully
+    /// This should be called when the application exits to release file handles
+    #[allow(dead_code)]
+    pub async fn close(&self) -> Result<(), String> {
+        let lock = self.conn.lock().await;
+        if lock.is_some() {
+            // Run PRAGMA optimize before closing (SQLite best practice)
+            drop(lock);
+            let _ = self.execute("PRAGMA optimize", vec![]).await;
+
+            // Now set connection to None to release it
+            let mut lock = self.conn.lock().await;
+            *lock = None;
+            log::info!("Database connection closed successfully");
+        }
+        Ok(())
+    }
+
+    /// Synchronous close for use in Drop or sync contexts
+    pub fn close_sync(&self) {
+        // Try to acquire lock and clear connection
+        // This is a best-effort cleanup in sync context
+        if let Ok(rt) = tokio::runtime::Runtime::new() {
+            let conn = self.conn.clone();
+            rt.block_on(async move {
+                let mut lock = conn.lock().await;
+                *lock = None;
+                log::info!("Database connection closed (sync)");
+            });
+        }
+    }
 }
 
 // Convert serde_json::Value to libsql::Value
@@ -705,5 +737,182 @@ mod tests {
         assert!(Database::is_busy_error("Error: SQLITE_BUSY"));
         assert!(!Database::is_busy_error("some other error"));
         assert!(!Database::is_busy_error(""));
+    }
+
+    #[tokio::test]
+    async fn test_database_close_releases_connection() {
+        // Test that close() properly releases the database connection
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("close_test.db");
+
+        let database = Database::new(db_path.to_string_lossy().to_string());
+        database.connect().await.expect("Failed to connect");
+
+        // Verify connection works before close
+        let result = database.execute("SELECT 1 as test", vec![]).await;
+        assert!(result.is_ok(), "Should be able to execute before close");
+
+        // Close the connection
+        let close_result = database.close().await;
+        assert!(close_result.is_ok(), "Close should succeed");
+
+        // After close, operations should fail
+        let result_after_close = database.execute("SELECT 1 as test", vec![]).await;
+        assert!(result_after_close.is_err(), "Should fail after close");
+        assert!(result_after_close.unwrap_err().contains("not connected"));
+    }
+
+    #[tokio::test]
+    async fn test_database_close_is_idempotent() {
+        // Test that calling close() multiple times doesn't cause issues
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("close_idempotent_test.db");
+
+        let database = Database::new(db_path.to_string_lossy().to_string());
+        database.connect().await.expect("Failed to connect");
+
+        // Close multiple times - should not panic
+        let result1 = database.close().await;
+        assert!(result1.is_ok(), "First close should succeed");
+
+        let result2 = database.close().await;
+        assert!(result2.is_ok(), "Second close should succeed (no-op)");
+
+        let result3 = database.close().await;
+        assert!(result3.is_ok(), "Third close should succeed (no-op)");
+    }
+
+    #[tokio::test]
+    async fn test_database_close_without_connect() {
+        // Test that close() works even if connect() was never called
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("never_connected.db");
+
+        let database = Database::new(db_path.to_string_lossy().to_string());
+        // Note: NOT calling connect()
+
+        let result = database.close().await;
+        assert!(result.is_ok(), "Close should succeed even without prior connect");
+    }
+
+    #[test]
+    fn test_database_close_sync_works() {
+        // Test that close_sync() works correctly
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("close_sync_test.db");
+
+        let database = Database::new(db_path.to_string_lossy().to_string());
+
+        // Connect in async context
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            database.connect().await.expect("Failed to connect");
+        });
+
+        // close_sync should not panic
+        database.close_sync();
+
+        // Verify connection is closed - operations should fail
+        rt.block_on(async {
+            let result = database.execute("SELECT 1", vec![]).await;
+            assert!(result.is_err(), "Should fail after close_sync");
+        });
+    }
+
+    #[test]
+    fn test_database_close_sync_is_idempotent() {
+        // Test that calling close_sync() multiple times doesn't panic
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("close_sync_idempotent.db");
+
+        let database = Database::new(db_path.to_string_lossy().to_string());
+
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            database.connect().await.expect("Failed to connect");
+        });
+
+        // Multiple close_sync calls should not panic
+        database.close_sync();
+        database.close_sync();
+        database.close_sync();
+    }
+
+    #[tokio::test]
+    async fn test_database_file_handles_released_after_close() {
+        // Test that file handles are released after close, allowing file operations
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("handle_release_test.db");
+        let db_path_str = db_path.to_string_lossy().to_string();
+
+        {
+            let database = Database::new(db_path_str.clone());
+            database.connect().await.expect("Failed to connect");
+
+            // Create a table and insert data
+            database.execute(
+                "CREATE TABLE test (id INTEGER PRIMARY KEY)",
+                vec![]
+            ).await.expect("Failed to create table");
+
+            // Close the database
+            database.close().await.expect("Failed to close");
+        }
+
+        // After close, we should be able to delete the database file
+        // This verifies that file handles were properly released
+        assert!(db_path.exists(), "Database file should exist");
+
+        // On Windows, this would fail if handles weren't released
+        let remove_result = std::fs::remove_file(&db_path);
+        assert!(remove_result.is_ok(), "Should be able to remove db file after close: {:?}", remove_result);
+    }
+
+    #[tokio::test]
+    async fn test_database_wal_files_can_be_removed_after_close() {
+        // Test that WAL mode files can be cleaned up after database close
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("wal_cleanup_test.db");
+        let wal_path = temp_dir.path().join("wal_cleanup_test.db-wal");
+        let shm_path = temp_dir.path().join("wal_cleanup_test.db-shm");
+
+        {
+            let database = Database::new(db_path.to_string_lossy().to_string());
+            database.connect().await.expect("Failed to connect");
+
+            // Perform some writes to ensure WAL files are created
+            database.execute(
+                "CREATE TABLE test (id INTEGER, data TEXT)",
+                vec![]
+            ).await.expect("Failed to create table");
+
+            for i in 0..10 {
+                database.execute(
+                    "INSERT INTO test (id, data) VALUES (?, ?)",
+                    vec![
+                        serde_json::Value::Number(i.into()),
+                        serde_json::Value::String(format!("data_{}", i)),
+                    ]
+                ).await.expect("Failed to insert");
+            }
+
+            // Close the database
+            database.close().await.expect("Failed to close");
+        }
+
+        // Verify main db file exists and can be removed
+        assert!(db_path.exists(), "Database file should exist");
+        let _ = std::fs::remove_file(&db_path);
+
+        // WAL files may or may not exist depending on checkpointing,
+        // but if they exist, they should be removable
+        if wal_path.exists() {
+            let result = std::fs::remove_file(&wal_path);
+            assert!(result.is_ok(), "Should be able to remove WAL file: {:?}", result);
+        }
+        if shm_path.exists() {
+            let result = std::fs::remove_file(&shm_path);
+            assert!(result.is_ok(), "Should be able to remove SHM file: {:?}", result);
+        }
     }
 }

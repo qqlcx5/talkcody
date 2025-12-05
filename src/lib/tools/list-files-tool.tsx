@@ -47,7 +47,5 @@ The directory path must be absolute.`,
   renderToolDoing: ({ directory_path, max_depth }) => (
     <ListFilesDoing path={directory_path} depth={max_depth} />
   ),
-  renderToolResult: (result, { directory_path, max_depth } = {}) => (
-    <ListFilesResult path={directory_path} result={result} depth={max_depth} />
-  ),
+  renderToolResult: (result = {}) => <ListFilesResult result={result} />,
 });

@@ -30,8 +30,8 @@ export class GeneralAgent {
 
   static getDefinition(): AgentDefinition {
     const selectedTools = {
-      webSearchTool: getToolSync('webSearchTool'),
-      webFetchTool: getToolSync('webFetchTool'),
+      webSearch: getToolSync('webSearch'),
+      webFetch: getToolSync('webFetch'),
     };
 
     return {

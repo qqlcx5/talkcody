@@ -34,6 +34,11 @@ vi.mock('../stores/settings-store', () => ({
     getSync: vi.fn().mockReturnValue(undefined),
     getBatchSync: vi.fn().mockReturnValue({}),
   },
+  useSettingsStore: {
+    getState: vi.fn(() => ({
+      language: 'en',
+    })),
+  },
 }));
 
 vi.mock('../services/workspace-root-service', () => ({
@@ -643,12 +648,12 @@ describe('ChatService.runManualAgentLoop', () => {
       const options = createBasicOptions();
 
       await expect(chatService.runAgentLoop(options, mockCallbacks)).rejects.toThrow(
-        'Unexpected error in manual agent loop (Error): Unknown stream error'
+        'Unexpected error in agent loop (Error): Unknown stream error'
       );
 
       expect(mockCallbacks.onError).toHaveBeenCalledWith(
         expect.objectContaining({
-          message: 'Unexpected error in manual agent loop (Error): Unknown stream error',
+          message: 'Unexpected error in agent loop (Error): Unknown stream error',
         })
       );
     });
@@ -676,7 +681,7 @@ describe('ChatService.runManualAgentLoop', () => {
       expect(mockCallbacks.onError).toHaveBeenCalledTimes(1);
       expect(mockCallbacks.onError).toHaveBeenCalledWith(
         expect.objectContaining({
-          message: expect.stringContaining('Unexpected error in manual agent loop (TimeoutError)'),
+          message: expect.stringContaining('Unexpected error in agent loop (TimeoutError)'),
         })
       );
     });

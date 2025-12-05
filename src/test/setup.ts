@@ -110,6 +110,13 @@ vi.mock('../stores/settings-store', () => ({
     getCurrentConversationId: vi.fn().mockReturnValue('conv-123'),
     getProject: vi.fn().mockResolvedValue(null),
   })),
+  useSettingsStore: {
+    getState: vi.fn(() => ({
+      language: 'en',
+    })),
+    subscribe: vi.fn(),
+    setState: vi.fn(),
+  },
 }));
 
 vi.mock('@/services/workspace-root-service', () => ({

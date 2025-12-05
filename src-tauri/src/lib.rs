@@ -836,13 +836,35 @@ pub fn run() {
             code_navigation::code_nav_get_indexed_files,
         ])
         .on_window_event(|window, event| {
-            // Send session_end when main window is destroyed
+            // Clean up resources when main window is destroyed
             if let WindowEvent::Destroyed = event {
                 if window.label() == "main" {
-                    log::info!("Main window destroyed, sending session_end");
+                    log::info!("Main window destroyed, cleaning up resources");
+
+                    // Send analytics session_end
                     if let Some(analytics_state) = window.try_state::<AnalyticsState>() {
                         analytics::send_session_end_sync(analytics_state.inner());
                     }
+
+                    // Stop legacy file watcher
+                    if let Some(app_state) = window.try_state::<AppState>() {
+                        if let Ok(mut watcher_guard) = app_state.file_watcher.lock() {
+                            if let Some(mut watcher) = watcher_guard.take() {
+                                log::info!("Stopping legacy file watcher on app exit");
+                                watcher.stop();
+                            }
+                        }
+                        // Clean up all window registry watchers
+                        app_state.window_registry.cleanup_all_watchers();
+                    }
+
+                    // Close database connection to release file handles
+                    if let Some(db) = window.try_state::<Arc<Database>>() {
+                        log::info!("Closing database connection on app exit");
+                        db.inner().close_sync();
+                    }
+
+                    log::info!("Resource cleanup completed");
                 }
             }
         })

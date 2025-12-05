@@ -24,6 +24,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
+import { useTranslation } from '@/hooks/use-locale';
 import { logger } from '@/lib/logger';
 import { cn } from '@/lib/utils';
 import { repositoryService } from '@/services/repository-service';
@@ -148,6 +149,7 @@ function FileTreeNode({
   onLoadChildren,
   onToggleExpansion,
 }: FileTreeNodeProps) {
+  const t = useTranslation();
   // Subscribe to lastRefresh to trigger re-render when Git data changes
   useGitStore((state) => state.lastRefresh); // Triggers re-render when Git status refreshes
   const getFileStatus = useGitStore((state) => state.getFileStatus);
@@ -198,14 +200,20 @@ function FileTreeNode({
         onToggleExpansion?.(node.path);
       } catch (error) {
         logger.error('Failed to load directory children:', error);
-        toast.error('Failed to load directory contents');
+        toast.error(t.FileTree.errors.failedToLoadDirectory);
       } finally {
         setIsLoadingChildren(false);
       }
     } else {
       onToggleExpansion?.(node.path);
     }
-  }, [node, isExpanded, onLoadChildren, onToggleExpansion]);
+  }, [
+    node,
+    isExpanded,
+    onLoadChildren,
+    onToggleExpansion,
+    t.FileTree.errors.failedToLoadDirectory,
+  ]);
 
   const handleClick = (_e: React.MouseEvent) => {
     // If context menu just closed, ignore this click to prevent accidental actions
@@ -249,7 +257,7 @@ function FileTreeNode({
   const handleRenameSubmit = () => {
     if (renameName.trim() && renameName !== node.name) {
       onFileRename?.(node.path, renameName.trim());
-      toast.success(`Renamed to "${renameName}"`);
+      toast.success(t.FileTree.success.renamed(renameName));
     }
     setIsRenaming(false);
   };
@@ -275,12 +283,15 @@ function FileTreeNode({
       if (shouldDelete) {
         await repositoryService.deleteFile(node.path);
         onFileDelete?.(node.path);
-        toast.success(`${node.name} deleted`);
+        toast.success(t.FileTree.success.deleted(node.name));
       }
     } catch (error) {
       logger.error('Failed to delete file:', error);
       toast.error(
-        `Failed to delete ${node.name}: ${error instanceof Error ? error.message : 'Unknown error'}`
+        t.FileTree.errors.deleteFailed(
+          node.name,
+          error instanceof Error ? error.message : 'Unknown error'
+        )
       );
     } finally {
       setIsDeleting(false);
@@ -289,32 +300,32 @@ function FileTreeNode({
 
   const handleCopyPath = () => {
     navigator.clipboard.writeText(node.path);
-    toast.success('Absolute path copied to clipboard');
+    toast.success(t.FileTree.success.pathCopied);
   };
 
   const handleCopyRelativePath = () => {
     if (!repositoryPath) {
-      toast.error('Repository path not available');
+      toast.error(t.FileTree.errors.repositoryPathNotAvailable);
       return;
     }
     const relativePath = repositoryService.getRelativePath(node.path, repositoryPath);
     navigator.clipboard.writeText(relativePath);
-    toast.success('Relative path copied to clipboard');
+    toast.success(t.FileTree.success.relativePathCopied);
   };
 
   const handleCut = () => {
     clipboardState = { type: 'cut', paths: [node.path] };
-    toast.success(`${node.name} cut to clipboard`);
+    toast.success(t.FileTree.success.cutToClipboard(node.name));
   };
 
   const handleCopy = () => {
     clipboardState = { type: 'copy', paths: [node.path] };
-    toast.success(`${node.name} copied to clipboard`);
+    toast.success(t.FileTree.success.copiedToClipboard(node.name));
   };
 
   const handlePaste = async () => {
     if (!clipboardState || clipboardState.paths.length === 0) {
-      toast.error('Nothing to paste');
+      toast.error(t.FileTree.errors.nothingToPaste);
       return;
     }
 
@@ -342,11 +353,11 @@ function FileTreeNode({
 
         if (clipboardState.type === 'cut') {
           await repositoryService.moveFile(sourcePath, targetPath);
-          toast.success(`Moved ${fileName}`);
+          toast.success(t.FileTree.success.moved(fileName));
         } else {
           // Use the new copy method
           await repositoryService.copyFileOrDirectory(sourcePath, targetPath);
-          toast.success(`Copied ${fileName}`);
+          toast.success(t.FileTree.success.copied(fileName));
         }
       }
 
@@ -357,7 +368,9 @@ function FileTreeNode({
       onRefresh?.();
     } catch (error) {
       logger.error('Paste operation failed:', error);
-      toast.error(`Paste failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error(
+        t.FileTree.errors.pasteFailed(error instanceof Error ? error.message : 'Unknown error')
+      );
     }
   };
 
@@ -388,7 +401,11 @@ function FileTreeNode({
       const isDirectory = isCreatingFolder;
 
       onFileCreate?.(parentPath, trimmedName, isDirectory);
-      toast.success(`${isDirectory ? 'Folder' : 'File'} created`);
+      toast.success(
+        t.FileTree.success.itemCreated(
+          isDirectory ? t.FileTree.contextMenu.newFolder : t.FileTree.contextMenu.newFile
+        )
+      );
     }
 
     setIsCreatingFile(false);
@@ -404,7 +421,7 @@ function FileTreeNode({
 
   const handleRefresh = () => {
     onRefresh?.();
-    toast.success('File tree refreshed');
+    toast.success(t.FileTree.success.refreshed);
   };
 
   const isSelected = selectedFile === node.path;
@@ -433,27 +450,25 @@ function FileTreeNode({
     >
       <div className="flex min-w-0 flex-1 items-center">
         {node.is_directory ? (
-          <>
-            {node.has_children || (node.children && node.children.length > 0) ? (
-              isExpanded ? (
-                <ChevronDown
-                  className={cn(
-                    'mr-1 h-4 w-4 flex-shrink-0',
-                    isGitIgnored && 'text-muted-foreground'
-                  )}
-                />
-              ) : (
-                <ChevronRight
-                  className={cn(
-                    'mr-1 h-4 w-4 flex-shrink-0',
-                    isGitIgnored && 'text-muted-foreground'
-                  )}
-                />
-              )
+          node.has_children || (node.children && node.children.length > 0) ? (
+            isExpanded ? (
+              <ChevronDown
+                className={cn(
+                  'mr-1 h-4 w-4 flex-shrink-0',
+                  isGitIgnored && 'text-muted-foreground'
+                )}
+              />
             ) : (
-              <div className="mr-1 h-4 w-4" />
-            )}
-          </>
+              <ChevronRight
+                className={cn(
+                  'mr-1 h-4 w-4 flex-shrink-0',
+                  isGitIgnored && 'text-muted-foreground'
+                )}
+              />
+            )
+          ) : (
+            <div className="mr-1 h-4 w-4" />
+          )
         ) : (
           <>
             <div className="mr-1 h-4 w-4" />
@@ -500,7 +515,7 @@ function FileTreeNode({
         )}
 
         {isLoadingChildren && (
-          <span className="ml-2 text-muted-foreground text-xs">Loading...</span>
+          <span className="ml-2 text-muted-foreground text-xs">{t.FileTree.states.loading}</span>
         )}
       </div>
     </button>
@@ -515,33 +530,33 @@ function FileTreeNode({
             <>
               <ContextMenuItem onClick={handleNewFile}>
                 <FileText className="mr-2 h-4 w-4" />
-                New File
+                {t.FileTree.contextMenu.newFile}
               </ContextMenuItem>
               <ContextMenuItem onClick={handleNewFolder}>
                 <Plus className="mr-2 h-4 w-4" />
-                New Folder
+                {t.FileTree.contextMenu.newFolder}
               </ContextMenuItem>
               <ContextMenuSeparator />
             </>
           )}
           <ContextMenuItem onClick={handleCut}>
             <Scissors className="mr-2 h-4 w-4" />
-            Cut
+            {t.FileTree.contextMenu.cut}
           </ContextMenuItem>
           <ContextMenuItem onClick={handleCopy}>
             <Copy className="mr-2 h-4 w-4" />
-            Copy
+            {t.FileTree.contextMenu.copy}
           </ContextMenuItem>
           {clipboardState && (
             <ContextMenuItem onClick={handlePaste}>
               <ClipboardPaste className="mr-2 h-4 w-4" />
-              Paste
+              {t.FileTree.contextMenu.paste}
             </ContextMenuItem>
           )}
           <ContextMenuSeparator />
           <ContextMenuItem onClick={handleRename}>
             <Edit className="mr-2 h-4 w-4" />
-            Rename
+            {t.FileTree.contextMenu.rename}
           </ContextMenuItem>
           <ContextMenuItem
             className="text-red-600 dark:text-red-400"
@@ -549,23 +564,23 @@ function FileTreeNode({
             onClick={handleDelete}
           >
             <Trash2 className="mr-2 h-4 w-4" />
-            {isDeleting ? 'Deleting...' : 'Delete'}
+            {isDeleting ? t.FileTree.contextMenu.deleting : t.FileTree.contextMenu.delete}
           </ContextMenuItem>
           <ContextMenuSeparator />
           <ContextMenuItem onClick={handleCopyPath}>
             <Copy className="mr-2 h-4 w-4" />
-            Copy Path
+            {t.FileTree.contextMenu.copyPath}
           </ContextMenuItem>
           {repositoryPath && (
             <ContextMenuItem onClick={handleCopyRelativePath}>
               <Copy className="mr-2 h-4 w-4" />
-              Copy Relative Path
+              {t.FileTree.contextMenu.copyRelativePath}
             </ContextMenuItem>
           )}
           <ContextMenuSeparator />
           <ContextMenuItem onClick={handleRefresh}>
             <RefreshCw className="mr-2 h-4 w-4" />
-            Refresh
+            {t.FileTree.contextMenu.refresh}
           </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>
@@ -597,7 +612,11 @@ function FileTreeNode({
                       handleNewItemCancel();
                     }
                   }}
-                  placeholder={isCreatingFolder ? 'Folder name' : 'File name'}
+                  placeholder={
+                    isCreatingFolder
+                      ? t.FileTree.placeholder.folderName
+                      : t.FileTree.placeholder.fileName
+                  }
                   ref={newItemInputRef}
                   type="text"
                   value={newItemName}

@@ -34,6 +34,11 @@ vi.mock('@/stores/settings-store', () => ({
     getSync: vi.fn().mockReturnValue(undefined),
     getBatchSync: vi.fn().mockReturnValue({}),
   },
+  useSettingsStore: {
+    getState: vi.fn(() => ({
+      language: 'en',
+    })),
+  },
 }));
 
 vi.mock('@/services/workspace-root-service', () => ({
@@ -263,5 +268,82 @@ describe('ChatService Tool UI Rendering', () => {
       ? toolResultMessage.content.find((c: any) => c.type === 'tool-result')
       : undefined;
     expect(toolResultContent?.output).toEqual(mockToolResult);
+  });
+
+  it('should include renderDoingUI flag in tool-call message', async () => {
+    // Setup mock tool
+    const mockTool = {
+      inputSchema: z.object({}),
+      execute: vi.fn(() => Promise.resolve({ success: true })),
+    };
+
+    // Setup mock stream with tool call
+    const mockFirstStream = [
+      {
+        type: 'tool-call',
+        toolCallId: 'call_testTool_render123',
+        toolName: 'testTool',
+        input: {},
+      },
+    ];
+
+    const mockSecondStream = [
+      { type: 'text-delta', text: 'Done' },
+      {
+        type: 'step-finish',
+        finishReason: 'stop',
+        usage: { inputTokens: 10, outputTokens: 5 },
+      },
+    ];
+
+    mockStreamText
+      .mockReturnValueOnce({
+        fullStream: (async function* () {
+          for (const delta of mockFirstStream) {
+            yield delta;
+          }
+        })(),
+        finishReason: Promise.resolve('tool-calls'),
+      })
+      .mockReturnValueOnce({
+        fullStream: (async function* () {
+          for (const delta of mockSecondStream) {
+            yield delta;
+          }
+        })(),
+        finishReason: Promise.resolve('stop'),
+      });
+
+    const toolMessages: UIMessage[] = [];
+
+    await llmService.runAgentLoop(
+      {
+        messages: testMessages,
+        model: 'test-model',
+        tools: { testTool: mockTool },
+      },
+      {
+        onChunk: vi.fn(),
+        onComplete: vi.fn(),
+        onError: vi.fn(),
+        onStatus: vi.fn(),
+        onToolMessage: (message: UIMessage) => {
+          toolMessages.push(message);
+        },
+      }
+    );
+
+    // Find the tool-call message
+    const toolCallMessage = toolMessages.find(
+      (m) =>
+        m.role === 'tool' &&
+        Array.isArray(m.content) &&
+        m.content.some((c) => c.type === 'tool-call')
+    );
+
+    expect(toolCallMessage).toBeDefined();
+    // renderDoingUI should be defined (based on tool metadata)
+    // The actual value depends on TOOL_DEFINITIONS in tools/index.ts
+    expect(toolCallMessage?.renderDoingUI).toBeDefined();
   });
 });

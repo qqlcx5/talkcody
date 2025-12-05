@@ -273,10 +273,10 @@ export class CodeReviewAgent {
   static getDefinition(): AgentDefinition {
     const selectedTools = {
       readFile: getToolSync('readFile'),
-      globTool: getToolSync('globTool'),
+      glob: getToolSync('glob'),
       codeSearch: getToolSync('codeSearch'),
-      githubPRTool: getToolSync('githubPRTool'),
-      getSkillTool: getToolSync('getSkillTool'),
+      githubPR: getToolSync('githubPR'),
+      getSkill: getToolSync('getSkill'),
     };
 
     return {

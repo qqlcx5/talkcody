@@ -1,7 +1,14 @@
 import { getApiUrl } from '@/lib/config';
 import { tauriFetch } from '@/lib/tauri-fetch';
+import { getLocale, type SupportedLocale } from '@/locales';
 import { useAuthStore } from '@/stores/auth-store';
+import { useSettingsStore } from '@/stores/settings-store';
 import { secureStorage } from './secure-storage';
+
+function getTranslations() {
+  const language = (useSettingsStore.getState().language || 'en') as SupportedLocale;
+  return getLocale(language);
+}
 
 export interface ApiClientOptions extends RequestInit {
   requireAuth?: boolean;
@@ -20,7 +27,7 @@ class ApiClient {
 
     // If auth is required but no token exists, throw error
     if (requireAuth && !token) {
-      throw new Error('Authentication required');
+      throw new Error(getTranslations().ApiClient.errors.authenticationRequired);
     }
 
     // Build headers
@@ -50,7 +57,7 @@ class ApiClient {
       // Sign out user and clear auth state
       const signOut = useAuthStore.getState().signOut;
       await signOut();
-      throw new Error('Session expired. Please sign in again.');
+      throw new Error(getTranslations().ApiClient.errors.sessionExpired);
     }
 
     return response;

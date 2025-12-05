@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, Plus, SquareTerminal, Zap } from 'lucide-react';
+import { ArrowDown, ArrowUp, FileSearch, Plus, Search, SquareTerminal, Zap } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -28,6 +28,9 @@ interface ChatToolbarProps {
   rootPath?: string;
   isTerminalVisible?: boolean;
   onToggleTerminal?: () => void;
+  // Search props
+  onOpenFileSearch?: () => void;
+  onOpenContentSearch?: () => void;
 }
 
 export function ChatToolbar({
@@ -43,6 +46,8 @@ export function ChatToolbar({
   isLoadingProject,
   isTerminalVisible,
   onToggleTerminal,
+  onOpenFileSearch,
+  onOpenContentSearch,
 }: ChatToolbarProps) {
   const t = useTranslation();
   const [modelName, setModelName] = useState<string>('');
@@ -218,6 +223,41 @@ export function ChatToolbar({
 
       {/* Right: Actions */}
       <div className="flex min-w-0 flex-1 items-center justify-end gap-1">
+        {/* Search buttons */}
+        {onOpenFileSearch && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                className="h-6 w-6 p-0 hover:bg-gray-200 dark:hover:bg-gray-700"
+                onClick={onOpenFileSearch}
+                size="sm"
+                variant="ghost"
+              >
+                <FileSearch className="h-3.5 w-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>{t.Chat.toolbar.searchFiles}</p>
+            </TooltipContent>
+          </Tooltip>
+        )}
+        {onOpenContentSearch && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                className="h-6 w-6 p-0 hover:bg-gray-200 dark:hover:bg-gray-700"
+                onClick={onOpenContentSearch}
+                size="sm"
+                variant="ghost"
+              >
+                <Search className="h-3.5 w-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>{t.Chat.toolbar.searchContent}</p>
+            </TooltipContent>
+          </Tooltip>
+        )}
         {onToggleTerminal && (
           <Tooltip>
             <TooltipTrigger asChild>

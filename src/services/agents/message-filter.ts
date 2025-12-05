@@ -13,7 +13,7 @@ type MessageContentPart = TextPart | FilePart | ToolCallPart | ToolResultPart | 
  */
 export class MessageFilter {
   // Exploratory tools that can be filtered after initial discovery phase
-  private readonly exploratoryTools = new Set(['globTool', 'listFiles', 'codeSearch']);
+  private readonly exploratoryTools = new Set(['glob', 'listFiles', 'codeSearch']);
 
   /**
    * Main filtering entry point
@@ -31,7 +31,7 @@ export class MessageFilter {
 
     // Optimization 2: Remove exploratory tools if we have enough tool calls
     if (toolCallCount > 20) {
-      logger.info('Tool call count > 20, filtering exploratory tools');
+      logger.info('? > 20, filtering exploratory tools');
       filteredMessages = this.filterExploratoryTools(filteredMessages);
     }
 

@@ -1,7 +1,10 @@
+import { open } from '@tauri-apps/plugin-shell';
 import {
   Bot,
   Files,
+  FileText,
   FolderOpen,
+  Github,
   MessageSquare,
   Moon,
   Server,
@@ -72,6 +75,10 @@ export function NavigationSidebar({ activeView, onViewChange }: NavigationSideba
     onViewChange(NavigationView.AGENTS);
   };
 
+  const handleGitHubClick = () => {
+    open('https://github.com/talkcody/talkcody');
+  };
+
   return (
     <div className="flex h-full w-12 flex-col border-r bg-gray-50 dark:bg-gray-900">
       {/* Top Navigation Items */}
@@ -116,6 +123,19 @@ export function NavigationSidebar({ activeView, onViewChange }: NavigationSideba
               variant="ghost"
               size="sm"
               className="h-10 w-10 p-0 hover:bg-gray-200 dark:hover:bg-gray-800"
+              onClick={handleSettingsClick}
+            >
+              <Settings className="h-5 w-5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="right">{t.Navigation.settingsTooltip}</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-10 w-10 p-0 hover:bg-gray-200 dark:hover:bg-gray-800"
               onClick={toggleTheme}
             >
               {resolvedTheme === 'light' ? (
@@ -129,19 +149,36 @@ export function NavigationSidebar({ activeView, onViewChange }: NavigationSideba
             {t.Navigation.switchTheme(resolvedTheme === 'light' ? 'dark' : 'light')}
           </TooltipContent>
         </Tooltip>
-
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
               variant="ghost"
               size="sm"
               className="h-10 w-10 p-0 hover:bg-gray-200 dark:hover:bg-gray-800"
-              onClick={handleSettingsClick}
+              onClick={handleGitHubClick}
             >
-              <Settings className="h-5 w-5" />
+              <Github className="h-5 w-5" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="right">{t.Navigation.settingsTooltip}</TooltipContent>
+          <TooltipContent side="right">{t.Navigation.githubTooltip}</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className={cn(
+                'h-10 w-10 p-0',
+                'hover:bg-gray-200 dark:hover:bg-gray-800',
+                activeView === NavigationView.LOGS &&
+                  'bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-400'
+              )}
+              onClick={() => onViewChange(NavigationView.LOGS)}
+            >
+              <FileText className="h-5 w-5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="right">{t.Navigation.logsTooltip}</TooltipContent>
         </Tooltip>
       </div>
     </div>

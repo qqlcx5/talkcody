@@ -117,32 +117,32 @@ class AgentRegistry {
       const { mergeWithMCPTools } = await import('@/lib/mcp/multi-mcp-adapter');
       const { getTool } = await import('@/lib/tools');
 
-      const bashTool = await getTool('bashTool');
+      const bash = await getTool('bash');
       const callAgent = await getTool('callAgent');
       const readFile = await getTool('readFile');
       const codeSearch = await getTool('codeSearch');
-      const globTool = await getTool('globTool');
+      const glob = await getTool('glob');
       const listFiles = await getTool('listFiles');
-      const todoWriteTool = await getTool('todoWriteTool');
+      const todoWrite = await getTool('todoWrite');
       const writeFile = await getTool('writeFile');
       const editFile = await getTool('editFile');
-      const getSkillTool = await getTool('getSkillTool');
-      const exitPlanModeTool = await getTool('exitPlanModeTool');
-      const askUserQuestionsTool = await getTool('askUserQuestionsTool');
+      const getSkill = await getTool('getSkill');
+      const exitPlanMode = await getTool('exitPlanMode');
+      const askUserQuestions = await getTool('askUserQuestions');
 
       return await mergeWithMCPTools({
-        bashTool,
+        bash,
         callAgent,
         readFile,
         codeSearch,
-        globTool,
+        glob,
         listFiles,
-        todoWriteTool,
+        todoWrite,
         writeFile,
         editFile,
-        getSkillTool,
-        exitPlanModeTool,
-        askUserQuestionsTool,
+        getSkill,
+        exitPlanMode,
+        askUserQuestions,
       });
     } catch (error) {
       logger.error('buildPlannerTools: Failed to load MCP tools, using local tools only:', error);
@@ -150,32 +150,32 @@ class AgentRegistry {
       const { getTool } = await import('@/lib/tools');
 
       // Get all required tools from centralized registry
-      const bashTool = await getTool('bashTool');
+      const bash = await getTool('bash');
       const callAgent = await getTool('callAgent');
       const readFile = await getTool('readFile');
       const codeSearch = await getTool('codeSearch');
-      const globTool = await getTool('globTool');
+      const glob = await getTool('glob');
       const listFiles = await getTool('listFiles');
-      const todoWriteTool = await getTool('todoWriteTool');
+      const todoWrite = await getTool('todoWrite');
       const writeFile = await getTool('writeFile');
       const editFile = await getTool('editFile');
-      const getSkillTool = await getTool('getSkillTool');
-      const exitPlanModeTool = await getTool('exitPlanModeTool');
-      const askUserQuestionsTool = await getTool('askUserQuestionsTool');
+      const getSkill = await getTool('getSkill');
+      const exitPlanMode = await getTool('exitPlanMode');
+      const askUserQuestions = await getTool('askUserQuestions');
 
       return {
-        bashTool,
+        bash,
         callAgent,
         readFile,
         codeSearch,
-        globTool,
+        glob,
         listFiles,
-        todoWriteTool,
+        todoWrite,
         writeFile,
         editFile,
-        getSkillTool,
-        exitPlanModeTool,
-        askUserQuestionsTool,
+        getSkill,
+        exitPlanMode,
+        askUserQuestions,
       };
     }
   }

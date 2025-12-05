@@ -42,11 +42,23 @@ export interface StoredMessage {
 
 /**
  * Stored format for tool messages (serialized as JSON in content field)
+ * Supports both tool-call and tool-result types
  */
-export interface StoredToolContent {
+export type StoredToolContent = StoredToolCall | StoredToolResult;
+
+export interface StoredToolCall {
+  type: 'tool-call';
+  toolCallId: string;
+  toolName: string;
+  input?: Record<string, unknown>;
+}
+
+export interface StoredToolResult {
   type: 'tool-result';
   toolCallId: string;
   toolName: string;
+  input?: Record<string, unknown>;
+  output?: unknown; // Full output for proper restoration
   inputSummary: string;
   status: 'success' | 'error';
   errorMessage?: string;

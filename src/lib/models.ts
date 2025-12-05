@@ -76,20 +76,24 @@ export type { ProviderIds as ProviderType } from '@/providers';
 export type { ModelConfig } from '@/types/models';
 
 export function supportsImageOutput(model: string): boolean {
-  return MODEL_CONFIGS[model as keyof typeof MODEL_CONFIGS]?.imageOutput === true;
+  const modelKey = model.split('@')[0] || model;
+  return MODEL_CONFIGS[modelKey as keyof typeof MODEL_CONFIGS]?.imageOutput === true;
 }
 
 export function supportsImageInput(model: string): boolean {
-  return MODEL_CONFIGS[model as keyof typeof MODEL_CONFIGS]?.imageInput === true;
+  const modelKey = model.split('@')[0] || model;
+  return MODEL_CONFIGS[modelKey as keyof typeof MODEL_CONFIGS]?.imageInput === true;
 }
 
 export function supportsAudioInput(model: string): boolean {
-  return MODEL_CONFIGS[model as keyof typeof MODEL_CONFIGS]?.audioInput === true;
+  const modelKey = model.split('@')[0] || model;
+  return MODEL_CONFIGS[modelKey as keyof typeof MODEL_CONFIGS]?.audioInput === true;
 }
 
 // Get providers for a model
 export function getProvidersForModel(model: string): ProviderConfig[] {
-  const config = MODEL_CONFIGS[model as ModelKey];
+  const modelKey = model.split('@')[0] || model;
+  const config = MODEL_CONFIGS[modelKey as ModelKey];
   if (!config || !config.providers) return [];
   return config.providers
     .map((id) => providerRegistry.getProvider(String(id)))
@@ -98,6 +102,9 @@ export function getProvidersForModel(model: string): ProviderConfig[] {
 
 // Get context length for a model
 export function getContextLength(model: string): number {
-  const config = MODEL_CONFIGS[model as ModelKey];
+  // Parse model identifier to extract modelKey (remove @providerId suffix)
+  const modelKey = model.split('@')[0] || model;
+  const config = MODEL_CONFIGS[modelKey as ModelKey];
+  logger.info(`Context length for model ${model}: ${config?.context_length}`);
   return config?.context_length ?? 200000; // Default fallback
 }

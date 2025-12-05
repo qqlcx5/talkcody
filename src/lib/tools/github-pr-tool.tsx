@@ -224,7 +224,7 @@ async function fetchPRComments(
 }
 
 export const githubPRTool = createTool({
-  name: 'github-pr',
+  name: 'githubPR',
   description: `Fetch GitHub Pull Request information using GitHub REST API.
 This tool works cross-platform without requiring the gh CLI.
 

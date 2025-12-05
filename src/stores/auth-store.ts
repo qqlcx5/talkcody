@@ -2,7 +2,14 @@ import type { User } from '@talkcody/shared';
 import { toast } from 'sonner';
 import { create } from 'zustand';
 import { logger } from '@/lib/logger';
+import { getLocale, type SupportedLocale } from '@/locales';
 import { authService } from '@/services/auth-service';
+import { useSettingsStore } from '@/stores/settings-store';
+
+function getTranslations() {
+  const language = (useSettingsStore.getState().language || 'en') as SupportedLocale;
+  return getLocale(language);
+}
 
 interface AuthState {
   user: User | null;
@@ -41,9 +48,10 @@ export const useAuthStore = create<AuthStore>((set, _get) => ({
       // OAuth flow continues in browser and returns via deep link
       set({ isLoading: false });
     } catch (error) {
+      const t = getTranslations();
       const errorMessage = (error as Error).message;
       set({ error: errorMessage, isLoading: false });
-      toast.error(`Failed to initiate sign in: ${errorMessage}`);
+      toast.error(t.Auth.errors.failedToInitiate(errorMessage));
     }
   },
 
@@ -58,9 +66,10 @@ export const useAuthStore = create<AuthStore>((set, _get) => ({
       // OAuth flow continues in browser and returns via deep link
       set({ isLoading: false });
     } catch (error) {
+      const t = getTranslations();
       const errorMessage = (error as Error).message;
       set({ error: errorMessage, isLoading: false });
-      toast.error(`Failed to initiate sign in: ${errorMessage}`);
+      toast.error(t.Auth.errors.failedToInitiate(errorMessage));
     }
   },
 
@@ -69,6 +78,7 @@ export const useAuthStore = create<AuthStore>((set, _get) => ({
    * Removes auth token and clears user state
    */
   signOut: async () => {
+    const t = getTranslations();
     try {
       await authService.signOut();
       set({
@@ -76,11 +86,11 @@ export const useAuthStore = create<AuthStore>((set, _get) => ({
         isAuthenticated: false,
         error: null,
       });
-      toast.success('Signed out successfully');
+      toast.success(t.Auth.success.signedOut);
     } catch (error) {
       const errorMessage = (error as Error).message;
       set({ error: errorMessage });
-      toast.error(`Failed to sign out: ${errorMessage}`);
+      toast.error(t.Auth.errors.signOutFailed(errorMessage));
     }
   },
 
@@ -89,6 +99,7 @@ export const useAuthStore = create<AuthStore>((set, _get) => ({
    * Called when deep link is received after OAuth flow
    */
   handleOAuthCallback: async (token: string) => {
+    const t = getTranslations();
     try {
       logger.info('[Auth Store] handleOAuthCallback called with token length:', token.length);
       set({ isLoading: true, error: null });
@@ -113,14 +124,14 @@ export const useAuthStore = create<AuthStore>((set, _get) => ({
           isLoading: false,
         });
         logger.info('[Auth Store] Auth state updated - user authenticated');
-        toast.success('Signed in successfully');
+        toast.success(t.Auth.success.signedIn);
       } else {
         logger.error('[Auth Store] Failed to fetch user profile - user is null');
         set({
           error: 'Failed to fetch user profile',
           isLoading: false,
         });
-        toast.error('Failed to complete sign in');
+        toast.error(t.Auth.errors.completionFailed);
       }
     } catch (error) {
       const errorMessage = (error as Error).message;
@@ -129,7 +140,7 @@ export const useAuthStore = create<AuthStore>((set, _get) => ({
         error: errorMessage,
         isLoading: false,
       });
-      toast.error(`Failed to complete sign in: ${errorMessage}`);
+      toast.error(t.Auth.errors.completionFailedWithMessage(errorMessage));
     }
   },
 

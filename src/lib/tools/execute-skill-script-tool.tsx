@@ -8,7 +8,7 @@ import {
 } from '@/services/script-executor';
 
 export const executeSkillScriptTool = createTool({
-  name: 'execute_skill_script',
+  name: 'executeSkillScript',
   description: `Execute a skill script (Python, Bash, or Node.js).
 
 This tool allows you to execute scripts from file-based skills that require external script execution.

@@ -370,6 +370,174 @@ describe('useMessages hook', () => {
     });
   });
 
+  describe('renderDoingUI property', () => {
+    it('should preserve renderDoingUI when adding a tool message', () => {
+      const { result } = renderHook(() => useMessages());
+
+      act(() => {
+        result.current.addMessage(
+          'tool',
+          [{ type: 'tool-call', toolCallId: 'test-123', toolName: 'exitPlanMode' }],
+          false,
+          undefined,
+          undefined,
+          'msg-123',
+          'test-123',
+          'exitPlanMode',
+          undefined,
+          true // renderDoingUI
+        );
+      });
+
+      expect(result.current.messages).toHaveLength(1);
+      expect(result.current.messages[0].renderDoingUI).toBe(true);
+    });
+
+    it('should handle renderDoingUI=false correctly', () => {
+      const { result } = renderHook(() => useMessages());
+
+      act(() => {
+        result.current.addMessage(
+          'tool',
+          [{ type: 'tool-call', toolCallId: 'test-456', toolName: 'readFile' }],
+          false,
+          undefined,
+          undefined,
+          'msg-456',
+          'test-456',
+          'readFile',
+          undefined,
+          false // renderDoingUI
+        );
+      });
+
+      expect(result.current.messages).toHaveLength(1);
+      expect(result.current.messages[0].renderDoingUI).toBe(false);
+    });
+
+    it('should handle renderDoingUI=undefined (default)', () => {
+      const { result } = renderHook(() => useMessages());
+
+      act(() => {
+        result.current.addMessage(
+          'tool',
+          [{ type: 'tool-result', toolCallId: 'test-789', toolName: 'readFile' }],
+          false,
+          undefined,
+          undefined,
+          'msg-789',
+          'test-789',
+          'readFile'
+          // no renderDoingUI parameter
+        );
+      });
+
+      expect(result.current.messages).toHaveLength(1);
+      expect(result.current.messages[0].renderDoingUI).toBeUndefined();
+    });
+
+    it('should correctly set renderDoingUI for exitPlanMode tool-call', () => {
+      const { result } = renderHook(() => useMessages());
+
+      // Simulate exitPlanMode tool-call message with renderDoingUI=true
+      act(() => {
+        result.current.addMessage(
+          'tool',
+          [
+            {
+              type: 'tool-call',
+              toolCallId: 'exit-plan-001',
+              toolName: 'exitPlanMode',
+              input: { plan: '# Implementation Plan\n\n## Overview...' },
+            },
+          ],
+          false,
+          undefined,
+          undefined,
+          'msg-exit-plan-001',
+          'exit-plan-001',
+          'exitPlanMode',
+          undefined,
+          true // This is critical - renderDoingUI must be true for PlanReviewCard to show
+        );
+      });
+
+      const message = result.current.messages[0];
+      expect(message.renderDoingUI).toBe(true);
+      expect(message.toolName).toBe('exitPlanMode');
+      expect(Array.isArray(message.content)).toBe(true);
+      expect((message.content as any[])[0].type).toBe('tool-call');
+    });
+
+    it('should correctly set renderDoingUI for askUserQuestions tool-call', () => {
+      const { result } = renderHook(() => useMessages());
+
+      act(() => {
+        result.current.addMessage(
+          'tool',
+          [
+            {
+              type: 'tool-call',
+              toolCallId: 'ask-001',
+              toolName: 'askUserQuestions',
+              input: { questions: [{ question: 'Which approach?', options: ['A', 'B'] }] },
+            },
+          ],
+          false,
+          undefined,
+          undefined,
+          'msg-ask-001',
+          'ask-001',
+          'askUserQuestions',
+          undefined,
+          true
+        );
+      });
+
+      expect(result.current.messages[0].renderDoingUI).toBe(true);
+    });
+
+    it('should preserve renderDoingUI across multiple tool messages', () => {
+      const { result } = renderHook(() => useMessages());
+
+      // Add tool-call with renderDoingUI=true
+      act(() => {
+        result.current.addMessage(
+          'tool',
+          [{ type: 'tool-call', toolCallId: 'tool-1', toolName: 'editFile' }],
+          false,
+          undefined,
+          undefined,
+          'msg-1',
+          'tool-1',
+          'editFile',
+          undefined,
+          true
+        );
+      });
+
+      // Add tool-result (typically doesn't need renderDoingUI)
+      act(() => {
+        result.current.addMessage(
+          'tool',
+          [{ type: 'tool-result', toolCallId: 'tool-1', toolName: 'editFile', output: {} }],
+          false,
+          undefined,
+          undefined,
+          'msg-2',
+          'tool-1',
+          'editFile',
+          undefined,
+          undefined
+        );
+      });
+
+      expect(result.current.messages).toHaveLength(2);
+      expect(result.current.messages[0].renderDoingUI).toBe(true);
+      expect(result.current.messages[1].renderDoingUI).toBeUndefined();
+    });
+  });
+
   describe('Edge cases', () => {
     it('should handle messages with attachments', () => {
       const { result } = renderHook(() => useMessages());

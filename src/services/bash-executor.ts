@@ -57,9 +57,9 @@ const DANGEROUS_PATTERNS = [
   // mv to dangerous locations
   /\bmv\s+.*\/dev\/null/,
 
-  // Format commands
+  // Format commands (disk formatting, not code formatters)
   /mkfs\./,
-  /format\s+/,
+  /\bformat\s+[a-zA-Z]:/, // Windows format drive command (format C:, format D:, etc.)
   /fdisk/,
   /parted/,
   /gparted/,
@@ -125,7 +125,6 @@ const DANGEROUS_PATTERNS = [
 const DANGEROUS_COMMANDS = [
   'dd',
   'mkfs',
-  'format',
   'fdisk',
   'parted',
   'gparted',
@@ -176,8 +175,10 @@ export class BashExecutor {
     }
 
     // Check for multiple command chaining with dangerous commands
+    // Only split on actual command separators: && || ;
+    // Don't split on single | as it's used in sed patterns and pipes
     if (command.includes('&&') || command.includes('||') || command.includes(';')) {
-      const parts = command.split(/[;&|]+/);
+      const parts = command.split(/\s*(?:&&|\|\||;)\s*/);
       for (const part of parts) {
         const partCheck = this.isDangerousCommand(part.trim());
         if (partCheck.dangerous) {

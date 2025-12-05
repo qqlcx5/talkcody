@@ -67,7 +67,7 @@ describe('editFile tool', () => {
 
   describe('basic tool properties', () => {
     it('should have correct name', () => {
-      expect(editFile.name).toBe('edit-file');
+      expect(editFile.name).toBe('editFile');
     });
 
     it('should have description', () => {

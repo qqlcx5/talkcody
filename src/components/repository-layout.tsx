@@ -28,11 +28,12 @@ import { useRepositoryStore } from '@/stores/repository-store';
 import { settingsManager } from '@/stores/settings-store';
 import { useTerminalStore } from '@/stores/terminal-store';
 import { ChatBox, type ChatBoxRef } from './chat-box';
-import { ChatToolbar } from './chat-toolbar';
+import { ChatPanelHeader } from './chat-panel-header';
 import { EmptyRepositoryState } from './empty-repository-state';
 import { FileEditor } from './file-editor';
 import { FileTabs } from './file-tabs';
 import { FileTree } from './file-tree';
+import { FileTreeHeader } from './file-tree-header';
 import { GitStatusBar } from './git/git-status-bar';
 import { GlobalContentSearch } from './search/global-content-search';
 import { GlobalFileSearch } from './search/global-file-search';
@@ -40,7 +41,6 @@ import { TerminalPanel } from './terminal/terminal-panel';
 
 export function RepositoryLayout() {
   const emptyRepoPanelId = useId();
-  const emptyChatPanelId = useId();
   const fileTreePanelId = useId();
   const fileEditorPanelId = useId();
   const mainChatPanelId = useId();
@@ -270,85 +270,8 @@ export function RepositoryLayout() {
     }
   };
 
-  if (!(rootPath && fileTree)) {
-    return (
-      <>
-        <GlobalFileSearch
-          isOpen={isFileSearchOpen}
-          onClose={closeFileSearch}
-          onFileSelect={handleSearchFileSelect}
-          onSearch={searchFiles}
-          repositoryPath={rootPath}
-        />
-
-        <div className="flex h-screen flex-1 flex-col overflow-hidden">
-          <ResizablePanelGroup className="h-full" direction="horizontal">
-            {/* Empty Repository State Panel */}
-            <ResizablePanel
-              id={emptyRepoPanelId}
-              order={1}
-              className="flex items-center justify-center bg-white dark:bg-gray-950"
-              defaultSize={50}
-              minSize={30}
-              maxSize={70}
-            >
-              <EmptyRepositoryState
-                isLoading={isLoading}
-                onSelectRepository={async () => {
-                  const newProject = await selectRepository();
-                  if (newProject) {
-                    setCurrentProjectId(newProject.id);
-                    await refreshProjects();
-                  }
-                }}
-                onOpenRepository={async (path, projectId) => {
-                  await openRepository(path, projectId);
-                  setCurrentProjectId(projectId);
-                  await refreshProjects();
-                }}
-              />
-            </ResizablePanel>
-
-            <ResizableHandle withHandle />
-
-            {/* Chat Panel */}
-            <ResizablePanel
-              id={emptyChatPanelId}
-              order={2}
-              className="bg-white dark:bg-gray-950"
-              defaultSize={50}
-              minSize={30}
-              maxSize={70}
-            >
-              <div className="flex h-full flex-col">
-                <ChatToolbar
-                  currentConversationId={currentConversationId}
-                  isHistoryOpen={isHistoryOpen}
-                  onConversationSelect={handleHistoryConversationSelect}
-                  onHistoryOpenChange={setIsHistoryOpen}
-                  onNewChat={handleNewChat}
-                />
-
-                <div className="flex-1 overflow-hidden">
-                  <ChatBox
-                    ref={chatBoxRef}
-                    conversationId={currentConversationId}
-                    fileContent={null}
-                    onConversationStart={handleConversationStart}
-                    onDiffApplied={handleDiffApplied}
-                    repositoryPath={undefined}
-                    selectedFile={null}
-                    onFileSelect={selectFile}
-                    onAddFileToChat={handleAddFileToChat}
-                  />
-                </div>
-              </div>
-            </ResizablePanel>
-          </ResizablePanelGroup>
-        </div>
-      </>
-    );
-  }
+  // Determine if we have a loaded repository
+  const hasRepository = !!(rootPath && fileTree);
 
   const handleFileDelete = async (filePath: string) => {
     refreshFileTree();
@@ -421,78 +344,98 @@ export function RepositoryLayout() {
         repositoryPath={rootPath}
       />
 
-      <GlobalContentSearch
-        inputRef={contentSearchInputRef}
-        isSearchVisible={isContentSearchVisible}
-        onFileSelect={selectFile}
-        repositoryPath={rootPath}
-        toggleSearchVisibility={() => setIsContentSearchVisible((prev) => !prev)}
-      />
+      {hasRepository && (
+        <GlobalContentSearch
+          inputRef={contentSearchInputRef}
+          isSearchVisible={isContentSearchVisible}
+          onFileSelect={selectFile}
+          repositoryPath={rootPath}
+          toggleSearchVisibility={() => setIsContentSearchVisible((prev) => !prev)}
+        />
+      )}
 
       <div className="flex h-screen flex-1 flex-col overflow-hidden">
-        {/* Repository Header */}
-        <ChatToolbar
-          currentConversationId={currentConversationId}
-          isHistoryOpen={isHistoryOpen}
-          onConversationSelect={handleHistoryConversationSelect}
-          onHistoryOpenChange={setIsHistoryOpen}
-          onNewChat={handleNewChat}
-          currentProjectId={currentProjectId}
-          onProjectSelect={handleProjectSelect}
-          onImportRepository={async () => {
-            const newProject = await selectRepository();
-            if (newProject) {
-              setCurrentProjectId(newProject.id);
-              await refreshProjects();
-            }
-          }}
-          isLoadingProject={isLoading}
-          rootPath={rootPath}
-          isTerminalVisible={isTerminalVisible}
-          onToggleTerminal={toggleTerminalVisible}
-        />
-
         <div className="flex-1 overflow-hidden">
           <ResizablePanelGroup
-            key={`layout-${hasOpenFiles}-${isTerminalVisible}-${fullscreenPanel}`}
+            key={`layout-${hasOpenFiles}-${fullscreenPanel}`}
             className="h-full"
             direction="horizontal"
           >
-            {/* File Tree Panel - Hidden when any panel is fullscreen */}
+            {/* Left Panel: FileTree when repository is loaded, EmptyRepositoryState when not */}
             {showFileTree && (
               <>
                 <ResizablePanel
-                  id={fileTreePanelId}
+                  id={hasRepository ? fileTreePanelId : emptyRepoPanelId}
                   order={1}
-                  className="border-r bg-white dark:bg-gray-950"
-                  defaultSize={20}
-                  maxSize={40}
-                  minSize={10}
+                  className={
+                    hasRepository
+                      ? 'border-r bg-white dark:bg-gray-950'
+                      : 'flex items-center justify-center bg-white dark:bg-gray-950'
+                  }
+                  defaultSize={hasRepository ? 20 : 50}
+                  maxSize={hasRepository ? 40 : 70}
+                  minSize={hasRepository ? 10 : 30}
                 >
-                  <div className="h-full overflow-auto">
-                    <FileTree
-                      key={rootPath}
-                      fileTree={fileTree}
-                      repositoryPath={rootPath}
-                      expandedPaths={expandedPaths}
-                      onFileCreate={handleFileCreate}
-                      onFileDelete={handleFileDelete}
-                      onFileRename={handleFileRename}
-                      onFileSelect={selectFile}
-                      onRefresh={refreshFileTree}
-                      selectedFile={selectedFilePath}
-                      onLoadChildren={loadDirectoryChildren}
-                      onToggleExpansion={toggleExpansion}
+                  {hasRepository ? (
+                    <div className="flex h-full flex-col">
+                      <FileTreeHeader
+                        currentProjectId={currentProjectId}
+                        onProjectSelect={handleProjectSelect}
+                        onImportRepository={async () => {
+                          const newProject = await selectRepository();
+                          if (newProject) {
+                            setCurrentProjectId(newProject.id);
+                            await refreshProjects();
+                          }
+                        }}
+                        isLoadingProject={isLoading}
+                        isTerminalVisible={isTerminalVisible}
+                        onToggleTerminal={toggleTerminalVisible}
+                        onOpenFileSearch={openFileSearch}
+                        onOpenContentSearch={() => setIsContentSearchVisible(true)}
+                      />
+                      <div className="flex-1 overflow-auto">
+                        <FileTree
+                          key={rootPath}
+                          fileTree={fileTree}
+                          repositoryPath={rootPath}
+                          expandedPaths={expandedPaths}
+                          onFileCreate={handleFileCreate}
+                          onFileDelete={handleFileDelete}
+                          onFileRename={handleFileRename}
+                          onFileSelect={selectFile}
+                          onRefresh={refreshFileTree}
+                          selectedFile={selectedFilePath}
+                          onLoadChildren={loadDirectoryChildren}
+                          onToggleExpansion={toggleExpansion}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <EmptyRepositoryState
+                      isLoading={isLoading}
+                      onSelectRepository={async () => {
+                        const newProject = await selectRepository();
+                        if (newProject) {
+                          setCurrentProjectId(newProject.id);
+                          await refreshProjects();
+                        }
+                      }}
+                      onOpenRepository={async (path, projectId) => {
+                        await openRepository(path, projectId);
+                        setCurrentProjectId(projectId);
+                        await refreshProjects();
+                      }}
                     />
-                  </div>
+                  )}
                 </ResizablePanel>
 
                 <ResizableHandle withHandle />
               </>
             )}
 
-            {/* Middle Panel: Contains file editor and/or terminal */}
-            {showMiddlePanel && (hasOpenFiles || isTerminalVisible) && (
+            {/* Middle Panel: Contains file editor and/or terminal - only when repository is loaded */}
+            {hasRepository && showMiddlePanel && (hasOpenFiles || isTerminalVisible) && (
               <>
                 <ResizablePanel
                   id={editorAreaPanelId}
@@ -605,48 +548,46 @@ export function RepositoryLayout() {
               </>
             )}
 
-            {/* Chat Panel */}
+            {/* Chat Panel - ALWAYS RENDERED to preserve state during project switches */}
             {showChatPanel && (
               <ResizablePanel
                 id={mainChatPanelId}
-                order={3}
+                order={hasRepository ? 3 : 2}
                 className="bg-white dark:bg-gray-950"
-                defaultSize={isChatFullscreen ? 100 : hasOpenFiles || isTerminalVisible ? 40 : 80}
+                defaultSize={
+                  isChatFullscreen
+                    ? 100
+                    : hasRepository
+                      ? hasOpenFiles || isTerminalVisible
+                        ? 40
+                        : 80
+                      : 50
+                }
                 maxSize={100}
-                minSize={20}
+                minSize={hasRepository ? 20 : 30}
               >
                 <div className="flex h-full flex-col">
-                  {/* Chat Header with Fullscreen Button */}
-                  <div className="flex items-center justify-end border-b px-2 h-9 bg-muted/20">
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={() => toggleFullscreen('chat')}
-                        >
-                          {isChatFullscreen ? (
-                            <Minimize2 className="h-3.5 w-3.5" />
-                          ) : (
-                            <Maximize2 className="h-3.5 w-3.5" />
-                          )}
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom">
-                        {isChatFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
-                      </TooltipContent>
-                    </Tooltip>
-                  </div>
+                  {/* Chat Panel Header - only show when repository is loaded */}
+                  {hasRepository && (
+                    <ChatPanelHeader
+                      currentConversationId={currentConversationId}
+                      isHistoryOpen={isHistoryOpen}
+                      onHistoryOpenChange={setIsHistoryOpen}
+                      onConversationSelect={handleHistoryConversationSelect}
+                      onNewChat={handleNewChat}
+                      isFullscreen={isChatFullscreen}
+                      onToggleFullscreen={() => toggleFullscreen('chat')}
+                    />
+                  )}
                   <div className="flex-1 overflow-hidden">
                     <ChatBox
                       ref={chatBoxRef}
                       conversationId={currentConversationId}
-                      fileContent={currentFile?.content || null}
+                      fileContent={hasRepository ? currentFile?.content || null : null}
                       onConversationStart={handleConversationStart}
                       onDiffApplied={handleDiffApplied}
-                      repositoryPath={rootPath}
-                      selectedFile={currentFile?.path || null}
+                      repositoryPath={rootPath ?? undefined}
+                      selectedFile={hasRepository ? currentFile?.path || null : null}
                       onFileSelect={selectFile}
                       onAddFileToChat={handleAddFileToChat}
                     />

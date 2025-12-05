@@ -46,7 +46,7 @@ describe('todoWriteTool', () => {
 
   describe('basic tool properties', () => {
     it('should have correct name', () => {
-      expect(todoWriteTool.name).toBe('TodoWrite');
+      expect(todoWriteTool.name).toBe('todoWrite');
     });
 
     it('should have description', () => {

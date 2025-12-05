@@ -15,19 +15,19 @@ export function UpdateNotification({
   const [dialogOpen, setDialogOpen] = useState(false);
   const updater = useUpdater({ checkOnMount, periodicCheck });
 
-  // Show notification when update is available
+  // Auto-download when update is available (silent background download)
+  // Only attempt once - if error occurs, don't retry automatically
   useEffect(() => {
-    if (updater.available && !dialogOpen) {
-      toast.info('Update Available', {
-        description: `Version ${updater.update?.version} is ready to install.`,
-        action: {
-          label: 'Update',
-          onClick: () => setDialogOpen(true),
-        },
-        duration: 10000,
-      });
+    if (updater.available && !updater.downloading && !updater.downloaded && !updater.error) {
+      updater.downloadAndInstall();
     }
-  }, [updater.available, updater.update?.version, dialogOpen]);
+  }, [
+    updater.available,
+    updater.downloading,
+    updater.downloaded,
+    updater.error,
+    updater.downloadAndInstall,
+  ]);
 
   // Show error notification
   useEffect(() => {

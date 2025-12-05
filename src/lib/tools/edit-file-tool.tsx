@@ -171,7 +171,7 @@ function generateEditErrorMessage(
 }
 
 export const editFile = createTool({
-  name: 'edit-file',
+  name: 'editFile',
   description: `Edit an existing file with one or more text replacements.
 
 CRITICAL RULES:

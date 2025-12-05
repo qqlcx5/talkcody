@@ -7,7 +7,7 @@ import { settingsManager } from '@/stores/settings-store';
 import { googleSearch, openAISearch, TavilySearch } from '../web-search';
 
 export const webSearchTool = createTool({
-  name: 'web-search',
+  name: 'webSearch',
   description: `Search the web for comprehensive and up-to-date information.
 
 Query Optimization Guidelines:

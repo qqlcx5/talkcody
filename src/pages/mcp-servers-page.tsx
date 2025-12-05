@@ -249,7 +249,7 @@ export function MCPServersPage() {
 
   const handleDeleteServer = (server: MCPServer) => {
     if (server.is_built_in) {
-      alert('Cannot delete built-in servers');
+      alert(t.MCPServersExtra.alerts.cannotDeleteBuiltIn);
       return;
     }
 
@@ -267,7 +267,7 @@ export function MCPServersPage() {
       logger.info(`Deleted MCP server: ${serverToDelete.id}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to delete server';
-      alert(message);
+      alert(t.MCPServersExtra.alerts.operationFailed(message));
       logger.error('Failed to delete MCP server:', error);
     } finally {
       setServerToDelete(null);
@@ -284,7 +284,7 @@ export function MCPServersPage() {
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to toggle server';
-      alert(message);
+      alert(t.MCPServersExtra.alerts.operationFailed(message));
       logger.error('Failed to toggle MCP server:', error);
     }
   };
@@ -427,7 +427,7 @@ export function MCPServersPage() {
                           variant="ghost"
                           onClick={() => handleDeleteServer(serverData.server)}
                           disabled={isLoading}
-                          title="Delete server"
+                          title={t.MCPServersExtra.tooltip.deleteServer}
                           className="text-red-600 hover:text-red-700"
                         >
                           <Trash2 className="h-4 w-4" />
@@ -453,7 +453,7 @@ export function MCPServersPage() {
                         <Alert className="cursor-pointer border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200">
                           <div className="flex items-center gap-2">
                             <span className="whitespace-nowrap text-sm font-medium">
-                              Setup Required
+                              {t.MCPServersExtra.github.setupRequired}
                             </span>
                             <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200 [[data-state=open]>&]:rotate-180" />
                           </div>
@@ -461,21 +461,18 @@ export function MCPServersPage() {
                       </CollapsibleTrigger>
                       <CollapsibleContent>
                         <div className="mt-2 space-y-1 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200">
-                          <p>This server requires a GitHub Personal Access Token (PAT).</p>
+                          <p>{t.MCPServersExtra.github.setupInstructions.intro}</p>
+                          <p>{t.MCPServersExtra.github.setupInstructions.step1}</p>
                           <p>
-                            1. Go to GitHub Settings → Developer settings → Personal access tokens →
-                            Tokens (classic)
-                          </p>
-                          <p>
-                            2. Generate a new token with these scopes:{' '}
+                            {t.MCPServersExtra.github.setupInstructions.step2}{' '}
                             <span className="inline-flex flex-wrap gap-1">
                               <code>repo</code>
                               <code>read:packages</code>
                               <code>read:org</code>
                             </span>
                           </p>
-                          <p>3. Edit this server and add the token as the API Key</p>
-                          <p>4. Enable the server after adding the token</p>
+                          <p>{t.MCPServersExtra.github.setupInstructions.step3}</p>
+                          <p>{t.MCPServersExtra.github.setupInstructions.step4}</p>
                         </div>
                       </CollapsibleContent>
                     </Collapsible>
@@ -489,16 +486,17 @@ export function MCPServersPage() {
                     <CardContent className="pt-0">
                       <Alert className="border-yellow-200 bg-yellow-50 text-yellow-800 dark:border-yellow-700 dark:bg-yellow-950 dark:text-yellow-200">
                         <AlertDescription>
-                          <strong>Connection Failed:</strong> Please check:
-                          <br />• Token has correct scopes:{' '}
+                          <strong>{t.MCPServersExtra.github.connectionFailed.title}</strong> Please
+                          check:
+                          <br />• {t.MCPServersExtra.github.connectionFailed.checkScopes}{' '}
                           <span className="inline-flex flex-wrap gap-1">
                             <code>repo</code>
                             <code>read:packages</code>
                             <code>read:org</code>
                           </span>
-                          <br />• Token is not expired
-                          <br />• Network connection is available
-                          <br />• GitHub API is accessible
+                          <br />• {t.MCPServersExtra.github.connectionFailed.checkExpiry}
+                          <br />• {t.MCPServersExtra.github.connectionFailed.checkNetwork}
+                          <br />• {t.MCPServersExtra.github.connectionFailed.checkApi}
                         </AlertDescription>
                       </Alert>
                     </CardContent>

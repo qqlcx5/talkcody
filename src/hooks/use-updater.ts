@@ -20,7 +20,7 @@ export interface UseUpdaterReturn extends UpdateState {
   dismissError: () => void;
 }
 
-const PERIODIC_CHECK_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
+const PERIODIC_CHECK_INTERVAL = 12 * 60 * 60 * 1000; // 12 hours
 const LAST_CHECK_KEY = 'last_update_check';
 
 export function useUpdater(options?: {

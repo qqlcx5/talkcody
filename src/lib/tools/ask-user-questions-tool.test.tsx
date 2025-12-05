@@ -58,7 +58,7 @@ describe('askUserQuestionsTool', () => {
 
   describe('basic tool properties', () => {
     it('should have correct name', () => {
-      expect(askUserQuestionsTool.name).toBe('AskUserQuestions');
+      expect(askUserQuestionsTool.name).toBe('askUserQuestions');
     });
 
     it('should have description', () => {

@@ -6,7 +6,7 @@ import { logger } from '../logger';
 import { fetchWebContent } from '../utils/web-fetcher';
 
 export const webFetchTool = createTool({
-  name: 'web-fetch',
+  name: 'webFetch',
   description: 'Fetch and extract content from a web url',
   inputSchema: z.object({
     url: z.string().describe('The URL of the web page to fetch'),

@@ -4,7 +4,14 @@ import type { ReasoningPart, TextPart } from '@ai-sdk/provider-utils';
 import { formatReasoningText } from '@/lib/llm-utils';
 import { logger } from '@/lib/logger';
 import { decodeObjectHtmlEntities } from '@/lib/utils';
+import { getLocale, type SupportedLocale } from '@/locales';
+import { useSettingsStore } from '@/stores/settings-store';
 import type { ToolCallInfo } from './tool-executor';
+
+function getTranslations() {
+  const language = (useSettingsStore.getState().language || 'en') as SupportedLocale;
+  return getLocale(language);
+}
 
 export interface StreamProcessorCallbacks {
   onChunk: (chunk: string) => void;
@@ -172,7 +179,8 @@ export class StreamProcessor {
    * Process text-start delta
    */
   processTextStart(callbacks: StreamProcessorCallbacks): void {
-    callbacks.onStatus?.('Answering');
+    const t = getTranslations();
+    callbacks.onStatus?.(t.StreamProcessor.status.answering);
     this.state.isAnswering = true;
     callbacks.onAssistantMessageStart?.();
   }
@@ -181,8 +189,9 @@ export class StreamProcessor {
    * Process text-delta
    */
   processTextDelta(text: string, callbacks: StreamProcessorCallbacks): void {
+    const t = getTranslations();
     if (!this.state.isAnswering) {
-      callbacks.onStatus?.('Answering');
+      callbacks.onStatus?.(t.StreamProcessor.status.answering);
       this.state.isAnswering = true;
       callbacks.onAssistantMessageStart?.();
     }
@@ -233,7 +242,8 @@ export class StreamProcessor {
     }
 
     this.state.toolCalls.push(decodedToolCall);
-    callbacks.onStatus?.(`Calling tool ${decodedToolCall.toolName}`);
+    const t = getTranslations();
+    callbacks.onStatus?.(t.StreamProcessor.status.callingTool(decodedToolCall.toolName));
   }
 
   /**
@@ -264,7 +274,8 @@ export class StreamProcessor {
       index: this.state.reasoningBlocks.length - 1,
     });
 
-    callbacks.onStatus?.('Thinking');
+    const t = getTranslations();
+    callbacks.onStatus?.(t.StreamProcessor.status.thinking);
   }
 
   /**
@@ -277,6 +288,7 @@ export class StreamProcessor {
     callbacks: StreamProcessorCallbacks
   ): void {
     // logger.info('Processing reasoning delta:', { id, text, context });
+    const t = getTranslations();
 
     // Call onAssistantMessageStart on first reasoning (similar to processTextDelta)
     // This ensures assistant message is created even when only reasoning is returned
@@ -287,7 +299,7 @@ export class StreamProcessor {
 
     // Skip empty or whitespace-only reasoning
     if (!text || !text.trim()) {
-      callbacks.onStatus?.('Thinking');
+      callbacks.onStatus?.(t.StreamProcessor.status.thinking);
       return;
     }
 
@@ -323,7 +335,7 @@ export class StreamProcessor {
       }
     }
 
-    callbacks.onStatus?.('Thinking');
+    callbacks.onStatus?.(t.StreamProcessor.status.thinking);
   }
 
   /**
@@ -337,7 +349,8 @@ export class StreamProcessor {
       this.state.currentReasoningId = null;
     }
 
-    callbacks.onStatus?.('Thinking');
+    const t = getTranslations();
+    callbacks.onStatus?.(t.StreamProcessor.status.thinking);
   }
 
   /**
@@ -350,12 +363,12 @@ export class StreamProcessor {
     for (const order of this.state.contentOrder) {
       if (order.type === 'text') {
         const text = this.state.textParts[order.index];
-        if (text && text.trim()) {
+        if (text?.trim()) {
           content.push({ type: 'text', text: text.trim() });
         }
       } else if (order.type === 'reasoning') {
         const block = this.state.reasoningBlocks[order.index];
-        if (block && block.text && this.isSignificantText(block.text)) {
+        if (block?.text && this.isSignificantText(block.text)) {
           content.push({ type: 'reasoning', text: block.text.trim() });
         }
       }

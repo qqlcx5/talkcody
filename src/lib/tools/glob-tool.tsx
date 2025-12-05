@@ -87,7 +87,5 @@ export const globTool = createTool({
     }
   },
   renderToolDoing: ({ pattern, path }) => <GlobDoing pattern={pattern} path={path} />,
-  renderToolResult: (result, { pattern, path }: { pattern: string; path?: string }) => (
-    <GlobResult pattern={pattern} path={path} result={result} />
-  ),
+  renderToolResult: (result) => <GlobResult result={result} />,
 });

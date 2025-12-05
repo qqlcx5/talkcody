@@ -31,6 +31,11 @@ vi.mock('@/stores/settings-store', () => ({
     getSync: vi.fn().mockReturnValue(undefined),
     getBatchSync: vi.fn().mockReturnValue({}),
   },
+  useSettingsStore: {
+    getState: vi.fn(() => ({
+      language: 'en',
+    })),
+  },
 }));
 
 vi.mock('@/services/workspace-root-service', () => ({

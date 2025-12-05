@@ -115,8 +115,6 @@ export class ConversationService {
   ): Promise<string> {
     const finalMessageId = messageId || generateId();
     const timestamp = Date.now();
-
-    logger.info('Starting saveMessage');
     try {
       // Start transaction by saving message first
       await this.db.execute(
@@ -144,7 +142,6 @@ export class ConversationService {
         'UPDATE conversations SET message_count = message_count + 1, updated_at = $1 WHERE id = $2',
         [timestamp, conversationId]
       );
-      logger.info('Completed saveMessage');
 
       return finalMessageId;
     } catch (error) {

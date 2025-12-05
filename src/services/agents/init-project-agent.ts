@@ -133,10 +133,10 @@ export class InitProjectAgent {
   static getDefinition(): AgentDefinition {
     const selectedTools = {
       readFile: getToolSync('readFile'),
-      globTool: getToolSync('globTool'),
+      glob: getToolSync('glob'),
       codeSearch: getToolSync('codeSearch'),
       listFiles: getToolSync('listFiles'),
-      bashTool: getToolSync('bashTool'),
+      bash: getToolSync('bash'),
       writeFile: getToolSync('writeFile'),
     };
 

@@ -13,7 +13,7 @@ export interface CodeSearchResult {
 }
 
 export const codeSearch = createTool({
-  name: 'GrepTool',
+  name: 'codeSearch',
   description: `Use this tool when you need to find files containing specific patterns.
 
 Use this to find code patterns, function definitions, variable usage, or any text in the codebase.`,
@@ -147,11 +147,6 @@ Use this to find code patterns, function definitions, variable usage, or any tex
     return (
       <div className="space-y-3">
         <div className="border rounded-lg p-3 bg-white dark:bg-gray-900 dark:border-gray-700 w-full overflow-hidden">
-          <div className="flex items-center gap-2 text-gray-700 border-b pb-2 dark:text-gray-300 dark:border-gray-600">
-            <Search className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-            <span className="text-sm font-medium">Search Results</span>
-          </div>
-
           <pre className="bg-gray-50 dark:bg-gray-800 p-3 rounded text-sm overflow-y-auto overflow-x-hidden max-h-96 mt-3 text-gray-800 dark:text-gray-200 font-mono border border-gray-200 dark:border-gray-700 whitespace-pre-wrap break-words">
             {output.result}
           </pre>

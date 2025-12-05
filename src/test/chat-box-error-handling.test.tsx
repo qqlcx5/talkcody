@@ -25,7 +25,7 @@ describe('ChatBox error handling - duplicate error message fix', () => {
   it('should add error message only once when error occurs', () => {
     const { result } = renderHook(() => useMessages());
     const errorMessage =
-      'Manual agent loop failed (Error): No available provider for model: glm-4.6. Please configure API keys in settings. Provider: unknown';
+      'Agent loop failed (Error): No available provider for model: glm-4.6. Please configure API keys in settings. Provider: unknown';
 
     // Simulate user message
     act(() => {

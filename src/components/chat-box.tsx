@@ -1,17 +1,25 @@
 // src/components/chat-box.tsx
 import type { ChatStatus } from 'ai';
 import { LoaderCircle, Square } from 'lucide-react';
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { toast } from 'sonner';
 import { useConversations } from '@/hooks/use-conversations';
 import { useMessages } from '@/hooks/use-messages';
 import { logger } from '@/lib/logger';
 import { supportsImageOutput } from '@/lib/models';
 import { generateId } from '@/lib/utils';
+import { getLocale, type SupportedLocale } from '@/locales';
 import { agentRegistry } from '@/services/agents/agent-registry';
 import { llmService } from '@/services/agents/llm-service';
 import { commandExecutor } from '@/services/commands/command-executor';
-import { commandRegistry } from '@/services/commands/command-registry';
 import { ConversationManager } from '@/services/conversation-manager';
 import type {
   Conversation as ConversationType,
@@ -25,7 +33,7 @@ import { previewSystemPrompt } from '@/services/prompt/preview';
 import { getValidatedWorkspaceRoot } from '@/services/workspace-root-service';
 import { useAgentExecutionStore } from '@/stores/agent-execution-store';
 import { useRepositoryStore } from '@/stores/repository-store';
-import { settingsManager } from '@/stores/settings-store';
+import { settingsManager, useSettingsStore } from '@/stores/settings-store';
 import type { MessageAttachment, ToolMessageContent, UIMessage } from '@/types/agent';
 import type { Command, CommandContext, CommandResult } from '@/types/command';
 // Conversation mode removed - users directly select agents now
@@ -84,11 +92,13 @@ export const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(
     const [status, setStatus] = useState<ChatStatus>('ready');
     const [serverStatus, setServerStatus] = useState<string>('');
     const chatInputRef = useRef<ChatInputRef>(null);
-    const [conversation, setConversation] = useState<ConversationType | null>(null);
+    const [_conversation, setConversation] = useState<ConversationType | null>(null);
     const abortControllerRef = useRef<AbortController | null>(null);
     const activeConversationIdRef = useRef<string | undefined>(undefined);
     const { startExecution, stopExecution } = useAgentExecutionStore();
     const rootPath = useRepositoryStore((state) => state.rootPath);
+    const language = useSettingsStore((state) => state.language);
+    const t = useMemo(() => getLocale((language || 'en') as SupportedLocale), [language]);
 
     // Handle tool messages - add them to the messages list
     const handleToolMessage = (message: UIMessage) => {
@@ -113,12 +123,6 @@ export const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(
         return; // Don't add nested messages as separate messages
       }
 
-      // logger.info(`[ChatBox-Receive] 🔍 Regular tool message (not nested)${isCallAgent ? ' [CALL-AGENT]' : ''}`, {
-      //   role: message.role,
-      //   toolName: message.toolName,
-      //   willProcess: true,
-      // });
-
       // Regular tool message handling
       if (message.role === 'tool') {
         // Add tool result message to the messages list
@@ -131,19 +135,49 @@ export const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(
           message.id,
           message.toolCallId,
           message.toolName,
-          message.nestedTools
+          message.nestedTools,
+          message.renderDoingUI
         );
         logger.info(
-          `[ChatBox-Receive] ✅ Tool RESULT message added${isCallAgent ? ' [CALL-AGENT]' : ''}`
+          `[ChatBox-Receive] ✅ Tool message added${isCallAgent ? ' [CALL-AGENT]' : ''}`,
+          { renderDoingUI: message.renderDoingUI }
         );
 
-        // Persist tool-result message to database (only for top-level tools with tool-result type)
+        // Persist tool messages to database (only for top-level tools)
         if (activeConversationIdRef.current && message.toolCallId && message.toolName) {
           const toolContent = Array.isArray(message.content) ? message.content[0] : null;
 
-          // Only save tool-result messages, not tool-call messages
-          // Both have role='tool', but we only want to persist the result
-          if (!toolContent || toolContent.type !== 'tool-result') {
+          if (!toolContent) {
+            return;
+          }
+
+          // Handle tool-call messages (save input for later restoration)
+          if (toolContent.type === 'tool-call') {
+            const storedContent: StoredToolContent = {
+              type: 'tool-call',
+              toolCallId: (toolContent as ToolMessageContent).toolCallId,
+              toolName: (toolContent as ToolMessageContent).toolName,
+              input: (toolContent as ToolMessageContent).input as
+                | Record<string, unknown>
+                | undefined,
+            };
+
+            saveMessage(
+              activeConversationIdRef.current,
+              'tool',
+              JSON.stringify(storedContent),
+              0,
+              undefined,
+              undefined,
+              message.id
+            ).catch((error) => {
+              logger.error('Failed to save tool-call message:', error);
+            });
+            return;
+          }
+
+          // Handle tool-result messages
+          if (toolContent.type !== 'tool-result') {
             return;
           }
 
@@ -159,6 +193,8 @@ export const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(
             type: 'tool-result',
             toolCallId: message.toolCallId,
             toolName: message.toolName,
+            input: input as Record<string, unknown>,
+            output: output, // Save full output for proper restoration
             inputSummary: formatToolInputSummary(
               message.toolName,
               input as Record<string, unknown>,
@@ -184,50 +220,19 @@ export const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(
           });
         }
       } else if (message.role === 'assistant' && Array.isArray(message.content)) {
-        // Check if this is a tool call message
-        const toolCallContent = message.content.find((item) => item.type === 'tool-call');
-        if (toolCallContent) {
-          // logger.info(`[ChatBox-Receive] 📥 Adding tool CALL message${isCallAgent ? ' [CALL-AGENT]' : ''}`, {
-          //   toolName: message.toolName,
-          //   toolCallId: message.toolCallId,
-          //   messageId: message.id,
-          //   contentType: 'tool-call',
-          // });
-          // Add tool call message to the messages list
-          addMessage(
-            message.role,
-            message.content,
-            false,
-            undefined,
-            undefined,
-            message.id,
-            message.toolCallId,
-            message.toolName,
-            message.nestedTools
-          );
-          // logger.info(
-          //   `[ChatBox-Receive] ✅ Tool CALL message added to messages array${isCallAgent ? ' [CALL-AGENT]' : ''}`,
-          //   {
-          //     toolName: message.toolName,
-          //     toolCallId: message.toolCallId,
-          //   }
-          // );
-        } else {
-          logger.info('[ChatBox-Receive] 📥 Adding regular assistant message');
-          // Regular assistant message
-          addMessage(
-            message.role,
-            message.content,
-            false,
-            undefined,
-            undefined,
-            message.id,
-            message.toolCallId,
-            message.toolName,
-            message.nestedTools
-          );
-          logger.info('[ChatBox-Receive] ✅ Regular assistant message added');
-        }
+        // Handle assistant messages with array content (text/reasoning)
+        // Note: tool-call messages are handled in the role='tool' branch above
+        addMessage(
+          message.role,
+          message.content,
+          false,
+          undefined,
+          undefined,
+          message.id,
+          message.toolCallId,
+          message.toolName,
+          message.nestedTools
+        );
       } else {
         // Regular message - only add if role is supported by addMessage
         if (message.role !== 'system') {
@@ -616,23 +621,13 @@ export const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(
                   error.message || 'Sorry, I encountered some issues. Please try again later.';
                 setError(errorMessage);
 
-                // Check if there's an assistant message to update
-                const lastAssistantMessage = [...messages]
-                  .reverse()
-                  .find((msg) => msg.role === 'assistant');
-                if (lastAssistantMessage) {
-                  updateMessageById(lastAssistantMessage.id, errorMessage, false);
-                } else {
-                  // No assistant message yet, create one to show the error
-                  addMessage('assistant', errorMessage, false, agentId);
-                }
+                // Show error message via serverStatus in the loading indicator area
+                // This ensures error appears at the bottom of the conversation, not before user's next message
+                setServerStatus(`Error: ${errorMessage}`);
 
                 onError?.(errorMessage);
-                // Always set loading to false on error
-                setIsLoading(false);
-                setStatus('ready');
-                setServerStatus('');
-                stopExecution();
+                // Keep isLoading true so the error status is visible
+                // setIsLoading and status will be reset in onComplete or when user sends next message
               },
               onStatus: (status: string) => {
                 if (abortController.signal.aborted) return;
@@ -855,8 +850,16 @@ export const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(
             />
 
             {isLoading && (
-              <div className="mx-auto my-6 flex w-1/2 items-center justify-center text-blue-800 text-md dark:text-blue-200">
-                <LoaderCircle className="mr-2 size-5 animate-spin" />
+              <div
+                className={`mx-auto my-6 flex w-1/2 items-center justify-center text-md ${
+                  serverStatus.startsWith('Error:')
+                    ? 'text-red-600 dark:text-red-400'
+                    : 'text-blue-800 dark:text-blue-200'
+                }`}
+              >
+                {!serverStatus.startsWith('Error:') && (
+                  <LoaderCircle className="mr-2 size-5 animate-spin" />
+                )}
                 <div>{serverStatus}</div>
               </div>
             )}
@@ -873,23 +876,10 @@ export const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(
               variant="outline"
             >
               <Square className="size-3" />
-              Stop Generation
+              {t.Chat.stop}
             </Button>
           </div>
         )}
-
-        <div className="flex justify-end px-4 py-1 text-gray-500 text-xs">
-          {conversation && conversation.cost > 0 && (
-            <div className="flex gap-4">
-              <span>Cost: ${conversation.cost.toFixed(7)}</span>
-              <span>Input: {conversation.input_token.toLocaleString()}</span>
-              <span>Output: {conversation.output_token.toLocaleString()}</span>
-              <span>
-                Total: {(conversation.input_token + conversation.output_token).toLocaleString()}
-              </span>
-            </div>
-          )}
-        </div>
 
         {currentConversationId && <FileChangesSummary conversationId={currentConversationId} />}
 

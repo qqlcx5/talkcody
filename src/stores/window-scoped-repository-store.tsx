@@ -3,12 +3,19 @@ import { createContext, useContext, useRef } from 'react';
 import { toast } from 'sonner';
 import { createStore, useStore } from 'zustand';
 import { logger } from '@/lib/logger';
+import { getLocale, type SupportedLocale } from '@/locales';
 import { databaseService } from '@/services/database-service';
 import { fastDirectoryTreeService } from '@/services/fast-directory-tree-service';
 import { repositoryService } from '@/services/repository-service';
 import { WindowManagerService } from '@/services/window-manager-service';
 import { WindowRestoreService } from '@/services/window-restore-service';
-import { settingsManager } from '@/stores/settings-store';
+import { settingsManager, useSettingsStore } from '@/stores/settings-store';
+
+function getTranslations() {
+  const language = (useSettingsStore.getState().language || 'en') as SupportedLocale;
+  return getLocale(language);
+}
+
 import type {
   FileNode,
   IndexingProgress,
@@ -131,7 +138,7 @@ function createRepositoryStore() {
       } catch (error) {
         logger.error('Failed to load directory children:', error);
         set({ isLoading: false });
-        toast.error('Failed to load directory contents');
+        toast.error(getTranslations().RepositoryStore.errors.failedToLoadDirectory);
         return node.children || [];
       }
     },
@@ -181,7 +188,7 @@ function createRepositoryStore() {
           logger.error('Failed to save window state:', error);
         }
 
-        toast.success('Repository opened successfully');
+        toast.success(getTranslations().RepositoryStore.success.repositoryOpened);
       } catch (error) {
         const errorMessage = (error as Error).message;
         set({
@@ -189,7 +196,7 @@ function createRepositoryStore() {
           isLoading: false,
         });
 
-        toast.error(`Failed to open repository: ${errorMessage}`);
+        toast.error(getTranslations().RepositoryStore.errors.failedToOpen(errorMessage));
         throw error;
       }
     },
@@ -271,7 +278,7 @@ function createRepositoryStore() {
           isLoading: false,
         }));
 
-        toast.error(`Failed to read file: ${errorMessage}`);
+        toast.error(getTranslations().RepositoryStore.errors.failedToRead(errorMessage));
       }
     },
 
@@ -353,11 +360,15 @@ function createRepositoryStore() {
           ),
         }));
 
-        toast.success(`File saved: ${repositoryService.getFileNameFromPath(filePath)}`);
+        toast.success(
+          getTranslations().RepositoryStore.success.fileSaved(
+            repositoryService.getFileNameFromPath(filePath)
+          )
+        );
       } catch (error) {
         const errorMessage = (error as Error).message;
         logger.error('Failed to save file:', error);
-        toast.error(`Failed to save file: ${errorMessage}`);
+        toast.error(getTranslations().RepositoryStore.errors.failedToSave(errorMessage));
         throw error;
       }
     },
@@ -373,7 +384,7 @@ function createRepositoryStore() {
         return await repositoryService.searchFiles(rootPath, query);
       } catch (error) {
         logger.error('Search failed:', error);
-        toast.error('Search failed');
+        toast.error(getTranslations().RepositoryStore.errors.searchFailed);
         return [];
       }
     },
@@ -458,7 +469,7 @@ function createRepositoryStore() {
           ),
         }));
 
-        toast.success('File refreshed successfully');
+        toast.success(getTranslations().RepositoryStore.success.fileRefreshed);
       } catch (error) {
         const errorMessage = (error as Error).message;
         logger.error('Failed to refresh file:', error);
@@ -469,7 +480,7 @@ function createRepositoryStore() {
           ),
         }));
 
-        toast.error(`Failed to refresh file: ${errorMessage}`);
+        toast.error(getTranslations().RepositoryStore.errors.failedToRefresh(errorMessage));
       }
     },
 
@@ -501,7 +512,7 @@ function createRepositoryStore() {
           isLoading: false,
         });
 
-        toast.error(`Failed to refresh file tree: ${errorMessage}`);
+        toast.error(getTranslations().RepositoryStore.errors.failedToRefreshTree(errorMessage));
       }
     },
 

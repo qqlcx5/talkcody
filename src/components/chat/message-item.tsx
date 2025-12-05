@@ -8,18 +8,29 @@ import { ToolErrorFallback } from '@/components/tools/tool-error-fallback';
 import { UnifiedToolResult } from '@/components/tools/unified-tool-result';
 import { logger } from '@/lib/logger';
 import { getToolUIRenderers } from '@/lib/tool-adapter';
-import type { StoredToolContent } from '@/services/database/types';
+import type {
+  StoredToolCall,
+  StoredToolContent,
+  StoredToolResult,
+} from '@/services/database/types';
 import type { ToolMessageContent, UIMessage } from '@/types/agent';
 import { Action, Actions } from '../ai-elements/actions';
 import MyMarkdown from './my-markdown';
 
 /**
- * Check if a tool content item is a stored/historical tool message (has inputSummary instead of input)
+ * Check if a tool content item is a stored/historical tool-result message (has inputSummary)
  */
-function isStoredToolContent(
+function isStoredToolResult(
   item: ToolMessageContent | StoredToolContent
-): item is StoredToolContent {
-  return 'inputSummary' in item && !('input' in item);
+): item is StoredToolResult {
+  return 'inputSummary' in item && item.type === 'tool-result';
+}
+
+/**
+ * Check if a tool content item is a stored/historical tool-call message
+ */
+function isStoredToolCall(item: ToolMessageContent | StoredToolContent): item is StoredToolCall {
+  return 'type' in item && item.type === 'tool-call' && !('output' in item) && !('input' in item);
 }
 
 export interface MessageItemProps {
@@ -74,8 +85,27 @@ export function MessageItem({ message, onRegenerate, onDelete }: MessageItemProp
     message: UIMessage
   ) => {
     return content.map((item, _index) => {
-      // Handle historical/stored tool messages (have inputSummary instead of input)
-      if (isStoredToolContent(item)) {
+      // Handle historical/stored tool-call messages (from DB)
+      if (isStoredToolCall(item)) {
+        const uniqueKey = `${item.toolCallId}-${item.type}-stored-call`;
+        return (
+          <div
+            key={uniqueKey}
+            className="w-full border rounded-md bg-card text-card-foreground shadow-sm my-0.5"
+          >
+            <div className="flex items-center w-full p-2">
+              <div className="mr-2 flex-shrink-0">
+                <Check className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <div className="font-medium mr-2 flex-shrink-0">{item.toolName}</div>
+              <div className="text-muted-foreground flex-1 font-mono text-xs">Tool called</div>
+            </div>
+          </div>
+        );
+      }
+
+      // Handle historical/stored tool-result messages (have inputSummary instead of input)
+      if (isStoredToolResult(item)) {
         const uniqueKey = `${item.toolCallId}-${item.type}-stored`;
         const isError = item.status === 'error';
 
@@ -156,7 +186,7 @@ export function MessageItem({ message, onRegenerate, onDelete }: MessageItemProp
       }
 
       // Use the tool's UI components with error boundary protection
-      if (item.type === 'tool-call') {
+      if (item.type === 'tool-call' && message.renderDoingUI) {
         try {
           // Filter nested tools to only include those that belong to this specific tool call
           const filteredNestedTools = (message.nestedTools || []).filter((nestedMsg) => {
@@ -165,25 +195,12 @@ export function MessageItem({ message, onRegenerate, onDelete }: MessageItemProp
             return matches;
           });
 
-          // logger.info(`[MessageItem-Render] 📊 Filtered nested tools${isCallAgent ? ' [CALL-AGENT]' : ''}`, {
-          //   toolCallId: item.toolCallId,
-          //   totalNested: message.nestedTools?.length || 0,
-          //   filteredCount: filteredNestedTools.length,
-          // });
-
           // Pass nestedTools and toolCallId to the doing component
           const inputWithExtras = {
             ...item.input,
             nestedTools: filteredNestedTools,
             _toolCallId: item.toolCallId,
           };
-
-          // logger.info(`[MessageItem-Render] 🎨 Calling renderToolDoing${isCallAgent ? ' [CALL-AGENT]' : ''}`, {
-          //   toolName: item.toolName,
-          //   toolCallId: item.toolCallId,
-          //   inputKeys: Object.keys(item.input || {}),
-          //   hasNestedTools: filteredNestedTools.length > 0,
-          // });
 
           const doingComponent = toolRenderers.renderToolDoing(inputWithExtras);
 

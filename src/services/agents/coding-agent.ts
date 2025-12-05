@@ -395,13 +395,13 @@ export class CodingAgent {
     // Get tools from the centralized registry
     const selectedTools = {
       readFile: getToolSync('readFile'),
-      globTool: getToolSync('globTool'),
+      glob: getToolSync('glob'),
       codeSearch: getToolSync('codeSearch'),
       listFiles: getToolSync('listFiles'),
       writeFile: getToolSync('writeFile'),
       editFile: getToolSync('editFile'),
-      bashTool: getToolSync('bashTool'),
-      getSkillTool: getToolSync('getSkillTool'),
+      bash: getToolSync('bash'),
+      getSkill: getToolSync('getSkill'),
     };
 
     return {

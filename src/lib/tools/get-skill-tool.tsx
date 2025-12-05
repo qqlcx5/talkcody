@@ -31,7 +31,7 @@ function inferScriptType(filename: string): string {
  * This tool enables dynamic skill loading to reduce system prompt size
  */
 export const getSkillTool = createTool({
-  name: 'get-skill',
+  name: 'getSkill',
   description: `Use this tool to fetch the complete content of a skill when you need domain-specific knowledge, workflow rules, reference documentation, or executable scripts.
 
 Skills may include executable scripts (Python, Bash, Node.js) that you can run using the execute_skill_script tool.`,

@@ -6,6 +6,7 @@ export enum NavigationView {
   MARKETPLACE = 'marketplace',
   SKILLS_MARKETPLACE = 'skills-marketplace',
   MCP_SERVERS = 'mcp-servers',
+  LOGS = 'logs',
   SETTINGS = 'settings',
 }
 

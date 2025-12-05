@@ -211,23 +211,11 @@ export class ModelService {
    * Find all available providers from a list based on API key availability
    */
   private getAllAvailableProviders(providers: any[], apiKeys: ApiKeySettings): any[] {
-    // logger.info('[getAllAvailableProviders] Filtering providers', {
-    //   totalProviders: providers.length,
-    //   providerIds: providers.map((p) => p.id),
-    //   apiKeysAvailable: Object.keys(apiKeys).filter((k) => apiKeys[k as keyof ApiKeySettings]),
-    // });
-
     const availableProviders = providers.filter((provider) => {
       const hasKey = this.hasApiKeyForProvider(provider.id, apiKeys);
       // logger.info(`[getAllAvailableProviders] Provider ${provider.id} hasKey: ${hasKey}`);
       return hasKey;
     });
-
-    // logger.info('[getAllAvailableProviders] Filtered result', {
-    //   availableCount: availableProviders.length,
-    //   availableProviderIds: availableProviders.map((p) => p.id),
-    // });
-
     return availableProviders;
   }
 
