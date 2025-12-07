@@ -2,5 +2,5 @@
   "title": "Features",
   "icon": "Sparkles",
   "defaultOpen": true,
-  "pages": ["ai-chat", "ai-agents", "tools", "skills", "mcp-servers", "plan-mode", "terminal", "multi-window"]
+  "pages": ["ai-chat", "ai-agents", "tools", "skills", "mcp-servers", "plan-mode", "terminal", "multi-window", "search"]
 }
