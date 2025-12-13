@@ -413,9 +413,7 @@ export class RepositoryService {
         modifiedTime,
       });
 
-      logger.info(
-        `File written successfully: ${filePath}， size: ${content.length} bytes，modifiedTime: ${modifiedTime}`
-      );
+      logger.info(`File written: ${filePath} (${content.length} bytes)`);
     } catch (error) {
       logger.error(`Failed to write file: ${filePath}`, error);
       throw new Error(`Failed to write file: ${filePath}`);

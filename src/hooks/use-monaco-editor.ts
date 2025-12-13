@@ -10,7 +10,7 @@ import {
 import { registerImportLinkProviders } from '@/services/monaco-link-provider';
 import { settingsManager } from '@/stores/settings-store';
 import type { AICompletionState } from '@/types/file-editor';
-import { disableMonacoDiagnostics, shouldTriggerAICompletion } from '@/utils/monaco-utils';
+import { setupMonacoDiagnostics, shouldTriggerAICompletion } from '@/utils/monaco-utils';
 
 interface UseMonacoEditorProps {
   filePath: string | null;
@@ -23,7 +23,7 @@ interface UseMonacoEditorProps {
     position: IPosition,
     editorRef: React.RefObject<editor.IStandaloneCodeEditor>
   ) => void;
-  acceptAICompletion: (editor: editor.IStandaloneCodeEditor, monaco: any) => boolean;
+  acceptAICompletion: (editor: editor.IStandaloneCodeEditor, monaco: Monaco) => boolean;
   dismissAICompletion: () => boolean;
   shouldClearCompletion: (position: IPosition, completion: AICompletionState | null) => boolean;
   setUserAction: (isUserAction: boolean) => void;
@@ -121,7 +121,7 @@ export function useMonacoEditor({
   }, [filePath, lineNumber, navigateToLine]);
 
   const handleTabKey = useCallback(
-    async (editor: editor.IStandaloneCodeEditor, monaco: any) => {
+    async (editor: editor.IStandaloneCodeEditor, monaco: Monaco) => {
       const model = editor.getModel();
       const position = editor.getPosition();
       if (!(model && position)) return;
@@ -139,8 +139,9 @@ export function useMonacoEditor({
         try {
           const inlineSuggestController = editor.getContribution('editor.contrib.inlineSuggest');
           if (inlineSuggestController) {
-            const model = (inlineSuggestController as any).model;
-            if (model?.state?.inlineCompletion) {
+            // biome-ignore lint/suspicious/noExplicitAny: Monaco internal API has no public type
+            const inlineSuggestModel = (inlineSuggestController as any).model;
+            if (inlineSuggestModel?.state?.inlineCompletion) {
               logger.info('Accepting built-in inline suggestion');
               editor.trigger('keyboard', 'editor.action.inlineSuggest.commit', {});
               return;
@@ -213,10 +214,11 @@ export function useMonacoEditor({
         });
 
         // Store model change disposable
+        // biome-ignore lint/suspicious/noExplicitAny: storing disposable on editor instance
         (editor as any)._modelChangeDisposable = modelChangeDisposable;
 
         // Setup Monaco configuration
-        disableMonacoDiagnostics(model, monaco);
+        setupMonacoDiagnostics(model, monaco);
         // Note: setupMonacoTheme() is now handled in file-editor-content.tsx
 
         // Register Tree-sitter definition providers for all supported languages
@@ -259,11 +261,13 @@ export function useMonacoEditor({
         });
 
         // Store opener disposable for cleanup
+        // biome-ignore lint/suspicious/noExplicitAny: storing disposable on editor instance
         (editor as any)._editorOpenerDisposable = editorOpenerDisposable;
 
         // Handle Cmd+Click for go to definition using cached definition result
         // This is necessary because Monaco's default behavior doesn't work for cross-file navigation
         // when the target model doesn't exist
+        // biome-ignore lint/suspicious/noExplicitAny: Monaco mouse event type not fully exported
         const mouseDownDisposable = editor.onMouseDown((e: any) => {
           // Check for Cmd+Click (metaKey on Mac) or Ctrl+Click (on Windows/Linux)
           if (!(e.event.metaKey || e.event.ctrlKey)) return;
@@ -297,6 +301,7 @@ export function useMonacoEditor({
         });
 
         // Store mouse down disposable for cleanup
+        // biome-ignore lint/suspicious/noExplicitAny: storing disposable on editor instance
         (editor as any)._mouseDownDisposable = mouseDownDisposable;
 
         // Register inline completion provider
@@ -341,6 +346,7 @@ export function useMonacoEditor({
         );
 
         // Listen for content changes
+        // biome-ignore lint/suspicious/noExplicitAny: Monaco content change event type
         const contentChangeDisposable = model.onDidChangeContent((e: any) => {
           const position = editor.getPosition();
           if (!position) return;
@@ -382,6 +388,7 @@ export function useMonacoEditor({
 
         // Intercept Cmd+G to prevent Monaco's default "Go to Line" and trigger global search
         // We use onKeyDown to intercept before Monaco's keybinding system processes it
+        // biome-ignore lint/suspicious/noExplicitAny: Monaco keyboard event type
         const keyDownDisposable = editor.onKeyDown((e: any) => {
           // Check for Cmd+G (Mac) or Ctrl+G (Windows/Linux)
           if ((e.metaKey || e.ctrlKey) && e.keyCode === monaco.KeyCode.KeyG) {
@@ -397,6 +404,7 @@ export function useMonacoEditor({
         });
 
         // Clear completion when cursor moves significantly
+        // biome-ignore lint/suspicious/noExplicitAny: Monaco cursor event type
         const cursorDisposable = editor.onDidChangeCursorPosition((e: any) => {
           const currentCompletion = getCurrentCompletionState();
           if (currentCompletion && shouldClearCompletion(e.position, currentCompletion)) {
@@ -406,6 +414,7 @@ export function useMonacoEditor({
         });
 
         // Store disposables for cleanup
+        // biome-ignore lint/suspicious/noExplicitAny: storing disposables on editor instance
         (editor as any)._aiCompletionDisposables = [
           inlineCompletionProvider,
           modelChangeDisposable,
@@ -434,30 +443,42 @@ export function useMonacoEditor({
   useEffect(() => {
     return () => {
       const editor = editorRef.current;
+      // biome-ignore lint/suspicious/noExplicitAny: accessing stored disposables on editor instance
       if (editor && (editor as any)._aiCompletionDisposables) {
+        // biome-ignore lint/suspicious/noExplicitAny: accessing stored disposables on editor instance
         for (const disposable of (editor as any)._aiCompletionDisposables) {
           if (disposable && typeof disposable.dispose === 'function') {
             disposable.dispose();
           }
         }
+        // biome-ignore lint/suspicious/noExplicitAny: cleanup stored disposables
         delete (editor as any)._aiCompletionDisposables;
       }
 
       // Cleanup model change disposable
+      // biome-ignore lint/suspicious/noExplicitAny: accessing stored disposable on editor instance
       if (editor && (editor as any)._modelChangeDisposable) {
+        // biome-ignore lint/suspicious/noExplicitAny: cleanup stored disposable
         (editor as any)._modelChangeDisposable.dispose();
+        // biome-ignore lint/suspicious/noExplicitAny: cleanup stored disposable
         delete (editor as any)._modelChangeDisposable;
       }
 
       // Cleanup editor opener disposable
+      // biome-ignore lint/suspicious/noExplicitAny: accessing stored disposable on editor instance
       if (editor && (editor as any)._editorOpenerDisposable) {
+        // biome-ignore lint/suspicious/noExplicitAny: cleanup stored disposable
         (editor as any)._editorOpenerDisposable.dispose();
+        // biome-ignore lint/suspicious/noExplicitAny: cleanup stored disposable
         delete (editor as any)._editorOpenerDisposable;
       }
 
       // Cleanup mouse down disposable
+      // biome-ignore lint/suspicious/noExplicitAny: accessing stored disposable on editor instance
       if (editor && (editor as any)._mouseDownDisposable) {
+        // biome-ignore lint/suspicious/noExplicitAny: cleanup stored disposable
         (editor as any)._mouseDownDisposable.dispose();
+        // biome-ignore lint/suspicious/noExplicitAny: cleanup stored disposable
         delete (editor as any)._mouseDownDisposable;
       }
     };

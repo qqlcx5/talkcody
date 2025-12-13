@@ -1,7 +1,3 @@
-"use client";
-
-import { motion, useInView } from "framer-motion";
-import { useRef } from "react";
 import { Code, DollarSign, Layers, Shield } from "lucide-react";
 
 const translations = {
@@ -71,83 +67,32 @@ const translations = {
 
 export function WhyChooseSection({ lang }: { lang: string }) {
   const t = translations[lang as keyof typeof translations] || translations.en;
-  const titleRef = useRef(null);
-  const cardsRef = useRef(null);
-  const isTitleInView = useInView(titleRef, { once: true, margin: "-100px" });
-  const areCardsInView = useInView(cardsRef, { once: true, margin: "-100px" });
-
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.15,
-      },
-    },
-  };
-
-  const cardVariants = {
-    hidden: { opacity: 0, y: 50 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: {
-        duration: 0.6,
-        ease: "easeOut",
-      },
-    },
-  };
 
   return (
     <section className="relative py-16 md:py-24 overflow-hidden bg-black">
       <div className="container relative">
-        <div ref={titleRef} className="text-center space-y-6 mb-16">
-          {/* Badge - Metallic Style */}
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={isTitleInView ? { opacity: 1, y: 0 } : { opacity: 0, y: -10 }}
-            transition={{ duration: 0.5 }}
-            className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-zinc-900/80 backdrop-blur-md border border-zinc-800 text-xs font-medium text-zinc-400 uppercase tracking-wider"
-          >
+        <div className="text-center space-y-6 mb-16">
+          {/* Badge */}
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-zinc-900/80 backdrop-blur-md border border-zinc-800 text-xs font-medium text-zinc-400 uppercase tracking-wider animate-fade-in-up">
             {t.badge}
-          </motion.div>
+          </div>
 
-          <motion.h2
-            className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight text-white"
-            initial={{ opacity: 0, y: 30 }}
-            animate={isTitleInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
-            transition={{ duration: 0.7 }}
-          >
+          <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight text-white animate-fade-in-up animation-delay-100">
             {t.title}
-          </motion.h2>
-          <motion.p
-            className="text-lg md:text-xl text-zinc-400 max-w-2xl mx-auto"
-            initial={{ opacity: 0, y: 20 }}
-            animate={isTitleInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
-            transition={{ duration: 0.7, delay: 0.2 }}
-          >
+          </h2>
+          <p className="text-lg md:text-xl text-zinc-400 max-w-2xl mx-auto animate-fade-in-up animation-delay-200">
             {t.subtitle}
-          </motion.p>
+          </p>
         </div>
 
-        <motion.div
-          ref={cardsRef}
-          className="grid gap-6 md:gap-8 grid-cols-1 md:grid-cols-2 max-w-5xl mx-auto"
-          variants={containerVariants}
-          initial="hidden"
-          animate={areCardsInView ? "visible" : "hidden"}
-        >
+        <div className="grid gap-6 md:gap-8 grid-cols-1 md:grid-cols-2 max-w-5xl mx-auto">
           {t.benefits.map((benefit, index) => {
             const Icon = benefit.icon;
             return (
-              <motion.div
+              <div
                 key={benefit.title}
-                variants={cardVariants}
-                whileHover={{
-                  y: -5,
-                  transition: { duration: 0.3 },
-                }}
-                className="group relative rounded-3xl border border-zinc-800 bg-zinc-900/30 p-8 transition-all hover:bg-zinc-900/50 hover:border-zinc-700"
+                className="group relative rounded-3xl border border-zinc-800 bg-zinc-900/30 p-8 transition-all hover:bg-zinc-900/50 hover:border-zinc-700 hover:-translate-y-1 animate-fade-in-up"
+                style={{ animationDelay: `${300 + index * 100}ms` }}
               >
                 {/* Metallic Shine Effect */}
                 <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
@@ -168,10 +113,10 @@ export function WhyChooseSection({ lang }: { lang: string }) {
                     </p>
                   </div>
                 </div>
-              </motion.div>
+              </div>
             );
           })}
-        </motion.div>
+        </div>
       </div>
     </section>
   );

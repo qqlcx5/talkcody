@@ -15,6 +15,7 @@ mod script_executor;
 mod archive;
 mod code_navigation;
 mod analytics;
+mod lint;
 
 use file_watcher::FileWatcher;
 use window_manager::{WindowRegistry, WindowState, create_window};
@@ -834,6 +835,9 @@ pub fn run() {
             code_navigation::code_nav_get_index_metadata,
             code_navigation::code_nav_delete_index,
             code_navigation::code_nav_get_indexed_files,
+            // Lint commands
+            lint::run_lint,
+            lint::check_lint_runtime,
         ])
         .on_window_event(|window, event| {
             // Clean up resources when main window is destroyed

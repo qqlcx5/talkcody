@@ -20,15 +20,18 @@ import { useRepositoryWatcher } from '@/hooks/use-repository-watcher';
 import { useTasks } from '@/hooks/use-tasks';
 import { logger } from '@/lib/logger';
 import { databaseService } from '@/services/database-service';
+import type { LintDiagnostic } from '@/services/lint-service';
 import { getRelativePath } from '@/services/repository-utils';
 import { terminalService } from '@/services/terminal-service';
 import { useGitStore } from '@/stores/git-store';
+import { useLintStore } from '@/stores/lint-store';
 import { useProjectStore } from '@/stores/project-store';
 import { useRepositoryStore } from '@/stores/repository-store';
 import { settingsManager } from '@/stores/settings-store';
 import { useTerminalStore } from '@/stores/terminal-store';
 import { ChatBox, type ChatBoxRef } from './chat-box';
 import { ChatPanelHeader } from './chat-panel-header';
+import { DiagnosticsPanel } from './diagnostics/diagnostics-panel';
 import { EmptyRepositoryState } from './empty-repository-state';
 import { FileEditor } from './file-editor';
 import { FileTabs } from './file-tabs';
@@ -322,6 +325,10 @@ export function RepositoryLayout() {
 
   const hasOpenFiles = openFiles.length > 0;
 
+  // Lint diagnostics state
+  const { settings } = useLintStore();
+  const showDiagnostics = settings.enabled && settings.showInProblemsPanel;
+
   // Fullscreen panel display logic
   const showFileTree = fullscreenPanel === 'none';
   const showMiddlePanel =
@@ -330,9 +337,15 @@ export function RepositoryLayout() {
   const showEditor = fullscreenPanel !== 'terminal' && fullscreenPanel !== 'chat';
   const showTerminal =
     isTerminalVisible && fullscreenPanel !== 'editor' && fullscreenPanel !== 'chat';
+  const showProblemsPanel = showDiagnostics && hasOpenFiles && fullscreenPanel === 'none';
   const isEditorFullscreen = fullscreenPanel === 'editor';
   const isTerminalFullscreen = fullscreenPanel === 'terminal';
   const isChatFullscreen = fullscreenPanel === 'chat';
+
+  // Handle diagnostic click
+  const handleDiagnosticClick = (diagnostic: LintDiagnostic & { filePath: string }) => {
+    selectFile(diagnostic.filePath, diagnostic.range.start.line);
+  };
 
   return (
     <>
@@ -511,6 +524,14 @@ export function RepositoryLayout() {
 
                         {/* Resize handle between editor and terminal */}
                         {showTerminal && <ResizableHandle withHandle />}
+
+                        {/* Problems Panel - Show between editor and terminal */}
+                        {showProblemsPanel && (
+                          <>
+                            <ResizableHandle withHandle />
+                            <DiagnosticsPanel onDiagnosticClick={handleDiagnosticClick} />
+                          </>
+                        )}
                       </>
                     )}
 

@@ -31,14 +31,24 @@ export function useFileEditorState({
   const userActionRef = useRef<boolean>(false);
   const currentFilePathRef = useRef<string | null>(filePath);
   const isSwitchingFilesRef = useRef<boolean>(false);
+  // Refs for unmount save - avoid triggering cleanup on every state change
+  const currentContentRef = useRef<string>('');
+  const hasUnsavedChangesRef = useRef<boolean>(false);
+  // Refs for async checks in auto-save (avoid stale closure issues)
+  const isUserTypingRef = useRef<boolean>(false);
+  const isAICompletingRef = useRef<boolean>(isAICompleting);
+  const currentAICompletionRef = useRef<any>(currentAICompletion);
 
   const saveFileInternal = useCallback(
     async (filePathToSave: string, content: string) => {
-      if (!filePathToSave || isSaving) return;
+      if (!filePathToSave || isSaving) {
+        return;
+      }
 
       setIsSaving(true);
       try {
         await repositoryService.writeFile(filePathToSave, content);
+
         if (filePathToSave === filePath) {
           setHasUnsavedChanges(false);
           setLastSavedTime(new Date());
@@ -48,7 +58,7 @@ export function useFileEditorState({
           onFileSaved(filePathToSave);
         }
       } catch (error) {
-        logger.error('Error saving file:', error);
+        logger.error('[FileEditorState] Error saving file:', error);
       } finally {
         setIsSaving(false);
       }
@@ -62,8 +72,14 @@ export function useFileEditorState({
         clearTimeout(autoSaveTimeoutRef.current);
       }
 
+      // Use refs to check current values (avoid stale closure issues)
       const shouldDelayAutoSave = (): boolean => {
-        return isUserTyping || isAICompleting || userActionRef.current || !!currentAICompletion;
+        return (
+          isUserTypingRef.current ||
+          isAICompletingRef.current ||
+          userActionRef.current ||
+          !!currentAICompletionRef.current
+        );
       };
 
       const attemptAutoSave = () => {
@@ -76,11 +92,12 @@ export function useFileEditorState({
 
       autoSaveTimeoutRef.current = setTimeout(attemptAutoSave, AUTO_SAVE_DELAY);
     },
-    [saveFileInternal, isUserTyping, isAICompleting, currentAICompletion]
+    [saveFileInternal]
   );
 
   const markUserTyping = useCallback(() => {
     setIsUserTyping(true);
+    isUserTypingRef.current = true;
 
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
@@ -88,6 +105,7 @@ export function useFileEditorState({
 
     typingTimeoutRef.current = setTimeout(() => {
       setIsUserTyping(false);
+      isUserTypingRef.current = false;
     }, TYPING_TIMEOUT);
   }, []);
 
@@ -197,24 +215,42 @@ export function useFileEditorState({
     }
   }, [fileContent]);
 
+  // Keep refs in sync with state for unmount save
+  useEffect(() => {
+    currentContentRef.current = currentContent;
+  }, [currentContent]);
+
+  useEffect(() => {
+    hasUnsavedChangesRef.current = hasUnsavedChanges;
+  }, [hasUnsavedChanges]);
+
+  // Keep AI-related refs in sync with props (for async auto-save checks)
+  useEffect(() => {
+    isAICompletingRef.current = isAICompleting;
+  }, [isAICompleting]);
+
+  useEffect(() => {
+    currentAICompletionRef.current = currentAICompletion;
+  }, [currentAICompletion]);
+
   // Save on component unmount if there are unsaved changes
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally empty - only run on unmount, uses refs for current values
   useEffect(() => {
     return () => {
       // Don't save if we're just switching files (already handled in file switch effect)
       if (
         !isSwitchingFilesRef.current &&
-        hasUnsavedChanges &&
+        hasUnsavedChangesRef.current &&
         currentFilePathRef.current &&
-        currentContent
+        currentContentRef.current
       ) {
         // Use a synchronous approach for cleanup saves
         repositoryService
-          .writeFile(currentFilePathRef.current, currentContent)
+          .writeFile(currentFilePathRef.current, currentContentRef.current)
           .catch((err) => logger.error('Auto-save error:', err));
       }
     };
-    // We want the cleanup to use the latest values, so we include all deps
-  }, [hasUnsavedChanges, currentContent]);
+  }, []);
 
   // Cleanup timeouts on unmount
   useEffect(() => {

@@ -513,7 +513,6 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
         if (newAttachments.length > 0) {
           // Prevent default paste behavior
           e.preventDefault();
-
           // Check if any of the pasted items are images
           const imageAttachments = newAttachments.filter((att) => att.type === 'image');
 

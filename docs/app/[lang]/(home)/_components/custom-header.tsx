@@ -87,7 +87,7 @@ export function CustomHeader({ title, homeUrl, links, lang }: CustomHeaderProps)
             </Button>
 
             {/* Mobile menu button */}
-            <Button variant="ghost" size="icon" className="lg:hidden text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-full">
+            <Button variant="ghost" size="icon" className="lg:hidden text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-full" aria-label="Open menu">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 width="20"

@@ -22,11 +22,17 @@ function isStoredToolCall(item: ToolMessageContent | StoredToolContent): item is
 
 export interface MessageItemProps {
   message: UIMessage;
+  isLastAssistantInTurn?: boolean;
   onRegenerate?: (messageId: string) => void;
   onDelete?: (messageId: string) => void;
 }
 
-function MessageItemComponent({ message, onRegenerate, onDelete }: MessageItemProps) {
+function MessageItemComponent({
+  message,
+  isLastAssistantInTurn,
+  onRegenerate,
+  onDelete,
+}: MessageItemProps) {
   const [hasCopied, setHasCopied] = useState(false);
 
   useEffect(() => {
@@ -262,7 +268,7 @@ function MessageItemComponent({ message, onRegenerate, onDelete }: MessageItemPr
 
   return (
     <div className={'flex w-full min-w-0 gap-1'}>
-      <div className={'w-full min-w-0 rounded-lg p-3'}>
+      <div className={'w-full min-w-0 rounded-lg'}>
         <div className="relative w-full min-w-0 break-words">
           {message.role === 'user' && typeof message.content === 'string' && (
             <div className="relative my-2 flex w-full items-start rounded-xl border border-border bg-muted/50 p-4 transition-colors hover:bg-muted/80">
@@ -292,7 +298,8 @@ function MessageItemComponent({ message, onRegenerate, onDelete }: MessageItemPr
         {!message.isStreaming &&
           message.role !== 'tool' &&
           typeof message.content === 'string' &&
-          hasActualContent(message.content) && (
+          hasActualContent(message.content) &&
+          (message.role === 'user' || isLastAssistantInTurn) && (
             <Actions className="mt-2">
               <Action label={hasCopied ? 'Copied' : 'Copy'} onClick={handleCopy}>
                 {hasCopied ? (
@@ -321,6 +328,11 @@ export const MessageItem = memo(MessageItemComponent, (prevProps, nextProps) => 
   // Allow re-render for streaming messages
   if (nextProps.message.isStreaming || prevProps.message.isStreaming) {
     return false; // false = needs re-render
+  }
+
+  // Re-render if isLastAssistantInTurn changed (affects Actions visibility)
+  if (prevProps.isLastAssistantInTurn !== nextProps.isLastAssistantInTurn) {
+    return false;
   }
 
   // For completed messages, compare length instead of full content (more efficient)

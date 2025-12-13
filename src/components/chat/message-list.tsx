@@ -97,6 +97,32 @@ export function MessageList({
     return result;
   }, [messages, isEmptyMessage]);
 
+  // Calculate the last assistant message ID in each conversation turn
+  const lastAssistantIdsInTurn = useMemo(() => {
+    const ids = new Set<string>();
+
+    // Traverse from back to front, find the last assistant message with content in each turn
+    for (let i = filteredMessages.length - 1; i >= 0; i--) {
+      const msg = filteredMessages[i];
+      if (!msg) continue;
+      if (
+        msg.role === 'assistant' &&
+        typeof msg.content === 'string' &&
+        hasActualContent(msg.content)
+      ) {
+        ids.add(msg.id);
+        // Skip remaining messages in this turn until we hit a user message
+        while (i > 0) {
+          const prevMsg = filteredMessages[i - 1];
+          if (!prevMsg || prevMsg.role === 'user') break;
+          i--;
+        }
+      }
+    }
+
+    return ids;
+  }, [filteredMessages, hasActualContent]);
+
   useEffect(() => {
     scrollToBottom();
   }, [scrollToBottom]);
@@ -108,6 +134,7 @@ export function MessageList({
           <MessageItem
             key={message.id}
             message={message}
+            isLastAssistantInTurn={lastAssistantIdsInTurn.has(message.id)}
             onDelete={onDelete}
             onRegenerate={onRegenerate}
           />

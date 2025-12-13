@@ -177,7 +177,7 @@ export function findSimilarText(content: string, searchText: string, maxResults 
 
   for (let i = 0; i < lines.length && results.length < maxResults; i++) {
     const line = lines[i];
-    if (line && line.includes(firstLine.trim())) {
+    if (line?.includes(firstLine.trim())) {
       const context = lines.slice(Math.max(0, i - 2), Math.min(lines.length, i + 5)).join('\n');
       results.push(`Near line ${i + 1}:\n${context}`);
     }

@@ -1,9 +1,13 @@
+import type { Monaco } from '@monaco-editor/react';
+import type { editor as monacoEditor } from 'monaco-editor';
 import React from 'react';
 import { useAICompletion } from '@/hooks/use-ai-completion';
 import { useFileEditorState } from '@/hooks/use-file-editor-state';
 import { useGitGutter } from '@/hooks/use-git-gutter';
+import { useLintDiagnostics } from '@/hooks/use-lint-diagnostics';
 import { useMonacoEditor } from '@/hooks/use-monaco-editor';
 import { logger } from '@/lib/logger';
+import { useLintStore } from '@/stores/lint-store';
 import { useRepositoryStore } from '@/stores/repository-store';
 import type { FileEditorProps } from '@/types/file-editor';
 import { FileEditorContent } from './file-editor/file-editor-content';
@@ -27,6 +31,9 @@ export function FileEditor({
   const rootPath = useRepositoryStore((state) => state.rootPath);
   const selectFile = useRepositoryStore((state) => state.selectFile);
 
+  // Lint settings - only subscribe to enabled state to avoid unnecessary re-renders
+  const lintEnabled = useLintStore((state) => state.settings.enabled);
+
   // Handle cross-file navigation from Monaco editor
   const handleOpenFile = React.useCallback(
     (targetFilePath: string, targetLineNumber?: number) => {
@@ -36,8 +43,8 @@ export function FileEditor({
     [selectFile]
   );
 
-  // Editor state for Git gutter (using state instead of ref to trigger re-renders)
-  const [editor, setEditor] = React.useState<any>(null);
+  // Editor state for Git gutter and lint diagnostics (using state instead of ref to trigger re-renders)
+  const [editor, setEditor] = React.useState<monacoEditor.IStandaloneCodeEditor | null>(null);
 
   // AI completion logic
   const {
@@ -51,6 +58,26 @@ export function FileEditor({
     shouldClearCompletion,
     cleanup: cleanupAI,
   } = useAICompletion(filePath);
+
+  // Lint diagnostics - declare triggerLint ref to avoid circular dependency
+  const triggerLintRef = React.useRef<() => void>(() => {});
+
+  // Wrap onFileSaved to also trigger lint after file is saved
+  const handleFileSaved = React.useCallback(
+    (savedFilePath: string) => {
+      // Call the original onFileSaved callback if provided
+      onFileSaved?.(savedFilePath);
+
+      // Trigger lint after file is saved (only for the current file)
+      if (savedFilePath === filePath && lintEnabled) {
+        // Small delay to ensure file system has flushed
+        setTimeout(() => {
+          triggerLintRef.current();
+        }, 50);
+      }
+    },
+    [onFileSaved, filePath, lintEnabled]
+  );
 
   // File editor state
   const {
@@ -67,11 +94,24 @@ export function FileEditor({
   } = useFileEditorState({
     filePath,
     fileContent,
-    onFileSaved,
+    onFileSaved: handleFileSaved,
     isAICompleting,
     currentAICompletion,
     onContentChange,
   });
+
+  // Lint diagnostics
+  const { triggerLint, clearDiagnostics } = useLintDiagnostics({
+    editor,
+    filePath,
+    rootPath,
+    enabled: lintEnabled,
+  });
+
+  // Update the ref after useLintDiagnostics is called
+  React.useEffect(() => {
+    triggerLintRef.current = triggerLint;
+  }, [triggerLint]);
 
   // Monaco editor setup
   const { handleEditorDidMount } = useMonacoEditor({
@@ -96,9 +136,9 @@ export function FileEditor({
 
   // Wrap handleEditorDidMount to capture editor in state
   const handleEditorDidMountWithGit = React.useCallback(
-    (editor: any, monaco: any) => {
-      setEditor(editor);
-      handleEditorDidMount(editor, monaco);
+    (editorInstance: monacoEditor.IStandaloneCodeEditor, monaco: Monaco) => {
+      setEditor(editorInstance);
+      handleEditorDidMount(editorInstance, monaco);
     },
     [handleEditorDidMount]
   );
@@ -108,8 +148,11 @@ export function FileEditor({
     return () => {
       cleanupAI();
       cleanupState();
+      if (editor && filePath) {
+        clearDiagnostics();
+      }
     };
-  }, [cleanupAI, cleanupState]);
+  }, [cleanupAI, cleanupState, editor, filePath, clearDiagnostics]);
 
   // Handle different states
   if (!filePath) {

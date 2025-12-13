@@ -148,6 +148,7 @@ export function useUpdater(options?: {
         ...prev,
         downloading: false,
         error: errorMessage,
+        downloaded: false,
       }));
     }
   }, []); // Empty deps array - function reference is now stable

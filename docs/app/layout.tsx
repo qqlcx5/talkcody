@@ -13,7 +13,7 @@ const inter = Inter({
 const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
   variable: "--font-space",
-  display: "swap",
+  display: "optional", // Use optional to completely avoid font-induced CLS
   preload: false, // Heading font only - defer to not block LCP
 });
 
@@ -25,6 +25,13 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       lang="en"
     >
       <head>
+        {/* Preconnect to Google Fonts for faster font loading */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link
+          rel="preconnect"
+          href="https://fonts.gstatic.com"
+          crossOrigin="anonymous"
+        />
         {/* Preconnect to critical third-party origins */}
         <link rel="preconnect" href="https://cdn.talkcody.com" />
         <link rel="dns-prefetch" href="https://cdn.talkcody.com" />

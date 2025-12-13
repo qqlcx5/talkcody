@@ -26,7 +26,7 @@ export const EDITOR_OPTIONS = {
   renderLineHighlight: 'line' as const,
   cursorBlinking: 'smooth' as const,
   smoothScrolling: true,
-  'semanticHighlighting.enabled': false,
+  'semanticHighlighting.enabled': true,
   inlineSuggest: {
     enabled: true,
     showToolbar: 'onHover' as const,
@@ -35,9 +35,9 @@ export const EDITOR_OPTIONS = {
     preview: true,
     showInlineDetails: true,
   },
-  suggestOnTriggerCharacters: false,
-  quickSuggestions: false,
-  glyphMargin: false,
+  suggestOnTriggerCharacters: true,
+  quickSuggestions: true,
+  glyphMargin: true,
   lineDecorationsWidth: 10,
   hover: { enabled: true },
   parameterHints: { enabled: true },
@@ -62,4 +62,11 @@ export const EDITOR_OPTIONS = {
   },
   // Use Alt+Click for multi-cursor, so Cmd+Click can trigger Go to Definition
   multiCursorModifier: 'alt' as const,
+  // Enable diagnostics display
+  rulers: undefined as undefined,
+  showFoldingControls: 'always' as const,
+  // Enable code lens for diagnostics
+  codeLens: true,
+  // Enable lightbulb for quick fixes
+  lightbulb: undefined as undefined,
 } as const;

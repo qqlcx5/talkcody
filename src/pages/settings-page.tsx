@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { AboutSettings } from '@/components/settings/about-settings';
 import { AccountSettings } from '@/components/settings/account-settings';
 import { ApiKeysSettings } from '@/components/settings/api-keys-settings';
-import { LanguageSettings } from '@/components/settings/language-settings';
+import { GeneralSettings } from '@/components/settings/general-settings';
 import { ModelTypeSettings } from '@/components/settings/model-type-settings';
 import { ShortcutSettingsPanel } from '@/components/shortcuts/shortcut-settings';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -43,7 +43,7 @@ export function SettingsPage() {
               <TabsTrigger value="api-keys">{t.Settings.tabs.apiKeys}</TabsTrigger>
               <TabsTrigger value="models">{t.Settings.tabs.models}</TabsTrigger>
               <TabsTrigger value="shortcuts">{t.Settings.tabs.shortcuts}</TabsTrigger>
-              <TabsTrigger value="language">{t.Settings.tabs.general || 'General'}</TabsTrigger>
+              <TabsTrigger value="general">{t.Settings.tabs.general || 'General'}</TabsTrigger>
               <TabsTrigger value="about">{t.Settings.tabs.about}</TabsTrigger>
             </TabsList>
 
@@ -64,8 +64,8 @@ export function SettingsPage() {
                 <ShortcutSettingsPanel />
               </TabsContent>
 
-              <TabsContent value="language" className="space-y-6">
-                <LanguageSettings />
+              <TabsContent value="general" className="space-y-6">
+                <GeneralSettings />
               </TabsContent>
 
               <TabsContent value="about" className="space-y-6">

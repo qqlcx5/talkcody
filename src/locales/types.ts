@@ -276,6 +276,7 @@ export interface LocaleDefinition {
       searchPlaceholder: string;
       clearSearchAria: string;
       noModelsMatch: (query: string) => string;
+      searchResults: (count: number) => string;
       fetchFailed: (error: string) => string;
       selectAtLeastOne: string;
       addedModels: (count: number) => string;
@@ -1025,6 +1026,126 @@ export interface LocaleDefinition {
     fixed: string;
     removed: string;
     releasedOn: (date: string) => string;
+  };
+
+  Lint: {
+    // Panel
+    problems: string;
+    noProblems: string;
+    lintDisabled: string;
+    autoFixAll: string;
+
+    // Severity
+    error: string;
+    warning: string;
+    info: string;
+    showErrors: string;
+    showWarnings: string;
+    showInfo: string;
+
+    // Diagnostic
+    lineColumn: (line: number, column: number) => string;
+    quickFix: string;
+    fix: string;
+    viewInEditor: string;
+
+    // Quick fix options
+    fixes: {
+      removeVariable: string;
+      removeVariableDesc: string;
+      removeImports: string;
+      removeImportsDesc: string;
+      convertToConst: string;
+      convertToConstDesc: string;
+      addTypeAnnotation: string;
+      addTypeAnnotationDesc: string;
+      addComment: string;
+      addCommentDesc: string;
+      ignoreDiagnostic: string;
+      ignoreDiagnosticDesc: string;
+      cancel: string;
+    };
+
+    // Messages
+    fixApplied: string;
+    fixFailed: (error: string) => string;
+    autoFixComingSoon: string;
+    autoFixFailed: string;
+    unknownError: string;
+
+    // Settings
+    settings: {
+      title: string;
+      description: string;
+      resetToDefaults: string;
+      currentStatus: string;
+      viewStatistics: string;
+      enableLint: string;
+      enableLintDesc: string;
+      supportedLanguages: string;
+      enableBiome: string;
+      enableBiomeDesc: string;
+      severitySettings: string;
+      severitySettingsDesc: string;
+      showErrorsDesc: string;
+      showWarningsDesc: string;
+      showInfoDesc: string;
+      displaySettings: string;
+      showInEditor: string;
+      showInEditorDesc: string;
+      showProblemsPanel: string;
+      showProblemsPanelDesc: string;
+      performanceSettings: string;
+      checkDelay: string;
+      checkDelayDesc: string;
+      quickFixSettings: string;
+      enableQuickFix: string;
+      enableQuickFixDesc: string;
+      runtimeWarning: string;
+      runtimeWarningDesc: string;
+      downloadNode: string;
+      downloadBun: string;
+    };
+
+    // Diagnostic codes descriptions
+    diagnosticCodes: {
+      'no-unused-variables': string;
+      'no-unused-imports': string;
+      'use-const': string;
+      'prefer-const': string;
+      'no-explicit-any': string;
+      'no-empty-function': string;
+      'no-console': string;
+      'no-debugger': string;
+      'no-alert': string;
+      eqeqeq: string;
+      curly: string;
+      'no-unused-expressions': string;
+      'prefer-arrow-callback': string;
+      'no-var': string;
+    };
+
+    // Editor header
+    checking: string;
+    noIssues: string;
+
+    // File editor header status
+    autoSaving: string;
+    saving: string;
+    aiAnalyzing: string;
+    aiSuggestion: string;
+    savedAt: (time: string) => string;
+    codeNavigationEnabled: string;
+    notIndexedYet: string;
+    indexed: string;
+    notIndexed: string;
+
+    // FixApplier
+    FixApplier: {
+      editorNotReady: string;
+      editorModelNotReady: string;
+      unknownFixType: (fixId: string) => string;
+    };
   };
 }
 

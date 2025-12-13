@@ -1,0 +1,135 @@
+import { logger } from '@/lib/logger';
+import { settingsManager } from '@/stores/settings-store';
+import { GLMSearch, isGLMMCPAvailable } from './glm-search';
+import { isMiniMaxMCPAvailable, MiniMaxSearch } from './minimax-search';
+import { SerperSearch } from './serper-search';
+import { TavilySearch } from './tavily-search';
+import type { WebSearchResult } from './types';
+
+export { GLMSearch } from './glm-search';
+export { MiniMaxSearch } from './minimax-search';
+export { SerperSearch } from './serper-search';
+export { TavilySearch } from './tavily-search';
+// Re-export types and classes
+export type { SearchOptions, WebSearchResult, WebSearchSource } from './types';
+
+/**
+ * Unified web search function with fallback providers
+ * Priority: Tavily → Serper → MiniMax Coding Plan → GLM Coding Plan
+ */
+export async function webSearch(query: string): Promise<WebSearchResult[]> {
+  const apiKeys = await settingsManager.getApiKeys();
+  const hasTavilyKey = !!apiKeys.tavily;
+  const hasSerperKey = !!apiKeys.serper;
+
+  // Check MiniMax Coding Plan availability
+  const hasMiniMaxKey = !!apiKeys.MiniMax;
+  const miniMaxCodingPlanEnabled = await settingsManager.getProviderUseCodingPlan('MiniMax');
+  const miniMaxAvailable = isMiniMaxMCPAvailable();
+
+  // Check GLM Coding Plan availability
+  const hasZhipuKey = !!apiKeys.zhipu;
+  const zhipuCodingPlanEnabled = await settingsManager.getProviderUseCodingPlan('zhipu');
+  const glmAvailable = isGLMMCPAvailable();
+
+  logger.info('Web Search - Available Providers', {
+    hasTavilyKey,
+    hasSerperKey,
+    hasMiniMaxKey,
+    miniMaxCodingPlanEnabled,
+    miniMaxAvailable,
+    hasZhipuKey,
+    zhipuCodingPlanEnabled,
+    glmAvailable,
+  });
+
+  // Priority 1: Tavily Search (if API key configured)
+  if (hasTavilyKey) {
+    logger.info('Using Tavily Search');
+    const tavilySearch = new TavilySearch();
+    const results = await tavilySearch.search(query);
+
+    logger.info('Tavily results count:', results.length);
+    return results;
+  }
+
+  // Priority 2: Serper Search (if API key configured)
+  if (hasSerperKey) {
+    try {
+      logger.info('Using Serper Search');
+      const serperSearch = new SerperSearch();
+      const results = await serperSearch.search(query);
+
+      if (results.length > 0) {
+        logger.info('Serper results count:', results.length);
+        return results;
+      }
+      logger.warn('Serper returned empty results, trying next provider');
+    } catch (error) {
+      logger.warn('Serper search failed, trying next provider:', error);
+    }
+  }
+
+  // Priority 3: MiniMax Coding Plan web_search (if API key + Coding Plan enabled + MCP connected)
+  if (hasMiniMaxKey && miniMaxCodingPlanEnabled && miniMaxAvailable) {
+    try {
+      logger.info('Using MiniMax Coding Plan web_search');
+      const miniMaxSearch = new MiniMaxSearch();
+      const results = await miniMaxSearch.search(query);
+
+      if (results.length > 0) {
+        logger.info('MiniMax web_search results count:', results.length);
+        return results;
+      }
+      logger.warn('MiniMax web_search returned empty results, trying next provider');
+    } catch (error) {
+      logger.warn('MiniMax web_search failed, trying next provider:', error);
+    }
+  }
+
+  // Priority 4: GLM Coding Plan webSearchPrime (if API key + Coding Plan enabled + MCP connected)
+  if (hasZhipuKey && zhipuCodingPlanEnabled && glmAvailable) {
+    try {
+      logger.info('Using GLM Coding Plan webSearchPrime');
+      const glmSearch = new GLMSearch();
+      const results = await glmSearch.search(query);
+
+      if (results.length > 0) {
+        logger.info('GLM webSearchPrime results count:', results.length);
+        return results;
+      }
+      logger.warn('GLM webSearchPrime returned empty results, trying next provider');
+    } catch (error) {
+      logger.warn('GLM webSearchPrime failed, trying next provider:', error);
+    }
+  }
+
+  // No provider available - return error object
+  logger.warn('All web search providers failed');
+
+  // Build helpful message about available options
+  const suggestions: string[] = [];
+  suggestions.push('• Configure Tavily API key in Settings > API Keys');
+  suggestions.push('• Configure Serper API key in Settings > API Keys');
+  if (hasMiniMaxKey && !miniMaxCodingPlanEnabled) {
+    suggestions.push('• Enable "Use Coding Plan" for MiniMax in Settings > API Keys');
+  }
+  if (hasZhipuKey && !zhipuCodingPlanEnabled) {
+    suggestions.push('• Enable "Use Coding Plan" for Zhipu AI in Settings > API Keys');
+  }
+  if (!hasMiniMaxKey) {
+    suggestions.push('• Configure MiniMax API key and enable Coding Plan');
+  }
+  if (!hasZhipuKey) {
+    suggestions.push('• Configure Zhipu AI API key and enable Coding Plan');
+  }
+
+  // Return as array with error info (will be handled by tool result renderer)
+  return [
+    {
+      title: 'Error',
+      url: '',
+      content: `No web search provider configured. You can:\n${suggestions.join('\n')}\n\nFor Tavily setup, visit: https://docs.tavily.com/documentation/quickstart`,
+    },
+  ];
+}

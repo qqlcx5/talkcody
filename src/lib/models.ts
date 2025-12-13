@@ -73,7 +73,6 @@ export type { ProviderIds as ProviderType } from '@/providers';
 // Re-export ModelConfig from types
 export type { ModelConfig } from '@/types/models';
 
-// Get providers for a model
 export function getProvidersForModel(model: string): ProviderConfig[] {
   const modelKey = model.split('@')[0] || model;
   const config = MODEL_CONFIGS[modelKey as ModelKey];
@@ -83,11 +82,9 @@ export function getProvidersForModel(model: string): ProviderConfig[] {
     .filter((p) => p !== undefined) as ProviderConfig[];
 }
 
-// Get context length for a model
 export function getContextLength(model: string): number {
   // Parse model identifier to extract modelKey (remove @providerId suffix)
   const modelKey = model.split('@')[0] || model;
   const config = MODEL_CONFIGS[modelKey as ModelKey];
-  logger.info(`Context length for model ${model}: ${config?.context_length}`);
   return config?.context_length ?? 200000; // Default fallback
 }

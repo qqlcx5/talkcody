@@ -1,5 +1,6 @@
 import { logger } from '@/lib/logger';
 import { fetchWithTimeout } from '../utils';
+import { readabilityExtractor } from './readability-extractor';
 
 /**
  * Web content fetch result interface
@@ -122,24 +123,43 @@ export async function fetchWebContent(url: string): Promise<WebFetchResult> {
     logger.info('Successfully fetched with Jina AI');
     return result;
   } catch (jinaError) {
-    logger.warn('Jina AI fetch failed, falling back to Tavily:', jinaError);
+    logger.warn('Jina AI fetch failed, falling back to Readability:', jinaError);
 
-    // Fallback to Tavily
+    // Fallback to Readability (direct fetch + extraction, no API key needed)
     try {
-      logger.info('Attempting to fetch with Tavily:', url);
-      const result = await fetchWithTavily(url);
-      logger.info('Successfully fetched with Tavily (fallback)');
-      return result;
-    } catch (tavilyError) {
-      logger.error('Both Jina and Tavily fetch failed:', {
-        jinaError,
-        tavilyError,
-      });
+      logger.info('Attempting to fetch with Readability:', url);
+      const readabilityResult = await readabilityExtractor.extract(url);
+      if (readabilityResult) {
+        logger.info('Successfully fetched with Readability (fallback)');
+        return {
+          title: readabilityResult.title,
+          url: readabilityResult.url,
+          content: readabilityResult.content,
+          publishedDate: null,
+        };
+      }
+      throw new Error('Readability extraction returned null');
+    } catch (readabilityError) {
+      logger.warn('Readability fetch failed, falling back to Tavily:', readabilityError);
 
-      // Both methods failed
-      throw new Error(
-        `Failed to fetch web content. Jina error: ${jinaError instanceof Error ? jinaError.message : 'Unknown error'}. Tavily error: ${tavilyError instanceof Error ? tavilyError.message : 'Unknown error'}`
-      );
+      // Fallback to Tavily
+      try {
+        logger.info('Attempting to fetch with Tavily:', url);
+        const result = await fetchWithTavily(url);
+        logger.info('Successfully fetched with Tavily (fallback)');
+        return result;
+      } catch (tavilyError) {
+        logger.error('All fetch methods failed:', {
+          jinaError,
+          readabilityError,
+          tavilyError,
+        });
+
+        // All methods failed
+        throw new Error(
+          `Failed to fetch web content. Jina error: ${jinaError instanceof Error ? jinaError.message : 'Unknown error'}. Readability error: ${readabilityError instanceof Error ? readabilityError.message : 'Unknown error'}. Tavily error: ${tavilyError instanceof Error ? tavilyError.message : 'Unknown error'}`
+        );
+      }
     }
   }
 }

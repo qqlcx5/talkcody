@@ -199,23 +199,16 @@ pub async fn proxy_fetch(request: ProxyRequest) -> Result<ProxyResponse, String>
     }
 
     // Log critical response headers for debugging
-    let content_type = response.headers().get("content-type")
+    let _content_type = response.headers().get("content-type")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("none");
-    let transfer_encoding = response.headers().get("transfer-encoding")
+    let _transfer_encoding = response.headers().get("transfer-encoding")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("none");
-    let content_length = response.headers().get("content-length")
+    let _content_length = response.headers().get("content-length")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("none");
 
-    log::info!(
-        "Response headers - Content-Type: {}, Transfer-Encoding: {}, Content-Length: {}",
-        content_type, transfer_encoding, content_length
-    );
-
-    // Get response body with timeout
-    log::info!("Starting to read response body...");
     let read_timeout = Duration::from_secs(30);
 
     let body = timeout(read_timeout, response.text())
@@ -228,8 +221,6 @@ pub async fn proxy_fetch(request: ProxyRequest) -> Result<ProxyResponse, String>
             log::error!("Failed to read response body: {}", e);
             format!("Failed to read response body: {}", e)
         })?;
-
-    log::info!("Response body read complete, length: {} bytes", body.len());
 
     Ok(ProxyResponse {
         status,

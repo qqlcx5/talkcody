@@ -18,10 +18,9 @@ export const PROVIDER_CONFIGS: ProviderRegistry = {
     type: 'openai-compatible',
     supportsCodingPlan: true,
     createProvider: (apiKey: string) =>
-      createOpenAICompatible({
+      createAnthropic({
         apiKey,
-        name: 'MINIMAX',
-        baseURL: 'https://api.minimaxi.com/v1',
+        baseURL: 'https://api.minimaxi.com/anthropic/v1',
         fetch: streamFetch as typeof fetch,
       }),
   },
@@ -226,6 +225,18 @@ export const PROVIDER_CONFIGS: ProviderRegistry = {
     type: 'custom',
     createProvider: () => null, // Tavily is not an AI provider, just a search API
   },
+
+  serper: {
+    id: 'serper',
+    name: 'Serper Web Search',
+    priority: 3,
+    apiKeyName: 'SERPER_API_KEY',
+    baseUrl: 'https://google.serper.dev',
+    required: false,
+    type: 'custom',
+    createProvider: () => null, // Serper is not an AI provider, just a search API
+  },
+
   elevenlabs: {
     id: 'elevenlabs',
     name: 'Eleven Labs Text-to-Speech',

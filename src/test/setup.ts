@@ -2,6 +2,9 @@
 import { vi } from 'vitest';
 import '@testing-library/jest-dom';
 
+// Note: monaco-editor is mocked via alias in vitest.config.ts
+// See src/test/mocks/monaco-editor.ts
+
 // Mock window object for Tauri APIs
 Object.defineProperty(window, '__TAURI_INTERNALS__', {
   value: {

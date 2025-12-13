@@ -36,6 +36,7 @@ const PROVIDER_MODELS_ENDPOINTS: Record<string, string | null> = {
   moonshot: 'https://api.moonshot.cn/v1/models',
   // Non-AI providers, no need to test
   tavily: null,
+  serper: null,
   elevenlabs: null,
 };
 

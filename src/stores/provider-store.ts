@@ -118,6 +118,7 @@ async function loadUseCodingPlanSettings(): Promise<Map<string, boolean>> {
 
 async function loadCustomProviders(): Promise<CustomProviderConfig[]> {
   const { customProviderService } = await import('@/services/custom-provider-service');
+
   return customProviderService.getEnabledCustomProviders();
 }
 

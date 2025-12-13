@@ -2,12 +2,8 @@
 
 import { ArrowRight, Download, Github } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState, useRef } from "react";
-import { motion, useInView } from "framer-motion";
-import {
-  detectPlatform,
-  getDownloadInfo,
-} from "@/lib/download-utils";
+import { useEffect, useState } from "react";
+import { detectPlatform, getDownloadInfo } from "@/lib/download-utils";
 import type { Platform } from "@/lib/download-utils";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -34,8 +30,6 @@ export function DownloadCtaSection({ lang }: { lang: string }) {
   const t = translations[lang as keyof typeof translations] || translations.en;
   const [platform, setPlatform] = useState<Platform>("unknown");
   const [mounted, setMounted] = useState(false);
-  const contentRef = useRef(null);
-  const isContentInView = useInView(contentRef, { once: true, margin: "-100px" });
 
   useEffect(() => {
     setMounted(true);
@@ -67,7 +61,7 @@ export function DownloadCtaSection({ lang }: { lang: string }) {
     <section className="relative py-24 overflow-hidden bg-black">
       {/* Metallic Gradient Background */}
       <div className="absolute inset-0 bg-gradient-to-b from-black via-zinc-950 to-black" />
-      
+
       {/* Subtle Grid Overlay */}
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808008_1px,transparent_1px),linear-gradient(to_bottom,#80808008_1px,transparent_1px)] bg-[size:40px_40px]" />
 
@@ -75,40 +69,19 @@ export function DownloadCtaSection({ lang }: { lang: string }) {
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-white/5 blur-[120px] rounded-full pointer-events-none" />
 
       <div className="container relative z-10">
-        <motion.div
-          ref={contentRef}
-          className="max-w-3xl mx-auto text-center space-y-8"
-          initial={{ opacity: 0, y: 30 }}
-          animate={isContentInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
-          transition={{ duration: 0.6 }}
-        >
+        <div className="max-w-3xl mx-auto text-center space-y-8 animate-fade-in-up">
           {/* Title */}
-          <motion.h2
-            className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight text-white"
-            initial={{ opacity: 0, y: 20 }}
-            animate={isContentInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
-            transition={{ duration: 0.5, delay: 0.1 }}
-          >
+          <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight text-white">
             {t.title}
-          </motion.h2>
+          </h2>
 
           {/* Subtitle */}
-          <motion.p
-            className="text-lg md:text-xl text-zinc-400 leading-relaxed max-w-2xl mx-auto"
-            initial={{ opacity: 0, y: 20 }}
-            animate={isContentInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-          >
+          <p className="text-lg md:text-xl text-zinc-400 leading-relaxed max-w-2xl mx-auto animation-delay-100 animate-fade-in-up">
             {t.subtitle}
-          </motion.p>
+          </p>
 
           {/* CTA Buttons */}
-          <motion.div
-            className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-6"
-            initial={{ opacity: 0, y: 20 }}
-            animate={isContentInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
-            transition={{ duration: 0.5, delay: 0.3 }}
-          >
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-6 animation-delay-200 animate-fade-in-up">
             {/* Primary Download Button - White Metallic */}
             <Button
               asChild
@@ -148,8 +121,8 @@ export function DownloadCtaSection({ lang }: { lang: string }) {
                 {t.viewOnGitHub}
               </a>
             </Button>
-          </motion.div>
-        </motion.div>
+          </div>
+        </div>
       </div>
     </section>
   );

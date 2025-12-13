@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 import * as utils from '../utils';
 import { fetchWebContent, fetchWithJina, fetchWithTavily } from './web-fetcher';
+import * as readabilityExtractorModule from './readability-extractor';
 
 // Mock the fetchWithTimeout function
 vi.mock('../utils', () => ({
@@ -8,6 +9,15 @@ vi.mock('../utils', () => ({
 }));
 
 const mockFetchWithTimeout = utils.fetchWithTimeout as Mock;
+
+// Mock readability extractor
+vi.mock('./readability-extractor', () => ({
+  readabilityExtractor: {
+    extract: vi.fn(),
+  },
+}));
+
+const mockReadabilityExtract = readabilityExtractorModule.readabilityExtractor.extract as Mock;
 
 // Mock logger
 vi.mock('@/lib/logger', () => ({
@@ -227,7 +237,7 @@ describe('web-fetcher', () => {
       );
     });
 
-    it('should fallback to Tavily when Jina fails', async () => {
+    it('should fallback to Readability when Jina fails', async () => {
       // First call (Jina) fails
       const jinaErrorResponse = {
         ok: false,
@@ -235,7 +245,32 @@ describe('web-fetcher', () => {
         text: vi.fn().mockResolvedValue('Server error'),
       };
 
-      // Second call (Tavily) succeeds
+      mockFetchWithTimeout.mockResolvedValueOnce(jinaErrorResponse as any);
+
+      // Readability succeeds
+      mockReadabilityExtract.mockResolvedValueOnce({
+        title: 'Readability Title',
+        content: 'Content from Readability fallback',
+        url: 'https://example.com',
+      });
+
+      const result = await fetchWebContent('https://example.com');
+
+      expect(result.content).toBe('Content from Readability fallback');
+      expect(result.title).toBe('Readability Title');
+      expect(mockFetchWithTimeout).toHaveBeenCalledTimes(1); // Only Jina
+      expect(mockReadabilityExtract).toHaveBeenCalledTimes(1);
+    });
+
+    it('should fallback to Tavily when Jina and Readability fail', async () => {
+      // First call (Jina) fails
+      const jinaErrorResponse = {
+        ok: false,
+        status: 500,
+        text: vi.fn().mockResolvedValue('Server error'),
+      };
+
+      // Third call (Tavily) succeeds
       const tavilySuccessResponse = {
         ok: true,
         json: vi.fn().mockResolvedValue({
@@ -253,13 +288,17 @@ describe('web-fetcher', () => {
         .mockResolvedValueOnce(jinaErrorResponse as any)
         .mockResolvedValueOnce(tavilySuccessResponse as any);
 
+      // Readability fails
+      mockReadabilityExtract.mockResolvedValueOnce(null);
+
       const result = await fetchWebContent('https://example.com');
 
       expect(result.content).toBe('Content from Tavily fallback');
-      expect(mockFetchWithTimeout).toHaveBeenCalledTimes(2);
+      expect(mockFetchWithTimeout).toHaveBeenCalledTimes(2); // Jina + Tavily
+      expect(mockReadabilityExtract).toHaveBeenCalledTimes(1);
     });
 
-    it('should throw error when both Jina and Tavily fail', async () => {
+    it('should throw error when Jina, Readability and Tavily all fail', async () => {
       const mockErrorResponse = {
         ok: false,
         status: 500,
@@ -267,12 +306,14 @@ describe('web-fetcher', () => {
       };
 
       mockFetchWithTimeout.mockResolvedValue(mockErrorResponse as any);
+      mockReadabilityExtract.mockResolvedValue(null);
 
       await expect(fetchWebContent('https://example.com')).rejects.toThrow(
         'Failed to fetch web content'
       );
 
-      expect(mockFetchWithTimeout).toHaveBeenCalledTimes(2);
+      expect(mockFetchWithTimeout).toHaveBeenCalledTimes(2); // Jina + Tavily
+      expect(mockReadabilityExtract).toHaveBeenCalledTimes(1);
     });
 
     it('should throw error for invalid URL (no http)', async () => {

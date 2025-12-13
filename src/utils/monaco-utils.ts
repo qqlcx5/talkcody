@@ -2,27 +2,55 @@ import type { editor } from 'monaco-editor';
 
 type Monaco = typeof import('monaco-editor');
 
-export function disableMonacoDiagnostics(model: editor.ITextModel, monacoInstance?: Monaco) {
+export function setupMonacoDiagnostics(_model: editor.ITextModel | null, monacoInstance?: Monaco) {
   const monaco = monacoInstance || (window as { monaco?: Monaco }).monaco;
   if (!monaco) return;
 
-  // Disable TypeScript/JavaScript diagnostics globally
+  // Disable Monaco's TypeScript semantic validation to avoid false positives
+  // Monaco cannot access node_modules type definitions in the browser environment,
+  // causing errors like "Cannot find name 'HTMLTextAreaElement'" or "Cannot find namespace 'React'"
+  // We rely on Biome for linting instead
   monaco.languages.typescript?.typescriptDefaults?.setDiagnosticsOptions({
-    noSemanticValidation: true,
-    noSyntaxValidation: true,
+    noSemanticValidation: true, // Disable semantic validation (type checking)
+    noSyntaxValidation: false, // Keep syntax validation
     noSuggestionDiagnostics: true,
   });
   monaco.languages.typescript?.javascriptDefaults?.setDiagnosticsOptions({
     noSemanticValidation: true,
-    noSyntaxValidation: true,
+    noSyntaxValidation: false,
     noSuggestionDiagnostics: true,
   });
 
-  // Clear all existing markers
-  const markerOwners = ['typescript', 'javascript', 'json', 'css', 'html', 'owner'];
-  for (const owner of markerOwners) {
-    monaco.editor.setModelMarkers(model, owner, []);
-  }
+  // Configure TypeScript compiler options for better diagnostics
+  monaco.languages.typescript?.typescriptDefaults?.setCompilerOptions({
+    target: monaco.languages.typescript.ScriptTarget.ES2020,
+    allowNonTsExtensions: true,
+    moduleResolution: monaco.languages.typescript.ModuleResolutionKind.NodeJs,
+    module: monaco.languages.typescript.ModuleKind.ESNext,
+    noEmit: true,
+    esModuleInterop: true,
+    allowSyntheticDefaultImports: true,
+    experimentalDecorators: true,
+    strict: true,
+    noUnusedLocals: false,
+    noUnusedParameters: false,
+    jsx: monaco.languages.typescript.JsxEmit.ReactJSX,
+    lib: ['ES2020', 'DOM', 'DOM.Iterable'],
+  });
+
+  monaco.languages.typescript?.javascriptDefaults?.setCompilerOptions({
+    target: monaco.languages.typescript.ScriptTarget.ES2020,
+    allowNonTsExtensions: true,
+    moduleResolution: monaco.languages.typescript.ModuleResolutionKind.NodeJs,
+    module: monaco.languages.typescript.ModuleKind.ESNext,
+    noEmit: true,
+    esModuleInterop: true,
+    allowSyntheticDefaultImports: true,
+    experimentalDecorators: true,
+    strict: false,
+    jsx: monaco.languages.typescript.JsxEmit.ReactJSX,
+    lib: ['ES2020', 'DOM', 'DOM.Iterable'],
+  });
 }
 
 /**

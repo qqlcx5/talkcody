@@ -129,9 +129,9 @@ export function UnifiedToolResult({
     <Collapsible
       open={isOpen}
       onOpenChange={setIsOpen}
-      className="w-full border rounded-md bg-card text-card-foreground shadow-sm my-0.5"
+      className="w-full border rounded-md bg-card text-card-foreground shadow-sm mb-1"
     >
-      <CollapsibleTrigger className="flex items-center w-full p-2 hover:bg-muted/50 transition-colors text-left">
+      <CollapsibleTrigger className="flex items-center w-full p-1 hover:bg-muted/50 transition-colors text-left">
         <div className="mr-2 flex-shrink-0">
           {isError ? (
             <X className="h-4 w-4 text-red-500" />

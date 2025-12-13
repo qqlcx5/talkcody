@@ -9,7 +9,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { logger } from '@/lib/logger';
 import { createTextModelService } from '@/services/monaco-text-model-service';
 import { repositoryService } from '@/services/repository-service';
-import { setupMonacoTheme } from '@/utils/monaco-utils';
+import { setupMonacoDiagnostics, setupMonacoTheme } from '@/utils/monaco-utils';
 
 // Image file extensions with MIME types
 const IMAGE_EXTENSIONS: Record<string, string> = {
@@ -258,6 +258,12 @@ export function FileEditorContent({
     const theme = resolvedTheme === 'light' ? 'light-ai' : 'vs-dark-ai';
     monaco.editor.setTheme(theme);
 
+    // Setup diagnostics for the current model
+    const model = editor.getModel();
+    if (model) {
+      setupMonacoDiagnostics(model, monaco);
+    }
+
     onEditorDidMount(editor, monaco);
   };
 
@@ -294,17 +300,8 @@ export function FileEditorContent({
           monacoRef.current = monaco;
           setupMonacoTheme(resolvedTheme, monaco);
 
-          // Disable TypeScript/JavaScript diagnostics globally before editor mounts
-          monaco.languages.typescript?.typescriptDefaults?.setDiagnosticsOptions({
-            noSemanticValidation: true,
-            noSyntaxValidation: true,
-            noSuggestionDiagnostics: true,
-          });
-          monaco.languages.typescript?.javascriptDefaults?.setDiagnosticsOptions({
-            noSemanticValidation: true,
-            noSyntaxValidation: true,
-            noSuggestionDiagnostics: true,
-          });
+          // Enable TypeScript/JavaScript diagnostics globally before editor mounts
+          setupMonacoDiagnostics(null, monaco);
         }}
         onMount={handleEditorDidMount}
         options={EDITOR_OPTIONS}

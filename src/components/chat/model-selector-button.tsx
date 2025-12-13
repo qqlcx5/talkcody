@@ -1,10 +1,11 @@
 // src/components/chat/model-selector-button.tsx
 
-import { Bot, Check, ExternalLink } from 'lucide-react';
+import { Bot, Check, ExternalLink, Search, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
+import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useLocale } from '@/hooks/use-locale';
@@ -17,6 +18,7 @@ import type { AvailableModel } from '@/types/api-keys';
 export function ModelSelectorButton() {
   const { t } = useLocale();
   const [open, setOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Get available models from store
   const availableModels = useProviderStore((state) => state.availableModels);
@@ -44,6 +46,47 @@ export function ModelSelectorButton() {
     return availableModels.find((m) => m.key === currentModelKey);
   }, [availableModels, currentModelKey]);
 
+  // Filter models based on search query
+  const filteredModels = useMemo(() => {
+    const query = searchQuery.trim();
+
+    // If no search query, return all models
+    if (!query) {
+      return availableModels;
+    }
+
+    const searchTerms = query
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((term) => term.length > 0);
+
+    // Filter models that match all search terms
+    const filtered = availableModels
+      .filter((model) => {
+        // Create searchable text from model properties
+        const searchableFields = [model.name || '', model.key || ''];
+
+        const searchableText = searchableFields.join(' ').toLowerCase();
+
+        // All search terms must be present (AND logic)
+        // Only match if the term appears as a whole word or part of a word
+        const matchesAllTerms = searchTerms.every((term) => {
+          // Direct substring match
+          return searchableText.includes(term);
+        });
+
+        return matchesAllTerms;
+      })
+      // Remove duplicates based on model key and provider combination
+      .filter((model, index, array) => {
+        const modelKey = `${model.key}-${model.provider}`;
+        const firstIndex = array.findIndex((m) => `${m.key}-${m.provider}` === modelKey);
+        return index === firstIndex;
+      });
+
+    return filtered;
+  }, [availableModels, searchQuery]);
+
   // Handle model selection
   const handleSelectModel = async (model: AvailableModel) => {
     try {
@@ -61,10 +104,29 @@ export function ModelSelectorButton() {
 
   return (
     <HoverCard>
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover
+        open={open}
+        onOpenChange={(newOpen) => {
+          if (!newOpen) {
+            // Reset search when closing
+            setSearchQuery('');
+          }
+          setOpen(newOpen);
+        }}
+      >
         <HoverCardTrigger asChild>
           <PopoverTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-7 w-7 relative" disabled={isLoading}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 relative"
+              disabled={isLoading}
+              onClick={() => {
+                if (!open) {
+                  setSearchQuery('');
+                }
+              }}
+            >
               <Bot className="h-4 w-4" />
             </Button>
           </PopoverTrigger>
@@ -101,18 +163,50 @@ export function ModelSelectorButton() {
             )}
           </div>
 
+          {/* Search Input */}
+          <div className="px-3 py-2 border-b">
+            <div className="relative">
+              <div className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground">
+                <Search className="h-4 w-4" />
+              </div>
+              <Input
+                placeholder={t.Settings.customModelsDialog.searchPlaceholder}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-8 pl-8 pr-8"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  aria-label={t.Settings.customModelsDialog.clearSearchAria}
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+            {searchQuery.trim() && (
+              <div className="mt-1 text-xs text-muted-foreground">
+                {t.Settings.customModelsDialog.searchResults(filteredModels.length)}
+              </div>
+            )}
+          </div>
+
           <ScrollArea className="h-[400px]">
             {isLoading ? (
               <div className="p-4 text-center text-sm text-muted-foreground">
                 {t.Common.loading}
               </div>
-            ) : availableModels.length === 0 ? (
+            ) : filteredModels.length === 0 ? (
               <div className="p-4 text-center text-sm text-muted-foreground">
-                {t.Chat.modelSelector.noModels}
+                {searchQuery.trim()
+                  ? t.Settings.customModelsDialog.noModelsMatch(searchQuery)
+                  : t.Chat.modelSelector.noModels}
               </div>
             ) : (
-              <div className="p-2 space-y-1">
-                {availableModels.map((model) => {
+              <div className="p-2 space-y-1" key={`models-${searchQuery}`}>
+                {filteredModels.map((model) => {
                   const isSelected =
                     model.key === currentModelKey && model.provider === modelTypeMain.split('@')[1];
                   return (
