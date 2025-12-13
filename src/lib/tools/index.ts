@@ -11,11 +11,12 @@
 
 import type { ToolWithUI } from '@/types/tool';
 import { logger } from '../logger';
-
+import { registerToolUIRenderers } from '../tool-adapter';
 // Import all tools explicitly to avoid dynamic import issues
 import { askUserQuestionsTool } from './ask-user-questions-tool';
 import { bashTool } from './bash-tool';
 import { callAgent } from './call-agent-tool';
+import { callAgentV2 } from './call-agent-v2-tool';
 import { codeSearch } from './code-search-tool';
 import { editFile } from './edit-file-tool';
 import { executeSkillScriptTool } from './execute-skill-script-tool';
@@ -39,10 +40,14 @@ export interface ToolMetadata {
   canConcurrent: boolean;
   /** Whether this tool operates on files */
   fileOperation: boolean;
-  /** Extract target file path from tool input (for file operations) */
-  getTargetFile?: (input: any) => string | null;
+  /** Extract target file path(s) from tool input for dependency analysis */
+  getTargetFile?: (input: Record<string, unknown>) => string | string[] | null;
   /** Whether to render "doing" UI for this tool. Set to false for fast operations to avoid UI flash. Default: true */
   renderDoingUI?: boolean;
+  /** Whether this tool is in beta/preview */
+  isBeta?: boolean;
+  /** Optional custom label for the beta badge */
+  badgeLabel?: string;
 }
 
 export interface ToolDefinition {
@@ -51,9 +56,7 @@ export interface ToolDefinition {
   /** Display label for UI */
   label: string;
   /** Tool metadata for dependency analysis */
-  metadata: Omit<ToolMetadata, 'getTargetFile'> & {
-    getTargetFile?: (input: Record<string, unknown>) => string | null;
-  };
+  metadata: ToolMetadata;
 }
 
 /**
@@ -182,6 +185,30 @@ export const TOOL_DEFINITIONS = {
       renderDoingUI: true,
     },
   },
+  callAgentV2: {
+    tool: callAgentV2,
+    label: 'Call Agent v2',
+    metadata: {
+      category: 'other' as ToolCategory,
+      canConcurrent: true,
+      fileOperation: false,
+      renderDoingUI: true,
+      isBeta: true,
+      getTargetFile: (input) => {
+        const targets = (input as { targets?: unknown })?.targets;
+        if (Array.isArray(targets)) {
+          return targets
+            .map((t) => (typeof t === 'string' ? t.trim() : null))
+            .filter((t): t is string => !!t && t.length > 0);
+        }
+        if (typeof targets === 'string') {
+          const trimmed = targets.trim();
+          return trimmed.length > 0 ? trimmed : null;
+        }
+        return null;
+      },
+    },
+  },
   todoWrite: {
     tool: todoWriteTool,
     label: 'Todo',
@@ -268,6 +295,9 @@ export async function loadAllTools(): Promise<Record<string, ToolWithUI>> {
           logger.error(`Tool "${toolName}" not found in definition`);
           continue;
         }
+
+        // Ensure UI renderers are registered even if agents are not yet converted
+        registerToolUIRenderers(tool, toolName);
 
         tools[toolName] = tool;
       } catch (error) {
@@ -368,19 +398,33 @@ export async function getToolsForUI(): Promise<
     id: string;
     label: string;
     ref: ToolWithUI;
+    isBeta: boolean;
+    badgeLabel?: string;
   }>
 > {
   const tools = await loadAllTools();
 
-  const result: Array<{ id: string; label: string; ref: ToolWithUI }> = [];
+  const result: Array<{
+    id: string;
+    label: string;
+    ref: ToolWithUI;
+    isBeta: boolean;
+    badgeLabel?: string;
+  }> = [];
 
-  for (const [id, definition] of Object.entries(TOOL_DEFINITIONS)) {
+  const entries = Object.entries(TOOL_DEFINITIONS) as Array<[string, ToolDefinition]>;
+
+  for (const [id, definition] of entries) {
     const tool = tools[id];
     if (tool !== undefined) {
+      const isBeta = Boolean(definition.metadata.isBeta ?? tool.isBeta);
+      const badgeLabel = definition.metadata.badgeLabel ?? tool.badgeLabel;
       result.push({
         id,
         label: definition.label,
         ref: tool,
+        isBeta,
+        badgeLabel,
       });
     }
   }
@@ -396,18 +440,32 @@ export function getToolsForUISync(): Array<{
   id: string;
   label: string;
   ref: ToolWithUI;
+  isBeta: boolean;
+  badgeLabel?: string;
 }> {
   const tools = getAllToolsSync();
 
-  const result: Array<{ id: string; label: string; ref: ToolWithUI }> = [];
+  const result: Array<{
+    id: string;
+    label: string;
+    ref: ToolWithUI;
+    isBeta: boolean;
+    badgeLabel?: string;
+  }> = [];
 
-  for (const [id, definition] of Object.entries(TOOL_DEFINITIONS)) {
+  const entries = Object.entries(TOOL_DEFINITIONS) as Array<[string, ToolDefinition]>;
+
+  for (const [id, definition] of entries) {
     const tool = tools[id];
     if (tool !== undefined) {
+      const isBeta = Boolean(definition.metadata.isBeta ?? tool.isBeta);
+      const badgeLabel = definition.metadata.badgeLabel ?? tool.badgeLabel;
       result.push({
         id,
         label: definition.label,
         ref: tool,
+        isBeta,
+        badgeLabel,
       });
     }
   }

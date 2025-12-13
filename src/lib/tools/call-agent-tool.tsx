@@ -116,11 +116,8 @@ export const callAgent = createTool({
       }
       // logger.info("systemPrompt: ", systemPrompt);
 
-      // Dynamically import createLLMService to avoid circular dependency
-      // Use createLLMService instead of singleton llmService to support concurrent task execution
-      // Each callAgent invocation needs its own LLMService instance to prevent StreamProcessor state conflicts
-      const { createLLMService } = await import('@/services/agents/llm-service');
-      const nestedLLMService = createLLMService(executionId);
+      // Dynamically import llmService to avoid circular dependency
+      const { llmService } = await import('@/services/agents/llm-service');
 
       logger.info(`callAgent: Preparing to run nested agent loop`, {
         agentId,
@@ -130,7 +127,7 @@ export const callAgent = createTool({
       });
 
       await new Promise<void>((resolve, reject) => {
-        nestedLLMService
+        llmService
           .runAgentLoop(
             {
               messages,

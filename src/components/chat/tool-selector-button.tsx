@@ -3,6 +3,7 @@
 import { Check, ExternalLink, RotateCcw, Wrench } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
+import { BetaBadge } from '@/components/beta-badge';
 import { Button } from '@/components/ui/button';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -11,6 +12,7 @@ import { useLocale } from '@/hooks/use-locale';
 import { useAppSettings } from '@/hooks/use-settings';
 import { getDocLinks } from '@/lib/doc-links';
 import { logger } from '@/lib/logger';
+import { isToolAllowedForAgent } from '@/services/agents/agent-tool-access';
 import { getAvailableToolsForUISync } from '@/services/agents/tool-registry';
 import { useAgentStore } from '@/stores/agent-store';
 import { useToolOverrideStore } from '@/stores/tool-override-store';
@@ -55,6 +57,7 @@ export function ToolSelectorButton() {
       const allTools = getAvailableToolsForUISync();
       // Filter out hidden tools
       return allTools.filter((tool) => {
+        if (!isToolAllowedForAgent(currentAgent?.id, tool.id)) return false;
         const ref = tool.ref as { hidden?: boolean };
         return !ref.hidden;
       });
@@ -62,7 +65,7 @@ export function ToolSelectorButton() {
       logger.error('Failed to get built-in tools:', error);
       return [];
     }
-  }, [toolsLoaded]);
+  }, [toolsLoaded, currentAgent?.id]);
 
   // Subscribe to tool overrides
   const toolOverrides = useToolOverrideStore((state) => state.overrides);
@@ -96,6 +99,7 @@ export function ToolSelectorButton() {
       id: tool.id,
       label: tool.label,
       type: 'built-in' as const,
+      isBeta: tool.isBeta,
     }));
   }, [builtInTools]);
 
@@ -249,7 +253,10 @@ export function ToolSelectorButton() {
                       </div>
 
                       <div className="flex-1 min-w-0">
-                        <div className="font-medium text-sm truncate">{tool.label}</div>
+                        <div className="font-medium text-sm truncate flex items-center gap-2">
+                          <span className="truncate">{tool.label}</span>
+                          {tool.isBeta && <BetaBadge className="scale-90" />}
+                        </div>
                       </div>
 
                       <div className="text-xs text-muted-foreground">{t.Chat.tools.builtIn}</div>

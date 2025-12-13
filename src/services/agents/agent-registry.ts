@@ -8,6 +8,7 @@ import type { AgentDefinition, DynamicPromptConfig } from '@/types/agent';
 import { agentDatabaseService } from '../agent-database-service';
 import { agentService } from '../database/agent-service';
 import type { Agent, CreateAgentData, UpdateAgentData } from '../database/types';
+import { filterToolSetForAgent, isToolAllowedForAgent } from './agent-tool-access';
 import { getToolByName, restoreToolsFromConfig } from './tool-registry';
 
 class AgentRegistry {
@@ -15,6 +16,16 @@ class AgentRegistry {
   private persistentAgents = new Map<string, AgentDefinition>(); // User agents (loaded from database)
   private systemAgentEnabledState = new Map<string, boolean>(); // Track enabled state for system agents
   private loaded = false;
+
+  private enforceRestrictedTools(agent: AgentDefinition): AgentDefinition {
+    if (!agent.tools || Object.keys(agent.tools).length === 0) return agent;
+
+    const { tools, removedToolIds } = filterToolSetForAgent(agent.id, agent.tools);
+    if (removedToolIds.length === 0) return agent;
+
+    logger.warn(`Removed restricted tools from agent '${agent.id}':`, removedToolIds);
+    return { ...agent, tools: tools as ToolSet };
+  }
 
   async loadAllAgents(): Promise<void> {
     const totalAgents = this.systemAgents.size + this.persistentAgents.size;
@@ -48,27 +59,30 @@ class AgentRegistry {
 
     // Import all system agent classes
     const { PlannerAgent } = await import('./code-planner-agent');
+    const { PlannerAgentV2 } = await import('./code-planner-agent-v2');
     // const { CodingAgent } = await import('./coding-agent');
     const { CodeReviewAgent } = await import('./code-review-agent');
     const { GeneralAgent } = await import('./general-agent');
-    // const { WriterAgent } = await import('./writer-agent');
+    const { WriterAgent } = await import('./writer-agent');
     const { ContextGathererAgent } = await import('./context-gatherer-agent');
-    // const { DocumentWriterAgent } = await import('./document-writer-agent');
+    const { DocumentWriterAgent } = await import('./document-writer-agent');
     const { InitProjectAgent } = await import('./init-project-agent');
     const { ImageGeneratorAgent } = await import('./image-generator-agent');
 
     // Build planner tools (includes MCP integration)
     const plannerTools = await this.buildPlannerTools();
+    const plannerToolsV2 = await this.buildPlannerTools(true);
 
     // Get all system agent definitions
     const systemAgents = [
       PlannerAgent.getDefinition(plannerTools),
+      PlannerAgentV2.getDefinition(plannerToolsV2),
       // CodingAgent.getDefinition(),
       CodeReviewAgent.getDefinition(),
       GeneralAgent.getDefinition(),
-      // WriterAgent.getDefinition(),
+      WriterAgent.getDefinition(),
       ContextGathererAgent.getDefinition(),
-      // DocumentWriterAgent.getDefinition(),
+      DocumentWriterAgent.getDefinition(),
       InitProjectAgent.getDefinition(),
       ImageGeneratorAgent.getDefinition(),
     ];
@@ -114,13 +128,16 @@ class AgentRegistry {
     logger.info(`loadPersistentAgents: Loaded ${dbAgents.length} user agents from database`);
   }
 
-  private async buildPlannerTools(): Promise<Record<string, unknown>> {
+  private async buildPlannerTools(useCallAgentV2 = false): Promise<ToolSet> {
     try {
       const { mergeWithMCPTools } = await import('@/lib/mcp/multi-mcp-adapter');
       const { getTool } = await import('@/lib/tools');
 
+      const callAgentToolName = (useCallAgentV2 ? 'callAgentV2' : 'callAgent') as
+        | 'callAgent'
+        | 'callAgentV2';
       const bash = await getTool('bash');
-      const callAgent = await getTool('callAgent');
+      const callAgent = await getTool(callAgentToolName);
       const readFile = await getTool('readFile');
       const codeSearch = await getTool('codeSearch');
       const glob = await getTool('glob');
@@ -132,9 +149,9 @@ class AgentRegistry {
       const exitPlanMode = await getTool('exitPlanMode');
       const askUserQuestions = await getTool('askUserQuestions');
 
-      return await mergeWithMCPTools({
+      return (await mergeWithMCPTools({
         bash,
-        callAgent,
+        [callAgentToolName]: callAgent,
         readFile,
         codeSearch,
         glob,
@@ -145,15 +162,18 @@ class AgentRegistry {
         getSkill,
         exitPlanMode,
         askUserQuestions,
-      });
+      })) as ToolSet;
     } catch (error) {
       logger.error('buildPlannerTools: Failed to load MCP tools, using local tools only:', error);
 
       const { getTool } = await import('@/lib/tools');
 
+      const callAgentToolName = (useCallAgentV2 ? 'callAgentV2' : 'callAgent') as
+        | 'callAgent'
+        | 'callAgentV2';
       // Get all required tools from centralized registry
       const bash = await getTool('bash');
-      const callAgent = await getTool('callAgent');
+      const callAgent = await getTool(callAgentToolName);
       const readFile = await getTool('readFile');
       const codeSearch = await getTool('codeSearch');
       const glob = await getTool('glob');
@@ -167,7 +187,7 @@ class AgentRegistry {
 
       return {
         bash,
-        callAgent,
+        [callAgentToolName]: callAgent,
         readFile,
         codeSearch,
         glob,
@@ -178,7 +198,7 @@ class AgentRegistry {
         getSkill,
         exitPlanMode,
         askUserQuestions,
-      };
+      } as ToolSet;
     }
   }
 
@@ -429,6 +449,13 @@ class AgentRegistry {
 
     // Add tools that are in the addedTools set
     for (const toolId of override.addedTools) {
+      if (!isToolAllowedForAgent(agent.id, toolId)) {
+        logger.warn(
+          `Cannot apply override: tool '${toolId}' is not allowed for agent '${agent.id}'`
+        );
+        continue;
+      }
+
       // Get tool from new registry
       const tool = await getToolByName(toolId);
       if (tool) {
@@ -475,6 +502,9 @@ class AgentRegistry {
       logger.debug(`Applied tool overrides for agent '${id}'`);
     }
 
+    // Enforce tool access rules (defense-in-depth)
+    agent = this.enforceRestrictedTools(agent);
+
     // Step 2: Resolve model type to concrete model
     let resolvedModel: string;
     try {
@@ -519,6 +549,15 @@ class AgentRegistry {
       // );
     } catch (error) {
       logger.error(`Failed to restore tools for agent ${dbAgent.id}:`, error);
+    }
+
+    const filtered = filterToolSetForAgent(dbAgent.id, tools);
+    if (filtered.removedToolIds.length > 0) {
+      tools = filtered.tools as ToolSet;
+      logger.warn(
+        `dbAgentToDefinition: Removed restricted tools from agent '${dbAgent.id}':`,
+        filtered.removedToolIds
+      );
     }
 
     // Parse dynamic prompt config (safe defaults)
@@ -681,6 +720,7 @@ class AgentRegistry {
     try {
       // Rebuild planner tools with fresh MCP connections
       const plannerTools = await this.buildPlannerTools();
+      const plannerToolsV2 = await this.buildPlannerTools(true);
 
       // Update PlannerAgent's tools
       const plannerAgent = this.systemAgents.get('planner');
@@ -688,6 +728,12 @@ class AgentRegistry {
         const convertedTools = convertToolsForAI(plannerTools);
         this.systemAgents.set('planner', { ...plannerAgent, tools: convertedTools });
         logger.info('refreshMCPTools: Updated PlannerAgent tools');
+      }
+      const plannerAgentV2 = this.systemAgents.get('planner-v2');
+      if (plannerAgentV2) {
+        const convertedTools = convertToolsForAI(plannerToolsV2);
+        this.systemAgents.set('planner-v2', { ...plannerAgentV2, tools: convertedTools });
+        logger.info('refreshMCPTools: Updated PlannerAgentV2 tools');
       }
 
       logger.info('refreshMCPTools: MCP tools refreshed successfully');

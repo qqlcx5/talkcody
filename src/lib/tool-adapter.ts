@@ -10,26 +10,35 @@ const toolUIRegistry = new Map<
   }
 >();
 
+export function registerToolUIRenderers(toolWithUI: ToolWithUI, keyName: string) {
+  if (toolUIRegistry.has(keyName)) return;
+
+  toolUIRegistry.set(keyName, {
+    renderToolDoing: toolWithUI.renderToolDoing,
+    renderToolResult: toolWithUI.renderToolResult,
+  });
+}
+
 /**
  * Convert ToolWithUI to ai library compatible tool and register UI renderers
  */
 export function convertToolForAI(toolWithUI: ToolWithUI, keyName: string) {
-  if (!toolUIRegistry.has(keyName)) {
-    // logger.info('[ToolAdapter] Registering tool:', keyName);
-
-    // Store UI renderers in global registry using the name that AI SDK will use
-    toolUIRegistry.set(keyName, {
-      renderToolDoing: toolWithUI.renderToolDoing,
-      renderToolResult: toolWithUI.renderToolResult,
-    });
-  }
+  registerToolUIRenderers(toolWithUI, keyName);
 
   // Return vercel ai library compatible tool
-  return tool({
-    description: toolWithUI.description,
-    inputSchema: toolWithUI.inputSchema,
-    execute: toolWithUI.execute,
-  });
+  return Object.defineProperty(
+    tool({
+      description: toolWithUI.description,
+      inputSchema: toolWithUI.inputSchema,
+      execute: toolWithUI.execute,
+    }),
+    'description',
+    {
+      get: () => toolWithUI.description,
+      enumerable: true,
+      configurable: true,
+    }
+  );
 }
 
 /**

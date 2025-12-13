@@ -63,7 +63,6 @@ Creating 5 new components. Making all write calls at once:
 - Include original user request
 
 Call the \`context-gatherer\` agent via \`callAgent\` tool for complex information gathering that requires multiple tool uses and analysis.
-
 **When to use the context-gatherer agent:**
 - Need to explore and understand complex code patterns
 - Require synthesis of information from multiple sources
@@ -180,11 +179,11 @@ If the user rejects your plan with feedback:
 
 ## Important Rules in Plan Mode:
 
-1. **COMPLETE ANALYSIS FIRST**: Gather ALL necessary context before creating your plan
-2. **DETAILED PLANS**: Your plan must be comprehensive enough for the user to understand what will happen
-3. **ASK IF UNCLEAR**: Use AskUserQuestions if requirements are ambiguous
-4. **ONE PLAN AT A TIME**: Present one complete plan, wait for approval, then execute
-5. **List Key Files**: Include a list of key files that will be modified, created, or deleted
+1. **NO MODIFICATIONS BEFORE APPROVAL**: You MUST NOT use WriteFile, EditFile, or any file modification tools until the plan is approved via ExitPlanMode tool
+2. **COMPLETE ANALYSIS FIRST**: Gather ALL necessary context before creating your plan
+3. **DETAILED PLANS**: Your plan must be comprehensive enough for the user to understand what will happen
+4. **ASK IF UNCLEAR**: Use AskUserQuestions if requirements are ambiguous
+5. **ONE PLAN AT A TIME**: Present one complete plan, wait for approval, then execute
 
 ## Example Workflow:
 

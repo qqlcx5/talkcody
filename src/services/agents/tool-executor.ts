@@ -6,7 +6,14 @@ import { getToolMetadata } from '@/lib/tools';
 import type { Tracer } from '@/lib/tracer';
 import { decodeObjectHtmlEntities, generateId } from '@/lib/utils';
 import type { AgentLoopState, UIMessage } from '@/types/agent';
-import { type ExecutionStage, ToolDependencyAnalyzer } from './tool-dependency-analyzer';
+import type { ToolInput } from '@/types/tool';
+import type { AgentExecutionGroup, AgentExecutionStage } from './agent-dependency-analyzer';
+import {
+  DependencyAnalyzer,
+  isAgentExecutionPlan,
+  type UnifiedExecutionPlan,
+} from './dependency-analyzer';
+import type { ExecutionGroup, ExecutionStage } from './tool-dependency-analyzer';
 import { isValidToolName, normalizeToolName } from './tool-name-normalizer';
 
 export interface ToolCallInfo {
@@ -24,21 +31,27 @@ export interface ToolExecutionOptions {
   tracer?: Tracer;
 }
 
+type CallAgentArgs = Record<string, unknown> & {
+  _abortController?: AbortController;
+  _toolCallId?: string;
+  _onNestedToolMessage?: (message: UIMessage) => void;
+};
+
 /**
  * ToolExecutor handles tool execution and grouping
  */
 export class ToolExecutor {
-  private readonly dependencyAnalyzer: ToolDependencyAnalyzer;
+  private readonly dependencyAnalyzer: DependencyAnalyzer;
 
   constructor() {
-    this.dependencyAnalyzer = new ToolDependencyAnalyzer();
+    this.dependencyAnalyzer = new DependencyAnalyzer();
   }
 
   /**
    * Parse nested JSON strings in object fields
    * Handles cases where LLM returns arrays/objects as JSON strings
    */
-  private parseNestedJsonStrings(obj: any): any {
+  private parseNestedJsonStrings(obj: unknown): unknown {
     if (Array.isArray(obj)) {
       return obj.map((item) => this.parseNestedJsonStrings(item));
     }
@@ -47,8 +60,8 @@ export class ToolExecutor {
       return obj;
     }
 
-    const result: any = {};
-    for (const [key, value] of Object.entries(obj)) {
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
       if (typeof value === 'string') {
         // Check if the string looks like a JSON array or object
         const trimmed = value.trim();
@@ -78,6 +91,16 @@ export class ToolExecutor {
     return result;
   }
 
+  private isExecutableTool(
+    tool: unknown
+  ): tool is { execute: (args: unknown) => Promise<unknown> } {
+    return (
+      typeof tool === 'object' &&
+      tool !== null &&
+      typeof (tool as { execute?: unknown }).execute === 'function'
+    );
+  }
+
   /**
    * Execute tool calls with smart concurrency analysis
    * This method automatically analyzes dependencies and maximizes parallelism
@@ -88,19 +111,20 @@ export class ToolExecutor {
     onStatus?: (status: string) => void
   ): Promise<Array<{ toolCall: ToolCallInfo; result: unknown }>> {
     // Generate execution plan using dependency analyzer
-    const plan = this.dependencyAnalyzer.analyzeDependencies(toolCalls, options.tools);
+    const plan = await this.dependencyAnalyzer.analyzeDependencies(toolCalls, options.tools);
 
     logger.info('Executing with smart concurrency', {
-      totalTools: plan.summary.totalTools,
-      totalStages: plan.summary.totalStages,
-      totalGroups: plan.summary.totalGroups,
-      concurrentGroups: plan.summary.concurrentGroups,
+      totalTools: this.getTotalTools(plan),
+      totalStages: this.getTotalStages(plan),
+      totalGroups: this.getTotalGroups(plan),
+      concurrentGroups: this.getConcurrentGroups(plan),
     });
 
     // Execute all stages sequentially
     const allResults: Array<{ toolCall: ToolCallInfo; result: unknown }> = [];
 
-    for (const stage of plan.stages) {
+    const stages = this.getStages(plan);
+    for (const stage of stages) {
       onStatus?.(`${stage.description}`);
 
       const stageResults = await this.executeStage(stage, options, onStatus);
@@ -117,10 +141,60 @@ export class ToolExecutor {
   }
 
   /**
+   * Get total tools from unified execution plan
+   */
+  private getTotalTools(plan: UnifiedExecutionPlan): number {
+    if (isAgentExecutionPlan(plan)) {
+      return plan.summary.totalAgents;
+    }
+    return plan.summary.totalTools;
+  }
+
+  /**
+   * Get total stages from unified execution plan
+   */
+  private getTotalStages(plan: UnifiedExecutionPlan): number {
+    if (isAgentExecutionPlan(plan)) {
+      return plan.stages.length;
+    }
+    return plan.summary.totalStages;
+  }
+
+  /**
+   * Get total groups from unified execution plan
+   */
+  private getTotalGroups(plan: UnifiedExecutionPlan): number {
+    if (isAgentExecutionPlan(plan)) {
+      return plan.summary.totalGroups;
+    }
+    return plan.summary.totalGroups;
+  }
+
+  /**
+   * Get concurrent groups from unified execution plan
+   */
+  private getConcurrentGroups(plan: UnifiedExecutionPlan): number {
+    if (isAgentExecutionPlan(plan)) {
+      return plan.summary.concurrentGroups;
+    }
+    return plan.summary.concurrentGroups;
+  }
+
+  /**
+   * Get stages from unified execution plan
+   */
+  private getStages(plan: UnifiedExecutionPlan): (ExecutionStage | AgentExecutionStage)[] {
+    if (isAgentExecutionPlan(plan)) {
+      return plan.stages;
+    }
+    return plan.stages;
+  }
+
+  /**
    * Execute a single stage (which may contain multiple groups)
    */
   private async executeStage(
-    stage: ExecutionStage,
+    stage: ExecutionStage | AgentExecutionStage,
     options: ToolExecutionOptions,
     onStatus?: (status: string) => void
   ): Promise<Array<{ toolCall: ToolCallInfo; result: unknown }>> {
@@ -133,21 +207,21 @@ export class ToolExecutor {
 
     // Execute all groups in this stage sequentially
     for (const group of stage.groups) {
+      const tools = this.getToolsFromGroup(group);
+      const maxConcurrency = this.getMaxConcurrencyFromGroup(group);
+
       logger.info(`Executing group: ${group.id}`, {
         concurrent: group.concurrent,
-        toolCount: group.tools.length,
+        toolCount: tools.length,
+        toolNames: tools.map((tool) => tool.toolName),
+        toolCallIds: tools.map((tool) => tool.toolCallId),
+        maxConcurrency: maxConcurrency,
         reason: group.reason,
         targetFiles: group.targetFiles,
+        groupType: 'tools' in group ? 'regular' : 'agent',
       });
 
-      const groupResults = await this.executeToolGroup(
-        {
-          concurrent: group.concurrent,
-          tools: group.tools,
-        },
-        options,
-        onStatus
-      );
+      const groupResults = await this.executeToolGroup(group, options, onStatus);
 
       results.push(...groupResults);
 
@@ -168,6 +242,11 @@ export class ToolExecutor {
     const { tools, loopState, model, abortController, onToolMessage } = options;
 
     const toolStartTime = Date.now();
+
+    logger.info('Starting tool execution', {
+      toolName: toolCall.toolName,
+      toolCallId: toolCall.toolCallId,
+    });
 
     try {
       // Validate and normalize tool name to prevent API errors
@@ -202,12 +281,12 @@ export class ToolExecutor {
       }
 
       const tool = tools[normalizedToolName];
-      if (tool && typeof tool.execute === 'function') {
+      if (this.isExecutableTool(tool)) {
         // Decode HTML entities in tool arguments to fix encoding issues from LLM output
         const decodedInput = decodeObjectHtmlEntities(toolCall.input);
 
         // If decodedInput is a JSON string, parse it to object
-        let parsedInput = decodedInput;
+        let parsedInput: unknown = decodedInput;
         if (typeof decodedInput === 'string') {
           try {
             parsedInput = JSON.parse(decodedInput);
@@ -226,20 +305,34 @@ export class ToolExecutor {
 
         // Prepare tool arguments - create a mutable copy to allow adding properties
         // Ensure toolArgs is at least an empty object to prevent undefined from breaking parameter destructuring
-        const toolArgs: Record<string, unknown> =
+        let toolArgs: unknown =
           typeof parsedInput === 'object' && parsedInput !== null
-            ? { ...parsedInput }
+            ? { ...(parsedInput as Record<string, unknown>) }
             : parsedInput !== undefined
               ? { value: parsedInput }
               : {};
 
-        // Pass special parameters to callAgent tool
-        if (toolCall.toolName === 'callAgent') {
+        const isCallAgentTool =
+          toolCall.toolName === 'callAgent' || toolCall.toolName === 'callAgentV2';
+
+        // Pass special parameters to callAgent tools
+        if (isCallAgentTool) {
+          const callAgentArgs: CallAgentArgs =
+            typeof toolArgs === 'object' && toolArgs !== null ? (toolArgs as CallAgentArgs) : {};
           if (abortController) {
-            toolArgs._abortController = abortController;
+            callAgentArgs._abortController = abortController;
           }
           // Pass toolCallId so callAgent can use it as the execution ID
-          toolArgs._toolCallId = toolCall.toolCallId;
+          callAgentArgs._toolCallId = toolCall.toolCallId;
+          if (onToolMessage) {
+            callAgentArgs._onNestedToolMessage = (message: UIMessage) => {
+              onToolMessage({
+                ...message,
+                parentToolCallId: toolCall.toolCallId,
+              });
+            };
+          }
+          toolArgs = callAgentArgs;
         }
 
         // Get tool metadata to check if we should render the "doing" UI
@@ -256,7 +349,7 @@ export class ToolExecutor {
                 type: 'tool-call',
                 toolCallId: toolCall.toolCallId,
                 toolName: toolCall.toolName,
-                input: toolArgs,
+                input: toolArgs as ToolInput,
               },
             ],
             timestamp: new Date(),
@@ -278,7 +371,7 @@ export class ToolExecutor {
           );
         }
 
-        const toolResult = await (tool as any).execute(toolArgs);
+        const toolResult = await tool.execute(toolArgs);
         const toolDuration = Date.now() - toolStartTime;
 
         logger.info('Tool execution completed', {
@@ -292,14 +385,14 @@ export class ToolExecutor {
         // Create tool-result message after execution
         if (onToolMessage) {
           const toolResultMessage: UIMessage = {
-            id: `tool-${toolCall.toolName}-${generateId(6)}`, // Use unique ID with tool name prefix
+            id: `${toolCall.toolCallId}-result`, // Use consistent ID based on toolCallId
             role: 'tool',
             content: [
               {
                 type: 'tool-result',
                 toolCallId: toolCall.toolCallId,
                 toolName: toolCall.toolName,
-                input: toolArgs,
+                input: toolArgs as ToolInput,
                 output: toolResult,
               },
             ],
@@ -347,14 +440,42 @@ export class ToolExecutor {
    * Used internally by executeStage for executing groups
    */
   private async executeToolGroup(
-    group: { concurrent: boolean; tools: ToolCallInfo[] },
+    group: ExecutionGroup | AgentExecutionGroup,
     options: ToolExecutionOptions,
     onStatus?: (status: string) => void
   ): Promise<Array<{ toolCall: ToolCallInfo; result: unknown }>> {
-    if (group.concurrent && group.tools.length > 1) {
-      return this.executeConcurrentTools(group.tools, options, onStatus);
+    // Extract tools from either ExecutionGroup or AgentExecutionGroup
+    const tools = this.getToolsFromGroup(group);
+    const maxConcurrency = this.getMaxConcurrencyFromGroup(group);
+
+    if (group.concurrent && tools.length > 1) {
+      return this.executeConcurrentTools(tools, options, onStatus, maxConcurrency);
     } else {
-      return this.executeSequentialTools(group.tools, options, onStatus);
+      return this.executeSequentialTools(tools, options, onStatus);
+    }
+  }
+
+  /**
+   * Extract tools from either ExecutionGroup or AgentExecutionGroup
+   */
+  private getToolsFromGroup(group: ExecutionGroup | AgentExecutionGroup): ToolCallInfo[] {
+    if ('tools' in group) {
+      return group.tools;
+    } else {
+      return group.agentCalls;
+    }
+  }
+
+  /**
+   * Extract maxConcurrency from either ExecutionGroup or AgentExecutionGroup
+   */
+  private getMaxConcurrencyFromGroup(
+    group: ExecutionGroup | AgentExecutionGroup
+  ): number | undefined {
+    if ('tools' in group) {
+      return group.maxConcurrency;
+    } else {
+      return group.maxConcurrency;
     }
   }
 
@@ -364,17 +485,49 @@ export class ToolExecutor {
   private async executeConcurrentTools(
     toolCalls: ToolCallInfo[],
     options: ToolExecutionOptions,
-    onStatus?: (status: string) => void
+    onStatus?: (status: string) => void,
+    maxConcurrency?: number
   ): Promise<Array<{ toolCall: ToolCallInfo; result: unknown }>> {
-    logger.info(`Executing ${toolCalls.length} tools concurrently`);
-    onStatus?.(`Processing ${toolCalls.length} tools concurrently`);
+    const effectiveLimit =
+      typeof maxConcurrency === 'number' && maxConcurrency > 0
+        ? Math.min(maxConcurrency, toolCalls.length)
+        : toolCalls.length;
 
-    const toolExecutionPromises = toolCalls.map(async (toolCall) => ({
-      toolCall,
-      result: await this.executeToolCall(toolCall, options),
-    }));
+    logger.info(`Executing ${toolCalls.length} tools concurrently`, {
+      toolCallIds: toolCalls.map((tool) => tool.toolCallId),
+      toolNames: toolCalls.map((tool) => tool.toolName),
+      maxConcurrency: effectiveLimit,
+    });
 
-    return await Promise.all(toolExecutionPromises);
+    const results: Array<{ toolCall: ToolCallInfo; result: unknown }> = [];
+
+    for (let i = 0; i < toolCalls.length; i += effectiveLimit) {
+      // Check for abort signal before starting each batch
+      if (options.abortController?.signal.aborted) {
+        logger.info('Tool execution aborted before concurrent batch');
+        break;
+      }
+
+      const batch = toolCalls.slice(i, i + effectiveLimit);
+      const batchResults = await Promise.all(
+        batch.map(async (toolCall) => ({
+          toolCall,
+          result: await this.executeToolCall(toolCall, options),
+        }))
+      );
+      results.push(...batchResults);
+
+      if (toolCalls.length > effectiveLimit) {
+        const processedCount = Math.min(i + effectiveLimit, toolCalls.length);
+        onStatus?.(
+          `Processing ${batch.length} tools concurrently (${processedCount}/${toolCalls.length})`
+        );
+      } else {
+        onStatus?.(`Processing ${batch.length} tools concurrently`);
+      }
+    }
+
+    return results;
   }
 
   /**
@@ -385,7 +538,10 @@ export class ToolExecutor {
     options: ToolExecutionOptions,
     onStatus?: (status: string) => void
   ): Promise<Array<{ toolCall: ToolCallInfo; result: unknown }>> {
-    logger.info(`Executing ${toolCalls.length} tools sequentially`);
+    logger.info(`Executing ${toolCalls.length} tools sequentially`, {
+      toolCallIds: toolCalls.map((tool) => tool.toolCallId),
+      toolNames: toolCalls.map((tool) => tool.toolName),
+    });
 
     const results: Array<{ toolCall: ToolCallInfo; result: unknown }> = [];
 
@@ -396,7 +552,9 @@ export class ToolExecutor {
         break;
       }
 
-      onStatus?.(`Processing tool ${toolCall.toolName}`);
+      const { getToolLabel } = await import('@/lib/tools');
+      const toolLabel = getToolLabel(toolCall.toolName);
+      onStatus?.(`Processing tool ${toolLabel}`);
       const result = await this.executeToolCall(toolCall, options);
       results.push({ toolCall, result });
     }

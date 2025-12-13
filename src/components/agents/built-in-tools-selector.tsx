@@ -1,15 +1,22 @@
 import { CheckCircle2, Wrench } from 'lucide-react';
 import { useMemo } from 'react';
+import { BetaBadge } from '@/components/beta-badge';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { isToolAllowedForAgent } from '@/services/agents/agent-tool-access';
 import { getAvailableToolsForUISync } from '@/services/agents/tool-registry';
 
 interface BuiltInToolsSelectorProps {
+  agentId?: string;
   selectedTools: string[];
   onToolsChange: (tools: string[]) => void;
 }
 
-export function BuiltInToolsSelector({ selectedTools, onToolsChange }: BuiltInToolsSelectorProps) {
+export function BuiltInToolsSelector({
+  agentId,
+  selectedTools,
+  onToolsChange,
+}: BuiltInToolsSelectorProps) {
   const builtInTools = useMemo(() => getAvailableToolsForUISync(), []);
 
   const handleToolToggle = (toolId: string, checked: boolean) => {
@@ -26,10 +33,11 @@ export function BuiltInToolsSelector({ selectedTools, onToolsChange }: BuiltInTo
   const visibleTools = useMemo(
     () =>
       builtInTools.filter((tool) => {
+        if (!isToolAllowedForAgent(agentId, tool.id)) return false;
         const ref = tool.ref as any;
         return !ref.hidden;
       }),
-    [builtInTools]
+    [builtInTools, agentId]
   );
 
   const selectedCount = useMemo(
@@ -71,7 +79,8 @@ export function BuiltInToolsSelector({ selectedTools, onToolsChange }: BuiltInTo
               <div className="flex-1 min-w-0">
                 <div className="font-medium text-gray-900 dark:text-gray-100 flex items-center gap-1">
                   <Wrench className="h-3 w-3 inline" />
-                  {tool.label}
+                  <span className="truncate">{tool.label}</span>
+                  {tool.isBeta && <BetaBadge className="scale-90" />}
                 </div>
                 <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">ID: {tool.id}</div>
               </div>
