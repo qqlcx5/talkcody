@@ -3,14 +3,13 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import { defineConfig } from 'vite';
 import monacoEditorEsmPlugin from 'vite-plugin-monaco-editor-esm';
-import topLevelAwait from 'vite-plugin-top-level-await';
 import wasm from 'vite-plugin-wasm';
 
 const host = process.env.TAURI_DEV_HOST;
 
 // https://vite.dev/config/
 export default defineConfig(() => ({
-  plugins: [wasm(), topLevelAwait(), react(), tailwindcss(), monacoEditorEsmPlugin()],
+  plugins: [wasm(), react(), tailwindcss(), monacoEditorEsmPlugin()],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

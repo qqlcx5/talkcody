@@ -50,7 +50,7 @@ impl HighPerformanceFileSearch {
         let mut walker_builder = WalkBuilder::new(root_path);
 
         walker_builder
-            .hidden(true)
+            .hidden(false)  // Allow hidden files like .github
             .git_ignore(true)
             .git_global(true)
             .git_exclude(true)
@@ -60,6 +60,10 @@ impl HighPerformanceFileSearch {
             .filter_entry(|entry| {
                 if entry.path().is_dir() {
                     if let Some(name) = entry.path().file_name().and_then(OsStr::to_str) {
+                        // Always allow .github directory for CI/CD files (workflows, templates, etc.)
+                        if name == ".github" {
+                            return true;
+                        }
                         return !should_exclude_dir(name);
                     }
                 }
@@ -303,5 +307,86 @@ impl HighPerformanceFileSearch {
         }
 
         false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+    use std::fs;
+
+    #[test]
+    fn test_github_directory_allowed() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create .github directory structure
+        fs::create_dir_all(temp_dir.path().join(".github/workflows")).unwrap();
+        
+        // Create a .yml file in .github directory
+        let yml_content = r#"
+name: CI
+on:
+  push:
+    branches: [main]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+"#;
+        let target_path = temp_dir.path().join(".github/workflows/ci.yml");
+        fs::write(&target_path, yml_content).unwrap();
+
+        let search = HighPerformanceFileSearch::new();
+        
+        // Search for .yml files
+        let results = search.search_files(
+            temp_dir.path().to_str().unwrap(),
+            "ci.yml"
+        ).unwrap();
+
+        // Should find the ci.yml file
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].name, "ci.yml");
+        
+        // Check that the file is in .github directory (cross-platform)
+        let result_path = std::path::Path::new(&results[0].path);
+        let is_in_github = result_path.components()
+            .any(|c| c.as_os_str() == ".github");
+        assert!(is_in_github, "File should be in .github directory");
+    }
+
+    #[test]
+    fn test_github_workflow_search() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create .github directory structure
+        fs::create_dir_all(temp_dir.path().join(".github/workflows")).unwrap();
+        
+        // Create multiple yml files in .github directory
+        fs::write(
+            temp_dir.path().join(".github/workflows/release.yml"),
+            "name: Release"
+        ).unwrap();
+        
+        fs::write(
+            temp_dir.path().join(".github/workflows/test.yml"),
+            "name: Test"
+        ).unwrap();
+
+        let search = HighPerformanceFileSearch::new();
+        
+        // Search for .yml files
+        let results = search.search_files(
+            temp_dir.path().to_str().unwrap(),
+            "yml"
+        ).unwrap();
+
+        // Should find both .yml files
+        assert_eq!(results.len(), 2);
+        let names: Vec<&str> = results.iter().map(|r| r.name.as_str()).collect();
+        assert!(names.contains(&"release.yml"));
+        assert!(names.contains(&"test.yml"));
     }
 }
