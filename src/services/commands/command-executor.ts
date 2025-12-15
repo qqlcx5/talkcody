@@ -162,11 +162,11 @@ class CommandExecutor {
     command: Command,
     rawArgs: string
   ): {
-    args: Record<string, any>;
+    args: Record<string, unknown>;
     errors: string[];
   } {
     const errors: string[] = [];
-    const args: Record<string, any> = {};
+    const args: Record<string, unknown> = {};
 
     // If no parameters defined, just return raw args as single argument
     if (!command.parameters || command.parameters.length === 0) {
@@ -190,7 +190,7 @@ class CommandExecutor {
         errors.push(`Missing required parameter: ${param.name}`);
       } else if (token) {
         // Basic type conversion
-        let value: any = token;
+        let value: unknown = token;
 
         switch (param.type) {
           case 'number': {
@@ -224,11 +224,11 @@ class CommandExecutor {
     // Validate using Zod schema if provided
     if (command.parametersSchema) {
       try {
-        const validatedArgs = command.parametersSchema.parse(args) as Record<string, any>;
+        const validatedArgs = command.parametersSchema.parse(args) as Record<string, unknown>;
         return { args: validatedArgs, errors };
       } catch (error) {
         if (error instanceof z.ZodError) {
-          const zodErrors = error.issues.map((err: any) => `${err.path.join('.')}: ${err.message}`);
+          const zodErrors = error.issues.map((err) => `${err.path.join('.')}: ${err.message}`);
           errors.push(...zodErrors);
         } else {
           errors.push('Parameter validation failed');
@@ -256,10 +256,10 @@ class CommandExecutor {
       };
     }
 
-    if (command.requiresConversation && !context.conversationId) {
+    if (command.requiresTask && !context.taskId) {
       return {
         valid: false,
-        error: `Command '${command.name}' requires an active conversation`,
+        error: `Command '${command.name}' requires an active task`,
       };
     }
 

@@ -1,4 +1,4 @@
-// src/services/ai-conversation-title-service.ts
+// src/services/ai-task-title-service.ts
 import { streamText } from 'ai';
 import { logger } from '@/lib/logger';
 import { settingsManager } from '@/stores/settings-store';
@@ -10,7 +10,7 @@ export interface TitleGenerationResult {
   title: string;
 }
 
-class AIConversationTitleService {
+class AITaskTitleService {
   async generateTitle(userInput: string): Promise<TitleGenerationResult | null> {
     try {
       logger.info('generateTitle for user input:', userInput);
@@ -31,7 +31,7 @@ class AIConversationTitleService {
           ? 'Generate the title in Chinese (中文).'
           : 'Generate the title in English.';
 
-      const prompt = `You are an AI assistant that generates concise, descriptive titles for conversations.
+      const prompt = `You are an AI assistant that generates concise, descriptive titles for tasks.
 
 User's message: "${userInput}"
 
@@ -87,4 +87,4 @@ Provide ONLY the title without any quotes, explanations, or additional formattin
   }
 }
 
-export const aiConversationTitleService = new AIConversationTitleService();
+export const aiTaskTitleService = new AITaskTitleService();

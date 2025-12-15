@@ -7,20 +7,16 @@ import { SkillsSelectorButton } from './skills-selector-button';
 import { ToolSelectorButton } from './tool-selector-button';
 
 interface ChatInputToolsBarProps {
-  conversationId?: string | null;
+  taskId?: string | null;
   disabled?: boolean;
   onAddCurrentFile?: () => void;
 }
 
-export function ChatInputToolsBar({
-  conversationId,
-  disabled,
-  onAddCurrentFile,
-}: ChatInputToolsBarProps) {
+export function ChatInputToolsBar({ taskId, disabled, onAddCurrentFile }: ChatInputToolsBarProps) {
   return (
     <div className="flex items-center gap-2 px-2 py-1 border-b border-border/50">
       <ToolSelectorButton />
-      <SkillsSelectorButton conversationId={conversationId} />
+      <SkillsSelectorButton taskId={taskId} />
       <McpSelectorButton />
       <ModelSelectorButton />
       {onAddCurrentFile && <CurrentFileButton disabled={disabled} onAddFile={onAddCurrentFile} />}

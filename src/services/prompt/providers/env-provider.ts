@@ -139,7 +139,7 @@ export const EnvProvider: PromptContextProvider = {
       }
 
       return [
-        'Here is useful information about the environment you are running in:',
+        'IMPORTANT: Here is important information about the environment you are running in:',
         '<env>',
         ...sections,
         '</env>',

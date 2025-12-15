@@ -12,7 +12,6 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useUiNavigation } from '@/contexts/ui-navigation';
 import { NavigationView } from '@/types/navigation';
-import { GenericToolResult } from './generic-tool-result';
 
 interface SearchResult {
   title?: string;
@@ -27,7 +26,7 @@ interface SearchToolResultProps {
   query: string;
 }
 
-export function SearchToolResult({ results, query }: SearchToolResultProps) {
+export function SearchToolResult({ results }: SearchToolResultProps) {
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const { setActiveView } = useUiNavigation();
 
@@ -56,13 +55,6 @@ export function SearchToolResult({ results, query }: SearchToolResultProps) {
   if (!hasResults) {
     return (
       <>
-        <GenericToolResult
-          operation="search"
-          success={false}
-          target={query}
-          message="No relevant search results found"
-        />
-
         {userMessage && (
           <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
             <AlertDialogContent>
@@ -97,7 +89,6 @@ export function SearchToolResult({ results, query }: SearchToolResultProps) {
     );
   }
 
-  // Use the generic component for the main result, with detailed results below
   return (
     <div className="space-y-3">
       <div className="border rounded-lg p-3 bg-white dark:bg-gray-900 dark:border-gray-700 w-full">

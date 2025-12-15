@@ -3,8 +3,8 @@
 import { logger } from '@/lib/logger';
 import { MCPServerService } from '@/lib/mcp/mcp-server-service';
 import type { MessageAttachment } from '@/types/agent';
-import { ConversationService } from './database/conversation-service';
 import { ProjectService } from './database/project-service';
+import { TaskService } from './database/task-service';
 import { loadDatabase, type TursoClient } from './database/turso-client';
 import { TursoDatabaseInit } from './database/turso-database-init';
 
@@ -17,7 +17,7 @@ export type {
   Project,
   StoredAttachment,
   StoredMessage,
-  Task as Conversation,
+  Task,
   TodoItem,
   UpdateMCPServerData,
   UpdateProjectData,
@@ -29,7 +29,7 @@ export class DatabaseService {
   private isInitialized = false;
 
   private projectService: ProjectService | null = null;
-  private conversationService: ConversationService | null = null;
+  private taskService: TaskService | null = null;
   private mcpServerService: MCPServerService | null = null;
 
   private async internalInitialize(): Promise<void> {
@@ -45,7 +45,7 @@ export class DatabaseService {
 
       // Initialize services
       this.projectService = new ProjectService(this.db);
-      this.conversationService = new ConversationService(this.db);
+      this.taskService = new TaskService(this.db);
       this.mcpServerService = new MCPServerService(this.db);
 
       this.isInitialized = true;
@@ -111,7 +111,7 @@ export class DatabaseService {
     return this.projectService.deleteProject(projectId);
   }
 
-  async getProjectStats(projectId: string): Promise<{ conversationCount: number }> {
+  async getProjectStats(projectId: string): Promise<{ taskCount: number }> {
     await this.ensureInitialized();
     if (!this.projectService) throw new Error('Project service not initialized');
     return this.projectService.getProjectStats(projectId);
@@ -141,50 +141,46 @@ export class DatabaseService {
     return this.projectService.getProjectByRepositoryPath(rootPath);
   }
 
-  // Conversation methods
-  async createConversation(
-    title: string,
-    conversationId: string,
-    projectId = 'default'
-  ): Promise<string> {
+  // Task methods
+  async createTask(title: string, taskId: string, projectId = 'default'): Promise<string> {
     await this.ensureInitialized();
-    if (!this.conversationService) throw new Error('Conversation service not initialized');
-    return this.conversationService.createConversation(title, conversationId, projectId);
+    if (!this.taskService) throw new Error('Task service not initialized');
+    return this.taskService.createTask(title, taskId, projectId);
   }
 
-  async getConversations(projectId?: string): Promise<import('@/types').Task[]> {
+  async getTasks(projectId?: string): Promise<import('@/types').Task[]> {
     await this.ensureInitialized();
-    if (!this.conversationService) throw new Error('Conversation service not initialized');
-    return this.conversationService.getConversations(projectId);
+    if (!this.taskService) throw new Error('Task service not initialized');
+    return this.taskService.getTasks(projectId);
   }
 
-  async getConversationDetails(conversationId: string): Promise<import('@/types').Task | null> {
+  async getTaskDetails(taskId: string): Promise<import('@/types').Task | null> {
     await this.ensureInitialized();
-    if (!this.conversationService) throw new Error('Conversation service not initialized');
-    return this.conversationService.getConversationDetails(conversationId);
+    if (!this.taskService) throw new Error('Task service not initialized');
+    return this.taskService.getTaskDetails(taskId);
   }
 
-  async updateConversationTitle(conversationId: string, title: string): Promise<void> {
+  async updateTaskTitle(taskId: string, title: string): Promise<void> {
     await this.ensureInitialized();
-    if (!this.conversationService) throw new Error('Conversation service not initialized');
-    return this.conversationService.updateConversationTitle(conversationId, title);
+    if (!this.taskService) throw new Error('Task service not initialized');
+    return this.taskService.updateTaskTitle(taskId, title);
   }
 
-  async updateConversationProject(conversationId: string, projectId: string): Promise<void> {
+  async updateTaskProject(taskId: string, projectId: string): Promise<void> {
     await this.ensureInitialized();
-    if (!this.conversationService) throw new Error('Conversation service not initialized');
-    return this.conversationService.updateConversationProject(conversationId, projectId);
+    if (!this.taskService) throw new Error('Task service not initialized');
+    return this.taskService.updateTaskProject(taskId, projectId);
   }
 
-  async deleteConversation(conversationId: string): Promise<void> {
+  async deleteTask(taskId: string): Promise<void> {
     await this.ensureInitialized();
-    if (!this.conversationService) throw new Error('Conversation service not initialized');
-    return this.conversationService.deleteConversation(conversationId);
+    if (!this.taskService) throw new Error('Task service not initialized');
+    return this.taskService.deleteTask(taskId);
   }
 
   // Message methods
   async saveMessage(
-    conversationId: string,
+    taskId: string,
     role: 'user' | 'assistant' | 'tool',
     content: string,
     positionIndex: number,
@@ -193,9 +189,9 @@ export class DatabaseService {
     messageId?: string
   ): Promise<string> {
     await this.ensureInitialized();
-    if (!this.conversationService) throw new Error('Conversation service not initialized');
-    return this.conversationService.saveMessage(
-      conversationId,
+    if (!this.taskService) throw new Error('Task service not initialized');
+    return this.taskService.saveMessage(
+      taskId,
       role,
       content,
       positionIndex,
@@ -205,68 +201,63 @@ export class DatabaseService {
     );
   }
 
-  async getMessages(conversationId: string): Promise<import('@/types').StoredMessage[]> {
+  async getMessages(taskId: string): Promise<import('@/types').StoredMessage[]> {
     await this.ensureInitialized();
-    if (!this.conversationService) throw new Error('Conversation service not initialized');
-    return this.conversationService.getMessages(conversationId);
+    if (!this.taskService) throw new Error('Task service not initialized');
+    return this.taskService.getMessages(taskId);
   }
 
   async getAttachmentsForMessage(messageId: string): Promise<MessageAttachment[]> {
     await this.ensureInitialized();
-    if (!this.conversationService) throw new Error('Conversation service not initialized');
-    return this.conversationService.getAttachmentsForMessage(messageId);
+    if (!this.taskService) throw new Error('Task service not initialized');
+    return this.taskService.getAttachmentsForMessage(messageId);
   }
 
   async updateMessage(messageId: string, content: string): Promise<void> {
     await this.ensureInitialized();
-    if (!this.conversationService) throw new Error('Conversation service not initialized');
-    return this.conversationService.updateMessage(messageId, content);
+    if (!this.taskService) throw new Error('Task service not initialized');
+    return this.taskService.updateMessage(messageId, content);
   }
 
   async saveAttachment(messageId: string, attachment: MessageAttachment): Promise<void> {
     await this.ensureInitialized();
-    if (!this.conversationService) throw new Error('Conversation service not initialized');
-    return this.conversationService.saveAttachment(messageId, attachment);
+    if (!this.taskService) throw new Error('Task service not initialized');
+    return this.taskService.saveAttachment(messageId, attachment);
   }
 
-  async getLatestUserMessageContent(conversationId: string): Promise<string | null> {
+  async getLatestUserMessageContent(taskId: string): Promise<string | null> {
     await this.ensureInitialized();
-    if (!this.conversationService) throw new Error('Conversation service not initialized');
-    return this.conversationService.getLatestUserMessageContent(conversationId);
+    if (!this.taskService) throw new Error('Task service not initialized');
+    return this.taskService.getLatestUserMessageContent(taskId);
   }
 
   async deleteMessage(messageId: string): Promise<void> {
     await this.ensureInitialized();
-    if (!this.conversationService) throw new Error('Conversation service not initialized');
-    return this.conversationService.deleteMessage(messageId);
+    if (!this.taskService) throw new Error('Task service not initialized');
+    return this.taskService.deleteMessage(messageId);
   }
 
-  async updateConversationUsage(
-    conversationId: string,
+  async updateTaskUsage(
+    taskId: string,
     cost: number,
     inputToken: number,
     outputToken: number
   ): Promise<void> {
     await this.ensureInitialized();
-    if (!this.conversationService) throw new Error('Conversation service not initialized');
-    return this.conversationService.updateConversationUsage(
-      conversationId,
-      cost,
-      inputToken,
-      outputToken
-    );
+    if (!this.taskService) throw new Error('Task service not initialized');
+    return this.taskService.updateTaskUsage(taskId, cost, inputToken, outputToken);
   }
 
-  async updateConversationSettings(conversationId: string, settings: string): Promise<void> {
+  async updateTaskSettings(taskId: string, settings: string): Promise<void> {
     await this.ensureInitialized();
-    if (!this.conversationService) throw new Error('Conversation service not initialized');
-    return this.conversationService.updateConversationSettings(conversationId, settings);
+    if (!this.taskService) throw new Error('Task service not initialized');
+    return this.taskService.updateTaskSettings(taskId, settings);
   }
 
-  async getConversationSettings(conversationId: string): Promise<string | null> {
+  async getTaskSettings(taskId: string): Promise<string | null> {
     await this.ensureInitialized();
-    if (!this.conversationService) throw new Error('Conversation service not initialized');
-    return this.conversationService.getConversationSettings(conversationId);
+    if (!this.taskService) throw new Error('Task service not initialized');
+    return this.taskService.getTaskSettings(taskId);
   }
 
   // MCP Server methods

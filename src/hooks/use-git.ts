@@ -1,35 +1,48 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
-import {
-  type GitResult,
-  gitAddAndCommit,
-  hasChangesToCommit,
-  isGitRepository,
-} from '@/utils/git-utils';
+import { aiGitMessagesService, type GitFileDiff } from '@/services/ai-git-messages-service';
+import { useGitStore } from '@/stores/git-store';
+import { type GitResult, gitAddAndCommit } from '@/utils/git-utils';
 
 export function useGit() {
   const [isLoading, setIsLoading] = useState(false);
+  const [isGeneratingMessage, setIsGeneratingMessage] = useState(false);
   const [lastResult, setLastResult] = useState<GitResult | null>(null);
 
-  const commitChanges = async (commitMessage: string, basePath = '.') => {
+  /**
+   * Commit with AI-generated message - full flow:
+   * 1. Check for changes first (fast)
+   * 2. Generate AI commit message
+   * 3. Execute git commit
+   */
+  const commitWithAIMessage = async (fileDiffs: GitFileDiff[], basePath = '.') => {
     setIsLoading(true);
+
     try {
-      // Check if we're in a git repository
-      const isRepo = await isGitRepository();
-      if (!isRepo) {
+      // Check if we're in a git repository and have changes using git store
+      const { isGitRepository, gitStatus } = useGitStore.getState();
+      if (!isGitRepository) {
         toast.error('Not a git repository');
         return { success: false, message: 'Not a git repository' };
       }
 
-      // Check if there are changes to commit
-      const hasChanges = await hasChangesToCommit();
-      if (!hasChanges) {
+      if (!gitStatus || gitStatus.changesCount === 0) {
         toast.info('No changes to commit');
         return { success: true, message: 'No changes to commit' };
       }
 
-      // Commit changes
-      const result = await gitAddAndCommit(commitMessage, basePath);
+      // 3. Generate AI commit message
+      setIsGeneratingMessage(true);
+      const commitResult = await aiGitMessagesService.generateCommitMessage({ fileDiffs });
+      setIsGeneratingMessage(false);
+
+      if (!commitResult?.message) {
+        toast.error('Failed to generate commit message');
+        return { success: false, message: 'Failed to generate commit message' };
+      }
+
+      // 4. Execute git commit
+      const result = await gitAddAndCommit(commitResult.message, basePath);
       setLastResult(result);
 
       if (result.success) {
@@ -45,12 +58,14 @@ export function useGit() {
       return { success: false, message: errorMessage };
     } finally {
       setIsLoading(false);
+      setIsGeneratingMessage(false);
     }
   };
 
   return {
-    commitChanges,
+    commitWithAIMessage,
     isLoading,
+    isGeneratingMessage,
     lastResult,
   };
 }

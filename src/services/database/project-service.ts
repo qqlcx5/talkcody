@@ -55,7 +55,7 @@ export class ProjectService {
   async updateProject(projectId: string, data: UpdateProjectData): Promise<void> {
     const now = Date.now();
     const updates: string[] = [];
-    const values: any[] = [];
+    const values: unknown[] = [];
     let paramIndex = 1;
 
     if (data.name !== undefined) {
@@ -109,14 +109,14 @@ export class ProjectService {
     await this.db.execute('DELETE FROM projects WHERE id = $1', [projectId]);
   }
 
-  async getProjectStats(projectId: string): Promise<{ conversationCount: number }> {
-    const conversationResult = await this.db.select<{ count: number }[]>(
+  async getProjectStats(projectId: string): Promise<{ taskCount: number }> {
+    const taskResult = await this.db.select<{ count: number }[]>(
       'SELECT COUNT(*) as count FROM conversations WHERE project_id = $1',
       [projectId]
     );
 
     return {
-      conversationCount: conversationResult[0]?.count || 0,
+      taskCount: taskResult[0]?.count || 0,
     };
   }
 
@@ -156,7 +156,8 @@ export class ProjectService {
 
   @timedMethod('clearRepositoryPath')
   async clearRepositoryPath(projectId: string): Promise<void> {
-    await this.updateProject(projectId, { root_path: undefined });
+    // Use null to explicitly clear the field (undefined would be ignored by updateProject)
+    await this.updateProject(projectId, { root_path: null as unknown as string });
   }
 
   @timedMethod('getProjectByRepositoryPath')

@@ -11,7 +11,7 @@ This document defines the core concepts, types, and key data structures of TalkC
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │                           Project                                    │
-│                  (Project container, organizes conversations)        │
+│                  (Project container, organizes tasks)                │
 └───────────┬─────────────────────────────────────────────┬───────────┘
             │                                             │
             ▼                                             ▼
@@ -25,7 +25,7 @@ This document defines the core concepts, types, and key data structures of TalkC
                     ┌───────────────────────────────────┼───────────────┐
                     │                                   │               │
                     ▼                                   ▼               ▼
-         ┌──────────────────┐              ┌──────────────────┐  ConversationSkill
+         ┌──────────────────┐              ┌──────────────────┐  TaskSkill
          │     Message      │              │      Agent       │       │
          │  (Chat message)  │◄─────────────│  (AI assistant)  │       │
          │  - UIMessage     │   generates  │  - systemPrompt  │       ▼
@@ -90,7 +90,7 @@ User Input
 
 ### 2.1 Project
 
-Project is the top-level organizational unit that manages repositories and conversations.
+Project is the top-level organizational unit that manages repositories and tasks.
 
 ```typescript
 // src/types/task.ts
@@ -467,11 +467,11 @@ interface SkillLocalMetadata {
         └── script.py
 ```
 
-**Conversation-Skill Association**:
+**Task-Skill Association**:
 
 ```typescript
-interface ConversationSkill {
-  conversationId: string;
+interface TaskSkill {
+  taskId: string;
   skillId: string;
   enabled: boolean;
   priority: number;                  // Priority (higher value = higher priority)
@@ -566,7 +566,7 @@ Command is a user-triggerable action via `/`.
 // src/types/command.ts
 enum CommandCategory {
   GIT = 'git',
-  CONVERSATION = 'conversation',
+  TASK = 'task',
   PROJECT = 'project',
   AI = 'ai',
   SYSTEM = 'system',
@@ -594,18 +594,18 @@ interface Command {
   aliases?: string[];
   icon?: string;
   requiresRepository?: boolean;
-  requiresConversation?: boolean;
+  requiresTask?: boolean;
   examples?: string[];
   preferredAgentId?: string;         // Designated Agent to handle
 }
 
 interface CommandContext {
-  conversationId?: string;
+  taskId?: string;
   repositoryPath?: string;
   selectedFile?: string;
   fileContent?: string;
   sendMessage?: (message: string) => Promise<void>;
-  createNewConversation?: () => Promise<void>;
+  createNewTask?: () => Promise<void>;
   showNotification?: (message: string, type?: 'success' | 'error' | 'info') => void;
 }
 
@@ -629,12 +629,12 @@ Project
 │                 ├── FileNode[] (file tree)
 │                 └── OpenFile[] (open files)
 │
-└── Task[] (conversation list)
+└── Task[] (task list)
     ├── StoredMessage[] (persisted messages)
     │   └── UIMessage (runtime)
     │       └── ToolMessageContent[]
     │
-    └── ConversationSkill[] (activated skills)
+    └── TaskSkill[] (activated skills)
         └── Skill
 
 Agent
@@ -718,7 +718,7 @@ src/types/
 ├── mcp.ts                # MCPServer, MCPToolInfo
 ├── provider.ts           # ProviderDefinition, ProviderType
 ├── tool.ts               # ToolWithUI, ToolInput/Output
-├── skill.ts              # Skill, SkillContent, ConversationSkill
+├── skill.ts              # Skill, SkillContent, TaskSkill
 ├── model-types.ts        # ModelType enum
 ├── models.ts             # ModelConfig
 ├── command.ts            # Command, CommandContext

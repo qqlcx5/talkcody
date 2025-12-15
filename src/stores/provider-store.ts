@@ -250,13 +250,6 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
       );
     }
 
-    logger.info(`[ProviderStore] Getting provider model for ${modelIdentifier}`, {
-      modelKey,
-      providerId,
-      hasProvider: state.providers.has(providerId),
-      totalProviders: state.providers.size,
-    });
-
     const provider = state.providers.get(providerId);
     if (!provider) {
       // Check if this might be a custom provider that was deleted

@@ -1,5 +1,5 @@
-import { ArrowDown, ArrowUp, Maximize2, Minimize2, Plus, Zap } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { ArrowDown, ArrowUp, Maximize2, Minimize2, Plus } from 'lucide-react';
+
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useTranslation } from '@/hooks/use-locale';
@@ -11,24 +11,24 @@ import {
   useToolbarState,
 } from '@/hooks/use-toolbar-state';
 import { useExecutionStore } from '@/stores/execution-store';
-import { usePlanModeStore } from '@/stores/plan-mode-store';
+
 import { ChatHistory } from './chat-history';
 
 interface ChatPanelHeaderProps {
-  currentConversationId?: string;
+  currentTaskId?: string;
   isHistoryOpen: boolean;
   onHistoryOpenChange: (open: boolean) => void;
-  onConversationSelect: (conversationId: string) => void;
+  onTaskSelect: (taskId: string) => void;
   onNewChat: () => void;
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
 }
 
 export function ChatPanelHeader({
-  currentConversationId,
+  currentTaskId,
   isHistoryOpen,
   onHistoryOpenChange,
-  onConversationSelect,
+  onTaskSelect,
   onNewChat,
   isFullscreen,
   onToggleFullscreen,
@@ -103,9 +103,9 @@ export function ChatPanelHeader({
           <TooltipTrigger asChild>
             <div>
               <ChatHistory
-                currentConversationId={currentConversationId}
+                currentTaskId={currentTaskId}
                 isOpen={isHistoryOpen}
-                onConversationSelect={onConversationSelect}
+                onTaskSelect={onTaskSelect}
                 onNewChat={onNewChat}
                 onOpenChange={onHistoryOpenChange}
               />

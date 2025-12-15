@@ -6,8 +6,8 @@ import type { z } from 'zod';
  * Command execution context - provides access to current application state
  */
 export interface CommandContext {
-  /** Current conversation ID if available */
-  conversationId?: string;
+  /** Current task ID if available */
+  taskId?: string;
   /** Current repository path */
   repositoryPath?: string;
   /** Currently selected file */
@@ -16,8 +16,8 @@ export interface CommandContext {
   fileContent?: string;
   /** Function to send a message to the AI */
   sendMessage?: (message: string) => Promise<void>;
-  /** Function to create a new conversation */
-  createNewConversation?: () => Promise<void>;
+  /** Function to create a new task */
+  createNewTask?: () => Promise<void>;
   /** Function to show a notification/toast */
   showNotification?: (message: string, type?: 'success' | 'error' | 'info') => void;
 }
@@ -69,7 +69,7 @@ export type CommandExecutor = (
  */
 export enum CommandCategory {
   GIT = 'git',
-  CONVERSATION = 'conversation',
+  TASK = 'task',
   PROJECT = 'project',
   AI = 'ai',
   SYSTEM = 'system',
@@ -120,8 +120,8 @@ export interface Command {
   icon?: string;
   /** Whether command requires a repository context */
   requiresRepository?: boolean;
-  /** Whether command requires an active conversation */
-  requiresConversation?: boolean;
+  /** Whether command requires an active task */
+  requiresTask?: boolean;
   /** Command usage examples */
   examples?: string[];
   /** Preferred agent ID to handle this command's AI message */
@@ -195,7 +195,7 @@ export interface CreateCommandData {
   aliases?: string[];
   icon?: string;
   requiresRepository?: boolean;
-  requiresConversation?: boolean;
+  requiresTask?: boolean;
   examples?: string[];
 }
 

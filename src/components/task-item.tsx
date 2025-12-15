@@ -9,26 +9,25 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { formatDate } from '@/lib/utils';
-// Conversation mode removed - users directly select agents now
-import type { Conversation } from '@/services/database-service';
+import type { Task } from '@/services/database-service';
 
-interface ConversationItemProps {
-  conversation: Conversation;
+interface TaskItemProps {
+  task: Task;
   isSelected: boolean;
   isEditing: boolean;
   editingTitle: string;
-  /** Whether this conversation/task is currently running */
+  /** Whether this task is currently running */
   isRunning?: boolean;
-  onSelect: (conversationId: string) => void;
-  onDelete: (conversationId: string, e?: React.MouseEvent) => void;
-  onStartEditing: (conversation: Conversation, e?: React.MouseEvent) => void;
-  onSaveEdit: (conversationId: string) => void;
+  onSelect: (taskId: string) => void;
+  onDelete: (taskId: string, e?: React.MouseEvent) => void;
+  onStartEditing: (task: Task, e?: React.MouseEvent) => void;
+  onSaveEdit: (taskId: string) => void;
   onCancelEdit: () => void;
   onTitleChange: (title: string) => void;
 }
 
-export const ConversationItem = memo(function ConversationItem({
-  conversation,
+export const TaskItem = memo(function TaskItem({
+  task,
   isSelected,
   isEditing,
   editingTitle,
@@ -39,8 +38,8 @@ export const ConversationItem = memo(function ConversationItem({
   onSaveEdit,
   onCancelEdit,
   onTitleChange,
-}: ConversationItemProps) {
-  const displayTitle = (conversation.title || '').trim() || 'New Conversation';
+}: TaskItemProps) {
+  const displayTitle = (task.title || '').trim() || 'New Task';
 
   if (isEditing) {
     return (
@@ -53,6 +52,7 @@ export const ConversationItem = memo(function ConversationItem({
             e.stopPropagation();
           }
         }}
+        role="presentation"
       >
         <div className="space-y-2">
           <Input
@@ -61,18 +61,18 @@ export const ConversationItem = memo(function ConversationItem({
             onChange={(e) => onTitleChange(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
-                onSaveEdit(conversation.id);
+                onSaveEdit(task.id);
               } else if (e.key === 'Escape') {
                 onCancelEdit();
               }
             }}
-            placeholder="Enter conversation title"
+            placeholder="Enter task title"
             value={editingTitle}
           />
           <div className="flex gap-1">
             <Button
               className="h-6 px-2 text-xs"
-              onClick={() => onSaveEdit(conversation.id)}
+              onClick={() => onSaveEdit(task.id)}
               size="sm"
               variant="outline"
             >
@@ -91,15 +91,13 @@ export const ConversationItem = memo(function ConversationItem({
     <div
       className={`group w-full cursor-pointer rounded-md border bg-background p-3 text-left hover:bg-accent/50 ${isSelected ? 'border-blue-200 bg-blue-50 dark:border-blue-600 dark:bg-blue-950' : 'border-border'}
             `}
-      onClick={() => onSelect(conversation.id)}
+      onClick={() => onSelect(task.id)}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          onSelect(conversation.id);
+          onSelect(task.id);
         }
       }}
-      role="button"
-      tabIndex={0}
       title={displayTitle}
     >
       <div className="flex items-start justify-between gap-3">
@@ -113,11 +111,11 @@ export const ConversationItem = memo(function ConversationItem({
           <div className="flex items-center gap-3 text-muted-foreground text-xs">
             <div className="flex items-center gap-1">
               <Calendar className="h-3 w-3" />
-              <span>{formatDate(conversation.updated_at)}</span>
+              <span>{formatDate(task.updated_at)}</span>
             </div>
             <div className="flex items-center gap-1">
               <Hash className="h-3 w-3" />
-              <span>{conversation.message_count}</span>
+              <span>{task.message_count}</span>
             </div>
           </div>
         </div>
@@ -142,14 +140,14 @@ export const ConversationItem = memo(function ConversationItem({
             <DropdownMenuContent align="end" className="w-32">
               <DropdownMenuItem
                 className="flex cursor-pointer items-center gap-2"
-                onClick={(e) => onStartEditing(conversation, e)}
+                onClick={(e) => onStartEditing(task, e)}
               >
                 <Edit2 className="h-3 w-3" />
                 Edit
               </DropdownMenuItem>
               <DropdownMenuItem
                 className="flex cursor-pointer items-center gap-2 text-red-600 focus:text-red-600"
-                onClick={(e) => onDelete(conversation.id, e)}
+                onClick={(e) => onDelete(task.id, e)}
               >
                 <Trash2 className="h-3 w-3" />
                 Delete

@@ -18,8 +18,8 @@ export type PromptBuildOptions = {
   currentWorkingDirectory?: string;
   // Optional: recently accessed file paths for context-aware providers
   recentFilePaths?: string[];
-  // Optional: conversation ID for conversation-scoped providers
-  conversationId?: string;
+  // Optional: task ID for task-scoped providers
+  taskId?: string;
 };
 
 export type PromptBuildResult = {
@@ -43,8 +43,8 @@ export type ResolveContext = {
   currentWorkingDirectory?: string;
   // Optional: recently accessed file paths for context-aware lookup
   recentFilePaths?: string[];
-  // Optional: conversation ID for conversation-scoped providers (e.g., skills)
-  conversationId?: string;
+  // Optional: task ID for task-scoped providers (e.g., skills)
+  taskId?: string;
   // Optional: agent ID for agent-scoped providers (e.g., skills)
   agentId?: string;
   cache: Map<string, unknown>;

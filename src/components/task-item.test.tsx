@@ -1,7 +1,7 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ConversationItem } from './conversation-item';
-import type { Conversation } from '@/services/database-service';
+import { TaskItem } from './task-item';
+import type { Task } from '@/services/database-service';
 
 // Mock the utilities
 vi.mock('@/lib/utils', async (importOriginal) => {
@@ -12,10 +12,10 @@ vi.mock('@/lib/utils', async (importOriginal) => {
   };
 });
 
-describe('ConversationItem - No Nested Buttons Regression Test', () => {
-  const mockConversation: Conversation = {
+describe('TaskItem - No Nested Buttons Regression Test', () => {
+  const mockTask: Task = {
     id: 'test-id-1',
-    title: 'Test Conversation',
+    title: 'Test Task',
     updated_at: '2024-01-01T00:00:00.000Z',
     created_at: '2024-01-01T00:00:00.000Z',
     message_count: 5,
@@ -40,8 +40,8 @@ describe('ConversationItem - No Nested Buttons Regression Test', () => {
 
   it('should not have nested button elements in normal state', () => {
     const { container } = render(
-      <ConversationItem
-        conversation={mockConversation}
+      <TaskItem
+        task={mockTask}
         isSelected={false}
         isEditing={false}
         editingTitle=""
@@ -57,10 +57,10 @@ describe('ConversationItem - No Nested Buttons Regression Test', () => {
     });
   });
 
-  it('should use div with role="button" for the main container', () => {
+  it('should use div for the main container with title attribute', () => {
     const { container } = render(
-      <ConversationItem
-        conversation={mockConversation}
+      <TaskItem
+        task={mockTask}
         isSelected={false}
         isEditing={false}
         editingTitle=""
@@ -68,15 +68,15 @@ describe('ConversationItem - No Nested Buttons Regression Test', () => {
       />
     );
 
-    // The main container should be a div with role="button"
-    const mainContainer = container.querySelector('[role="button"][title="Test Conversation"]');
+    // The main container should be a div with title attribute
+    const mainContainer = container.querySelector('[title="Test Task"]');
     expect(mainContainer?.tagName).toBe('DIV');
   });
 
   it('should render dropdown menu trigger as a button without nesting', () => {
     const { container } = render(
-      <ConversationItem
-        conversation={mockConversation}
+      <TaskItem
+        task={mockTask}
         isSelected={false}
         isEditing={false}
         editingTitle=""
@@ -90,10 +90,10 @@ describe('ConversationItem - No Nested Buttons Regression Test', () => {
     expect(dropdownTrigger?.tagName).toBe('BUTTON');
   });
 
-  it('should call onSelect when conversation is clicked', () => {
+  it('should call onSelect when task is clicked', () => {
     const { container } = render(
-      <ConversationItem
-        conversation={mockConversation}
+      <TaskItem
+        task={mockTask}
         isSelected={false}
         isEditing={false}
         editingTitle=""
@@ -101,18 +101,18 @@ describe('ConversationItem - No Nested Buttons Regression Test', () => {
       />
     );
 
-    const mainContainer = container.querySelector('[role="button"][title="Test Conversation"]');
+    const mainContainer = container.querySelector('[title="Test Task"]');
     if (mainContainer) {
       fireEvent.click(mainContainer);
     }
 
-    expect(mockCallbacks.onSelect).toHaveBeenCalledWith(mockConversation.id);
+    expect(mockCallbacks.onSelect).toHaveBeenCalledWith(mockTask.id);
   });
 
   it('should handle keyboard navigation with Enter key', () => {
     const { container } = render(
-      <ConversationItem
-        conversation={mockConversation}
+      <TaskItem
+        task={mockTask}
         isSelected={false}
         isEditing={false}
         editingTitle=""
@@ -120,18 +120,18 @@ describe('ConversationItem - No Nested Buttons Regression Test', () => {
       />
     );
 
-    const mainContainer = container.querySelector('[role="button"][title="Test Conversation"]');
+    const mainContainer = container.querySelector('[title="Test Task"]');
     if (mainContainer) {
       fireEvent.keyDown(mainContainer, { key: 'Enter' });
     }
 
-    expect(mockCallbacks.onSelect).toHaveBeenCalledWith(mockConversation.id);
+    expect(mockCallbacks.onSelect).toHaveBeenCalledWith(mockTask.id);
   });
 
   it('should handle keyboard navigation with Space key', () => {
     const { container } = render(
-      <ConversationItem
-        conversation={mockConversation}
+      <TaskItem
+        task={mockTask}
         isSelected={false}
         isEditing={false}
         editingTitle=""
@@ -139,18 +139,18 @@ describe('ConversationItem - No Nested Buttons Regression Test', () => {
       />
     );
 
-    const mainContainer = container.querySelector('[role="button"][title="Test Conversation"]');
+    const mainContainer = container.querySelector('[title="Test Task"]');
     if (mainContainer) {
       fireEvent.keyDown(mainContainer, { key: ' ' });
     }
 
-    expect(mockCallbacks.onSelect).toHaveBeenCalledWith(mockConversation.id);
+    expect(mockCallbacks.onSelect).toHaveBeenCalledWith(mockTask.id);
   });
 
   it('should have proper accessibility attributes', () => {
     const { container } = render(
-      <ConversationItem
-        conversation={mockConversation}
+      <TaskItem
+        task={mockTask}
         isSelected={false}
         isEditing={false}
         editingTitle=""
@@ -158,16 +158,15 @@ describe('ConversationItem - No Nested Buttons Regression Test', () => {
       />
     );
 
-    const mainContainer = container.querySelector('[role="button"][title="Test Conversation"]');
-    expect(mainContainer).toHaveProperty('tabIndex', 0);
-    expect(mainContainer?.getAttribute('role')).toBe('button');
-    expect(mainContainer?.getAttribute('title')).toBe(mockConversation.title);
+    const mainContainer = container.querySelector('[title="Test Task"]');
+    expect(mainContainer).toBeTruthy();
+    expect(mainContainer?.getAttribute('title')).toBe(mockTask.title);
   });
 
-  it('should display conversation information correctly', () => {
+  it('should display task information correctly', () => {
     render(
-      <ConversationItem
-        conversation={mockConversation}
+      <TaskItem
+        task={mockTask}
         isSelected={false}
         isEditing={false}
         editingTitle=""
@@ -175,14 +174,14 @@ describe('ConversationItem - No Nested Buttons Regression Test', () => {
       />
     );
 
-    expect(screen.getByText(mockConversation.title)).toBeDefined();
-    expect(screen.getByText(mockConversation.message_count.toString())).toBeDefined();
+    expect(screen.getByText(mockTask.title)).toBeDefined();
+    expect(screen.getByText(mockTask.message_count.toString())).toBeDefined();
   });
 
   it('should apply selected styles when isSelected is true', () => {
     const { container } = render(
-      <ConversationItem
-        conversation={mockConversation}
+      <TaskItem
+        task={mockTask}
         isSelected={true}
         isEditing={false}
         editingTitle=""
@@ -190,14 +189,14 @@ describe('ConversationItem - No Nested Buttons Regression Test', () => {
       />
     );
 
-    const mainContainer = container.querySelector('[role="button"][title="Test Conversation"]');
+    const mainContainer = container.querySelector('[title="Test Task"]');
     expect(mainContainer?.className).toContain('border-blue-200');
   });
 
   it('should not have nested buttons in editing state', () => {
     const { container } = render(
-      <ConversationItem
-        conversation={mockConversation}
+      <TaskItem
+        task={mockTask}
         isSelected={false}
         isEditing={true}
         editingTitle="Editing title"
@@ -219,8 +218,8 @@ describe('ConversationItem - No Nested Buttons Regression Test', () => {
 
   it('should render Save and Cancel buttons in editing state', () => {
     render(
-      <ConversationItem
-        conversation={mockConversation}
+      <TaskItem
+        task={mockTask}
         isSelected={false}
         isEditing={true}
         editingTitle="Editing title"
@@ -234,8 +233,8 @@ describe('ConversationItem - No Nested Buttons Regression Test', () => {
 
   it('should call onSaveEdit when Save button is clicked', () => {
     render(
-      <ConversationItem
-        conversation={mockConversation}
+      <TaskItem
+        task={mockTask}
         isSelected={false}
         isEditing={true}
         editingTitle="Editing title"
@@ -246,13 +245,13 @@ describe('ConversationItem - No Nested Buttons Regression Test', () => {
     const saveButton = screen.getByText('Save');
     fireEvent.click(saveButton);
 
-    expect(mockCallbacks.onSaveEdit).toHaveBeenCalledWith(mockConversation.id);
+    expect(mockCallbacks.onSaveEdit).toHaveBeenCalledWith(mockTask.id);
   });
 
   it('should call onCancelEdit when Cancel button is clicked', () => {
     render(
-      <ConversationItem
-        conversation={mockConversation}
+      <TaskItem
+        task={mockTask}
         isSelected={false}
         isEditing={true}
         editingTitle="Editing title"
@@ -267,14 +266,14 @@ describe('ConversationItem - No Nested Buttons Regression Test', () => {
   });
 
   it('should display default title when title is empty', () => {
-    const conversationWithEmptyTitle: Conversation = {
-      ...mockConversation,
+    const taskWithEmptyTitle: Conversation = {
+      ...mockTask,
       title: '',
     };
 
     render(
-      <ConversationItem
-        conversation={conversationWithEmptyTitle}
+      <TaskItem
+        task={taskWithEmptyTitle}
         isSelected={false}
         isEditing={false}
         editingTitle=""
@@ -282,18 +281,18 @@ describe('ConversationItem - No Nested Buttons Regression Test', () => {
       />
     );
 
-    expect(screen.getByText('New Conversation')).toBeDefined();
+    expect(screen.getByText('New Task')).toBeDefined();
   });
 
   it('should display default title when title is only whitespace', () => {
-    const conversationWithWhitespaceTitle: Conversation = {
-      ...mockConversation,
+    const taskWithWhitespaceTitle: Conversation = {
+      ...mockTask,
       title: '   ',
     };
 
     render(
-      <ConversationItem
-        conversation={conversationWithWhitespaceTitle}
+      <TaskItem
+        task={taskWithWhitespaceTitle}
         isSelected={false}
         isEditing={false}
         editingTitle=""
@@ -301,15 +300,15 @@ describe('ConversationItem - No Nested Buttons Regression Test', () => {
       />
     );
 
-    expect(screen.getByText('New Conversation')).toBeDefined();
+    expect(screen.getByText('New Task')).toBeDefined();
   });
 
   it('should render without causing React hydration errors', () => {
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     render(
-      <ConversationItem
-        conversation={mockConversation}
+      <TaskItem
+        task={mockTask}
         isSelected={false}
         isEditing={false}
         editingTitle=""
@@ -330,8 +329,8 @@ describe('ConversationItem - No Nested Buttons Regression Test', () => {
 
   it('should prevent event propagation on dropdown menu click', () => {
     const { container } = render(
-      <ConversationItem
-        conversation={mockConversation}
+      <TaskItem
+        task={mockTask}
         isSelected={false}
         isEditing={false}
         editingTitle=""

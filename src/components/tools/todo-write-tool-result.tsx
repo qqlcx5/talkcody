@@ -10,9 +10,7 @@ interface TodoWriteToolResultProps {
 
 export function TodoWriteToolResult({ success, todos, error }: TodoWriteToolResultProps) {
   if (!success) {
-    return (
-      <GenericToolResult operation="update" success={false} error={error || 'Todo update failed'} />
-    );
+    return <GenericToolResult success={false} message={error || 'Todo update failed'} />;
   }
 
   const totalTodos = todos.length;

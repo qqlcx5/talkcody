@@ -188,7 +188,14 @@ pub async fn proxy_fetch(request: ProxyRequest) -> Result<ProxyResponse, String>
         })?;
 
     let status = response.status().as_u16();
-    log::info!("Proxy fetch response status: {}", status);
+
+    if status != 200 {
+        log::error!(
+            "fetch response error: status {} (request.url: {})",
+            status,
+            request.url
+        );
+    }
 
     // Extract headers
     let mut headers = HashMap::new();

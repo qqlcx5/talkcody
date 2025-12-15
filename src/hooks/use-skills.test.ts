@@ -4,8 +4,8 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getSkillService } from '@/services/skills';
 import { useSkillsStore } from '@/stores/skills-store';
-import type { ConversationSkill, Skill } from '@/types/skill';
-import { useConversationSkills, useSkill, useSkillMutations, useSkills } from './use-skills';
+import type { TaskSkill, Skill } from '@/types/skill';
+import { useTaskSkills, useSkill, useSkillMutations, useSkills } from './use-skills';
 
 // Mock dependencies
 vi.mock('@/services/skills', () => ({
@@ -67,11 +67,11 @@ describe('useSkills', () => {
     createSkill: vi.fn(),
     updateSkill: vi.fn(),
     deleteSkill: vi.fn(),
-    getConversationSkills: vi.fn(),
-    enableSkillForConversation: vi.fn(),
-    disableSkillForConversation: vi.fn(),
-    toggleSkillForConversation: vi.fn(),
-    setConversationSkills: vi.fn(),
+    getTaskSkills: vi.fn(),
+    enableSkillForTask: vi.fn(),
+    disableSkillForTask: vi.fn(),
+    toggleSkillForTask: vi.fn(),
+    setTaskSkills: vi.fn(),
   };
 
   const mockFileBasedSkillService = {
@@ -344,10 +344,10 @@ describe('useSkills', () => {
     });
   });
 
-  describe('useConversationSkills', () => {
-    const mockConversationSkills: ConversationSkill[] = [
+  describe('useTaskSkills', () => {
+    const mockTaskSkills: TaskSkill[] = [
       {
-        conversationId: 'conv1',
+        taskId: 'conv1',
         skillId: 'skill1',
         enabled: true,
         priority: 0,
@@ -356,37 +356,37 @@ describe('useSkills', () => {
     ];
 
     it('should load conversation skills successfully', async () => {
-      mockSkillService.getConversationSkills.mockResolvedValue(mockConversationSkills);
+      mockSkillService.getTaskSkills.mockResolvedValue(mockTaskSkills);
       mockSkillService.getSkill.mockResolvedValue(mockSkills[0]);
 
-      const { result } = renderHook(() => useConversationSkills('conv1'));
+      const { result } = renderHook(() => useTaskSkills('conv1'));
 
       await waitFor(() => {
         expect(result.current.loading).toBe(false);
       });
 
-      expect(result.current.conversationSkills).toEqual(mockConversationSkills);
+      expect(result.current.taskSkills).toEqual(mockTaskSkills);
       expect(result.current.skills).toEqual([mockSkills[0]]);
-      expect(mockSkillService.getConversationSkills).toHaveBeenCalledWith('conv1');
+      expect(mockSkillService.getTaskSkills).toHaveBeenCalledWith('conv1');
     });
 
     it('should handle null conversationId', async () => {
-      const { result } = renderHook(() => useConversationSkills(null));
+      const { result } = renderHook(() => useTaskSkills(null));
 
       await waitFor(() => {
         expect(result.current.loading).toBe(false);
       });
 
-      expect(result.current.conversationSkills).toEqual([]);
+      expect(result.current.taskSkills).toEqual([]);
       expect(result.current.skills).toEqual([]);
-      expect(mockSkillService.getConversationSkills).not.toHaveBeenCalled();
+      expect(mockSkillService.getTaskSkills).not.toHaveBeenCalled();
     });
 
     it('should enable skill for conversation', async () => {
-      mockSkillService.getConversationSkills.mockResolvedValue([]);
-      mockSkillService.enableSkillForConversation.mockResolvedValue(undefined);
+      mockSkillService.getTaskSkills.mockResolvedValue([]);
+      mockSkillService.enableSkillForTask.mockResolvedValue(undefined);
 
-      const { result } = renderHook(() => useConversationSkills('conv1'));
+      const { result } = renderHook(() => useTaskSkills('conv1'));
 
       await waitFor(() => {
         expect(result.current.loading).toBe(false);
@@ -396,7 +396,7 @@ describe('useSkills', () => {
         await result.current.enableSkill('skill1', 1);
       });
 
-      expect(mockSkillService.enableSkillForConversation).toHaveBeenCalledWith(
+      expect(mockSkillService.enableSkillForTask).toHaveBeenCalledWith(
         'conv1',
         'skill1',
         1
@@ -404,11 +404,11 @@ describe('useSkills', () => {
     });
 
     it('should disable skill for conversation', async () => {
-      mockSkillService.getConversationSkills.mockResolvedValue(mockConversationSkills);
+      mockSkillService.getTaskSkills.mockResolvedValue(mockTaskSkills);
       mockSkillService.getSkill.mockResolvedValue(mockSkills[0]);
-      mockSkillService.disableSkillForConversation.mockResolvedValue(undefined);
+      mockSkillService.disableSkillForTask.mockResolvedValue(undefined);
 
-      const { result } = renderHook(() => useConversationSkills('conv1'));
+      const { result } = renderHook(() => useTaskSkills('conv1'));
 
       await waitFor(() => {
         expect(result.current.loading).toBe(false);
@@ -418,14 +418,14 @@ describe('useSkills', () => {
         await result.current.disableSkill('skill1');
       });
 
-      expect(mockSkillService.disableSkillForConversation).toHaveBeenCalledWith('conv1', 'skill1');
+      expect(mockSkillService.disableSkillForTask).toHaveBeenCalledWith('conv1', 'skill1');
     });
 
     it('should toggle skill for conversation', async () => {
-      mockSkillService.getConversationSkills.mockResolvedValue([]);
-      mockSkillService.toggleSkillForConversation.mockResolvedValue(true);
+      mockSkillService.getTaskSkills.mockResolvedValue([]);
+      mockSkillService.toggleSkillForTask.mockResolvedValue(true);
 
-      const { result } = renderHook(() => useConversationSkills('conv1'));
+      const { result } = renderHook(() => useTaskSkills('conv1'));
 
       await waitFor(() => {
         expect(result.current.loading).toBe(false);
@@ -437,14 +437,14 @@ describe('useSkills', () => {
       });
 
       expect(enabled).toBe(true);
-      expect(mockSkillService.toggleSkillForConversation).toHaveBeenCalledWith('conv1', 'skill1');
+      expect(mockSkillService.toggleSkillForTask).toHaveBeenCalledWith('conv1', 'skill1');
     });
 
     it('should set conversation skills list', async () => {
-      mockSkillService.getConversationSkills.mockResolvedValue([]);
-      mockSkillService.setConversationSkills.mockResolvedValue(undefined);
+      mockSkillService.getTaskSkills.mockResolvedValue([]);
+      mockSkillService.setTaskSkills.mockResolvedValue(undefined);
 
-      const { result } = renderHook(() => useConversationSkills('conv1'));
+      const { result } = renderHook(() => useTaskSkills('conv1'));
 
       await waitFor(() => {
         expect(result.current.loading).toBe(false);
@@ -454,7 +454,7 @@ describe('useSkills', () => {
         await result.current.setSkills(['skill1', 'skill2']);
       });
 
-      expect(mockSkillService.setConversationSkills).toHaveBeenCalledWith('conv1', [
+      expect(mockSkillService.setTaskSkills).toHaveBeenCalledWith('conv1', [
         'skill1',
         'skill2',
       ]);

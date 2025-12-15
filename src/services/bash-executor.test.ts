@@ -5,12 +5,29 @@ const { mockInvoke } = vi.hoisted(() => ({
   mockInvoke: vi.fn(),
 }));
 
+const { mockGetValidatedWorkspaceRoot } = vi.hoisted(() => ({
+  mockGetValidatedWorkspaceRoot: vi.fn(),
+}));
+
+const { mockIsPathWithinProjectDirectory } = vi.hoisted(() => ({
+  mockIsPathWithinProjectDirectory: vi.fn(),
+}));
+
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: mockInvoke,
 }));
 
+vi.mock('@tauri-apps/api/path', () => ({
+  isAbsolute: vi.fn((p: string) => Promise.resolve(p.startsWith('/') || p.startsWith('~'))),
+  join: vi.fn((...parts: string[]) => Promise.resolve(parts.join('/'))),
+}));
+
+vi.mock('@/lib/utils/path-security', () => ({
+  isPathWithinProjectDirectory: mockIsPathWithinProjectDirectory,
+}));
+
 vi.mock('@/services/workspace-root-service', () => ({
-  getValidatedWorkspaceRoot: vi.fn().mockResolvedValue('/test/root'),
+  getValidatedWorkspaceRoot: mockGetValidatedWorkspaceRoot,
 }));
 
 // Mock the logger
@@ -50,7 +67,41 @@ function createMockShellResult(overrides: {
 describe('BashExecutor', () => {
   beforeEach(() => {
     mockInvoke.mockClear();
-    mockInvoke.mockResolvedValue(createMockShellResult({ code: 0, stdout: 'ok' }));
+    mockGetValidatedWorkspaceRoot.mockClear();
+    mockIsPathWithinProjectDirectory.mockClear();
+
+    // Default: workspace root is set and it's a git repository
+    mockGetValidatedWorkspaceRoot.mockResolvedValue('/test/root');
+
+    // Default: paths within /test/root are allowed
+    mockIsPathWithinProjectDirectory.mockImplementation((targetPath: string, rootPath: string) => {
+      // Reject paths with .. (path traversal)
+      if (targetPath.includes('..')) {
+        return Promise.resolve(false);
+      }
+      // Reject paths starting with ~ (home directory)
+      if (targetPath.startsWith('~')) {
+        return Promise.resolve(false);
+      }
+      // Simple check: path must start with root path
+      const normalizedTarget = targetPath.replace(/\/+/g, '/');
+      const normalizedRoot = rootPath.replace(/\/+/g, '/');
+      return Promise.resolve(
+        normalizedTarget.startsWith(normalizedRoot + '/') ||
+          normalizedTarget === normalizedRoot ||
+          // Relative paths resolved with /test/root should be within
+          normalizedTarget.startsWith('/test/root/')
+      );
+    });
+
+    mockInvoke.mockImplementation((cmd: string, args: Record<string, unknown>) => {
+      // Mock git check for rm validation
+      if (cmd === 'execute_user_shell' && args.command === 'git rev-parse --is-inside-work-tree') {
+        return Promise.resolve(createMockShellResult({ code: 0, stdout: 'true\n' }));
+      }
+      // Default shell execution
+      return Promise.resolve(createMockShellResult({ code: 0, stdout: 'ok' }));
+    });
   });
 
   describe('safe commands that should NOT be blocked', () => {
@@ -395,6 +446,92 @@ describe('BashExecutor', () => {
 
       it('should allow input redirection', async () => {
         const result = await bashExecutor.execute('sort < input.txt');
+        expect(result.success).toBe(true);
+        expect(mockInvoke).toHaveBeenCalled();
+      });
+    });
+
+    describe('heredoc operations', () => {
+      it('should allow heredoc with dangerous-looking content', async () => {
+        // Heredoc content should NOT be checked for dangerous patterns
+        const result = await bashExecutor.execute(`cat << 'EOF' >> file.md
+git reset --hard HEAD
+rm -rf /
+EOF`);
+        expect(result.success).toBe(true);
+        expect(mockInvoke).toHaveBeenCalled();
+      });
+
+      it('should allow heredoc with command separators in content', async () => {
+        const result = await bashExecutor.execute(`cat << EOF > script.sh
+echo "step1" && echo "step2"
+command1; command2; rm -rf /
+EOF`);
+        expect(result.success).toBe(true);
+        expect(mockInvoke).toHaveBeenCalled();
+      });
+
+      it('should allow heredoc with quoted delimiter', async () => {
+        const result = await bashExecutor.execute(`cat << "END" >> notes.txt
+Some dangerous looking content: rm -rf *
+END`);
+        expect(result.success).toBe(true);
+        expect(mockInvoke).toHaveBeenCalled();
+      });
+
+      it('should allow heredoc with dash (<<-)', async () => {
+        const result = await bashExecutor.execute(`cat <<- MARKER
+	git clean -fd
+	shutdown now
+MARKER`);
+        expect(result.success).toBe(true);
+        expect(mockInvoke).toHaveBeenCalled();
+      });
+
+      it('should still block dangerous command before heredoc', async () => {
+        const result = await bashExecutor.execute(`rm -rf / && cat << EOF
+safe content
+EOF`);
+        expect(result.success).toBe(false);
+        expect(result.message).toContain('blocked');
+      });
+
+      it('should block dangerous command AFTER heredoc', async () => {
+        // This is the critical security fix - commands after heredoc must be checked
+        const result = await bashExecutor.execute(`cat << EOF > file.txt
+safe content
+EOF
+rm -rf /`);
+        expect(result.success).toBe(false);
+        expect(result.message).toContain('blocked');
+        expect(mockInvoke).not.toHaveBeenCalled();
+      });
+
+      it('should block dangerous chained command after heredoc', async () => {
+        const result = await bashExecutor.execute(`cat << EOF > file.txt
+content
+EOF
+&& shutdown now`);
+        expect(result.success).toBe(false);
+        expect(result.message).toContain('blocked');
+        expect(mockInvoke).not.toHaveBeenCalled();
+      });
+
+      it('should block git reset --hard after heredoc', async () => {
+        const result = await bashExecutor.execute(`cat << COMMIT_MSG
+Some commit message
+COMMIT_MSG
+git reset --hard HEAD`);
+        expect(result.success).toBe(false);
+        expect(result.message).toContain('blocked');
+        expect(mockInvoke).not.toHaveBeenCalled();
+      });
+
+      it('should allow safe command after heredoc', async () => {
+        const result = await bashExecutor.execute(`cat << EOF > file.txt
+content
+EOF
+echo "done"`);
         expect(result.success).toBe(true);
         expect(mockInvoke).toHaveBeenCalled();
       });
@@ -816,6 +953,191 @@ describe('BashExecutor', () => {
       const result = await bashExecutor.execute('echo $HOME');
       expect(result.success).toBe(true);
       expect(mockInvoke).toHaveBeenCalled();
+    });
+  });
+
+  describe('rm command path validation', () => {
+    describe('rm allowed within workspace in git repo', () => {
+      it('should allow rm with relative path in git repo', async () => {
+        const result = await bashExecutor.execute('rm file.txt');
+        expect(result.success).toBe(true);
+        expect(mockInvoke).toHaveBeenCalledWith('execute_user_shell', expect.objectContaining({
+          command: 'rm file.txt',
+        }));
+      });
+
+      it('should allow rm with relative nested path in git repo', async () => {
+        const result = await bashExecutor.execute('rm src/components/file.tsx');
+        expect(result.success).toBe(true);
+      });
+
+      it('should allow rm with absolute path within workspace', async () => {
+        const result = await bashExecutor.execute('rm /test/root/src/file.ts');
+        expect(result.success).toBe(true);
+      });
+
+      it('should allow rm with multiple files within workspace', async () => {
+        const result = await bashExecutor.execute('rm file1.txt file2.txt src/file3.ts');
+        expect(result.success).toBe(true);
+      });
+
+      it('should allow rm with quoted path within workspace', async () => {
+        const result = await bashExecutor.execute('rm "file with spaces.txt"');
+        expect(result.success).toBe(true);
+      });
+
+      it('should allow rm with single-quoted path within workspace', async () => {
+        const result = await bashExecutor.execute("rm 'file with spaces.txt'");
+        expect(result.success).toBe(true);
+      });
+
+      it('should allow rm in chained commands within workspace', async () => {
+        const result = await bashExecutor.execute('echo "done" && rm temp.txt');
+        expect(result.success).toBe(true);
+      });
+    });
+
+    describe('rm blocked outside workspace', () => {
+      it('should block rm with absolute path outside workspace', async () => {
+        const result = await bashExecutor.execute('rm /etc/passwd');
+        expect(result.success).toBe(false);
+        expect(result.message).toContain('outside the workspace');
+      });
+
+      it('should block rm with absolute path to home directory', async () => {
+        const result = await bashExecutor.execute('rm /Users/kks/important-file.txt');
+        expect(result.success).toBe(false);
+        expect(result.message).toContain('outside the workspace');
+      });
+
+      it('should block rm with path escaping workspace via ../', async () => {
+        const result = await bashExecutor.execute('rm /test/root/../outside.txt');
+        expect(result.success).toBe(false);
+        expect(result.message).toContain('outside the workspace');
+      });
+
+      it('should block rm with absolute path in chained command', async () => {
+        const result = await bashExecutor.execute('ls && rm /tmp/file.txt');
+        expect(result.success).toBe(false);
+        expect(result.message).toContain('outside the workspace');
+      });
+
+      it('should block rm of system files', async () => {
+        const result = await bashExecutor.execute('rm /usr/bin/ls');
+        expect(result.success).toBe(false);
+        expect(result.message).toContain('outside the workspace');
+      });
+
+      it('should block rm of SSH keys', async () => {
+        const result = await bashExecutor.execute('rm ~/.ssh/id_rsa');
+        expect(result.success).toBe(false);
+        expect(result.message).toContain('outside the workspace');
+      });
+    });
+
+    describe('rm blocked when no workspace root', () => {
+      beforeEach(() => {
+        mockGetValidatedWorkspaceRoot.mockResolvedValue(null);
+      });
+
+      it('should block rm when no workspace root is set', async () => {
+        const result = await bashExecutor.execute('rm file.txt');
+        expect(result.success).toBe(false);
+        expect(result.message).toContain('no workspace root is set');
+      });
+
+      it('should block rm with any path when no workspace', async () => {
+        const result = await bashExecutor.execute('rm src/component.tsx');
+        expect(result.success).toBe(false);
+        expect(result.message).toContain('no workspace root is set');
+      });
+    });
+
+    describe('rm blocked when not in git repo', () => {
+      beforeEach(() => {
+        mockInvoke.mockImplementation((cmd: string, args: Record<string, unknown>) => {
+          // Mock git check returns false (not a git repo)
+          if (cmd === 'execute_user_shell' && args.command === 'git rev-parse --is-inside-work-tree') {
+            return Promise.resolve(createMockShellResult({ code: 128, stdout: '', stderr: 'fatal: not a git repository' }));
+          }
+          return Promise.resolve(createMockShellResult({ code: 0, stdout: 'ok' }));
+        });
+      });
+
+      it('should block rm when not in git repo', async () => {
+        const result = await bashExecutor.execute('rm file.txt');
+        expect(result.success).toBe(false);
+        expect(result.message).toContain('only allowed in git repositories');
+      });
+
+      it('should block rm with relative path when not in git repo', async () => {
+        const result = await bashExecutor.execute('rm src/component.tsx');
+        expect(result.success).toBe(false);
+        expect(result.message).toContain('only allowed in git repositories');
+      });
+    });
+
+    describe('rm with flags (still blocked by dangerous patterns)', () => {
+      it('should block rm -rf even within workspace', async () => {
+        const result = await bashExecutor.execute('rm -rf src/');
+        expect(result.success).toBe(false);
+        expect(result.message).toContain('Command blocked');
+      });
+
+      it('should block rm -r even within workspace', async () => {
+        const result = await bashExecutor.execute('rm -r folder');
+        expect(result.success).toBe(false);
+        expect(result.message).toContain('Command blocked');
+      });
+
+      it('should block rm with wildcards even within workspace', async () => {
+        const result = await bashExecutor.execute('rm *.txt');
+        expect(result.success).toBe(false);
+        expect(result.message).toContain('Command blocked');
+      });
+    });
+
+    describe('non-rm commands should not be affected', () => {
+      it('should allow ls when no workspace root', async () => {
+        mockGetValidatedWorkspaceRoot.mockResolvedValue(null);
+        const result = await bashExecutor.execute('ls -la');
+        expect(result.success).toBe(true);
+      });
+
+      it('should allow cat when not in git repo', async () => {
+        mockInvoke.mockImplementation((cmd: string, args: Record<string, unknown>) => {
+          if (cmd === 'execute_user_shell' && args.command === 'git rev-parse --is-inside-work-tree') {
+            return Promise.resolve(createMockShellResult({ code: 128, stderr: 'not a git repo' }));
+          }
+          return Promise.resolve(createMockShellResult({ code: 0, stdout: 'file content' }));
+        });
+        const result = await bashExecutor.execute('cat file.txt');
+        expect(result.success).toBe(true);
+      });
+
+      it('should allow mkdir anywhere', async () => {
+        mockGetValidatedWorkspaceRoot.mockResolvedValue(null);
+        const result = await bashExecutor.execute('mkdir new-folder');
+        expect(result.success).toBe(true);
+      });
+    });
+
+    describe('heredoc content should not trigger rm validation', () => {
+      it('should allow heredoc with rm command in content', async () => {
+        const result = await bashExecutor.execute(`cat << 'EOF' > script.sh
+rm /outside/path
+EOF`);
+        expect(result.success).toBe(true);
+      });
+
+      it('should block rm after heredoc with path outside workspace', async () => {
+        const result = await bashExecutor.execute(`cat << 'EOF'
+safe content
+EOF
+rm /outside/path`);
+        expect(result.success).toBe(false);
+        expect(result.message).toContain('outside the workspace');
+      });
     });
   });
 });

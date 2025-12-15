@@ -4,10 +4,10 @@ import { GenericToolResult } from '@/components/tools/generic-tool-result';
 import { createTool } from '@/lib/create-tool';
 import { logger } from '@/lib/logger';
 import { createPathSecurityError, isPathWithinProjectDirectory } from '@/lib/utils/path-security';
-import { ConversationManager } from '@/services/conversation-manager';
 import { notificationService } from '@/services/notification-service';
 import { repositoryService } from '@/services/repository-service';
 import { normalizeFilePath } from '@/services/repository-utils';
+import { TaskManager } from '@/services/task-manager';
 import { getValidatedWorkspaceRoot } from '@/services/workspace-root-service';
 import {
   type FileEditReviewResult,
@@ -205,9 +205,7 @@ Best practice workflow:
 2. Identify all changes you want to make to this file
 3. For each change, copy EXACT text with context
 4. Create edit block(s) with old_string and new_string
-5. Add description to each edit (optional - only useful for error messages)
-6. Call edit-file with your edit(s)
-7. Review will show changes with diff visualization`,
+5. Call edit-file with your edit(s)`,
 
   inputSchema: z.object({
     file_path: z.string().describe('The absolute path of file you want to edit'),
@@ -292,10 +290,10 @@ Best practice workflow:
       }
 
       // Validate that old_string and new_string are different for each edit
+      // Compare original strings directly, not normalized versions
+      // This ensures we don't falsely treat strings with subtle differences as identical
       for (let i = 0; i < edits.length; i++) {
-        const normalizedOld = normalizeString(edits[i].old_string);
-        const normalizedNew = normalizeString(edits[i].new_string);
-        if (normalizedOld === normalizedNew) {
+        if (edits[i].old_string === edits[i].new_string) {
           throw new Error(
             `Edit ${i + 1}: No changes needed. The old_string and new_string are identical.`
           );
@@ -335,9 +333,9 @@ Best practice workflow:
         0
       );
 
-      // Check if auto-approve is enabled for this conversation
-      const conversationId = settingsManager.getCurrentConversationId();
-      const settingsJson = await ConversationManager.getConversationSettings(conversationId);
+      // Check if auto-approve is enabled for this task
+      const taskId = settingsManager.getCurrentTaskId();
+      const settingsJson = await TaskManager.getTaskSettings(taskId);
 
       if (settingsJson) {
         try {
@@ -351,7 +349,7 @@ Best practice workflow:
             // Track the file change
             useFileChangesStore
               .getState()
-              .addChange(conversationId, file_path, 'edit', currentContent, finalContent);
+              .addChange(taskId, file_path, 'edit', currentContent, finalContent);
 
             return {
               success: true,
@@ -402,7 +400,7 @@ Best practice workflow:
             // Track the file change
             useFileChangesStore
               .getState()
-              .addChange(conversationId, file_path, 'edit', currentContent, finalContent);
+              .addChange(taskId, file_path, 'edit', currentContent, finalContent);
 
             return { success: true, message };
           },
@@ -417,11 +415,8 @@ Best practice workflow:
           onAllowAll: async () => {
             // 1. Update conversation settings to enable auto-approve
             const newSettings: TaskSettings = { autoApproveEdits: true };
-            await ConversationManager.updateConversationSettings(
-              conversationId,
-              JSON.stringify(newSettings)
-            );
-            logger.info(`Auto-approve enabled for conversation ${conversationId}`);
+            await TaskManager.updateTaskSettings(taskId, JSON.stringify(newSettings));
+            logger.info(`Auto-approve enabled for conversation ${taskId}`);
 
             // 2. Approve current edit
             await repositoryService.writeFile(fullPath, finalContent);
@@ -431,7 +426,7 @@ Best practice workflow:
             // Track the file change
             useFileChangesStore
               .getState()
-              .addChange(conversationId, file_path, 'edit', currentContent, finalContent);
+              .addChange(taskId, file_path, 'edit', currentContent, finalContent);
 
             return { success: true, message };
           },
@@ -505,10 +500,10 @@ Best practice workflow:
         logger.info(successMessage);
 
         // Track the file change
-        const conversationId = settingsManager.getCurrentConversationId();
+        const taskId = settingsManager.getCurrentTaskId();
         useFileChangesStore
           .getState()
-          .addChange(conversationId, file_path, 'edit', currentContent, finalContent);
+          .addChange(taskId, file_path, 'edit', currentContent, finalContent);
 
         return {
           success: true,
@@ -544,22 +539,7 @@ Best practice workflow:
     return <EditFileToolDoing file_path={file_path} edits={edits} />;
   },
 
-  renderToolResult: (result, params = {}) => {
-    const { file_path, edits } = params;
-    const editCount = edits?.length || 0;
-    return (
-      <GenericToolResult
-        success={result?.success ?? false}
-        operation="edit"
-        filePath={file_path}
-        message={result?.message}
-        error={result?.success ? undefined : result?.message}
-        details={
-          result?.success && editCount > 1
-            ? `Applied ${editCount} edit${editCount > 1 ? 's' : ''}`
-            : undefined
-        }
-      />
-    );
+  renderToolResult: (result) => {
+    return <GenericToolResult success={result?.success ?? false} message={result?.message} />;
   },
 });

@@ -142,7 +142,6 @@ export {
 } from './shortcuts';
 // Skill types
 export type {
-  ConversationSkill,
   CreateSkillRequest,
   DocumentationItem,
   DocumentationType,
@@ -158,6 +157,7 @@ export type {
   SkillStats,
   SkillTag,
   SkillVersion,
+  TaskSkill,
   UpdateSkillRequest,
 } from './skill';
 // Skill permission types

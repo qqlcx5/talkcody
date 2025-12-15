@@ -1,6 +1,6 @@
 // src/components/chat/mcp-selector-button.tsx
 
-import { Check, ExternalLink, RefreshCw, RotateCcw, Server } from 'lucide-react';
+import { Check, ExternalLink, RotateCcw, Server } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useTranslation } from '@/hooks/use-locale';
 import { useMultiMCPTools } from '@/hooks/use-multi-mcp-tools';
 import { useAppSettings } from '@/hooks/use-settings';
@@ -20,7 +21,7 @@ export function McpSelectorButton() {
   const t = useTranslation();
   const [open, setOpen] = useState(false);
   const { settings } = useAppSettings();
-  const { servers, allTools, isLoading, refreshTools } = useMultiMCPTools();
+  const { servers, allTools } = useMultiMCPTools();
 
   // Subscribe to agents Map (triggers re-render when any agent updates)
   const agents = useAgentStore((state) => state.agents);
@@ -34,7 +35,7 @@ export function McpSelectorButton() {
   // Subscribe to tool overrides
   const toolOverrides = useToolOverrideStore((state) => state.overrides);
 
-  // Get current agent's selected MCP tools with overrides applied
+  // Get current agent's selected MCP tools with overrides applied, filtered by enabled/connected servers
   const selectedMcpToolIds = useMemo(() => {
     if (!currentAgent?.tools) return new Set<string>();
 
@@ -59,12 +60,40 @@ export function McpSelectorButton() {
       }
     }
 
-    return mcpToolsSet;
-  }, [currentAgent, toolOverrides]);
+    // Create maps for O(1) lookup instead of O(n) find operations
+    const toolMap = new Map(allTools.map((t) => [t.prefixedName, t]));
+    const serverMap = new Map(servers.map((s) => [s.server.name, s]));
 
-  // Group tools by server
+    // Filter out tools from disabled servers
+    const filteredTools = new Set<string>();
+    for (const toolId of mcpToolsSet) {
+      // Find the tool using map lookup (O(1) instead of O(n))
+      const tool = toolMap.get(toolId);
+      if (!tool) continue;
+
+      // Find the corresponding server using map lookup (O(1) instead of O(n))
+      const serverData = serverMap.get(tool.serverName);
+
+      // Only include tools from enabled servers (regardless of connection status)
+      if (serverData && serverData.server.is_enabled) {
+        filteredTools.add(toolId);
+      }
+    }
+
+    return filteredTools;
+  }, [currentAgent, toolOverrides, servers, allTools]);
+
+  // Check if any servers are enabled
+  const hasEnabledServers = useMemo(() => {
+    return servers.some((serverData) => serverData.server.is_enabled);
+  }, [servers]);
+
+  // Group tools by enabled server
   const serverGroups = useMemo(() => {
-    return servers.map((serverData) => {
+    // Only include enabled servers
+    const enabledServers = servers.filter((serverData) => serverData.server.is_enabled);
+
+    return enabledServers.map((serverData) => {
       const serverTools = allTools.filter((tool) => tool.serverName === serverData.server.name);
       const selectedCount = serverTools.filter((tool) =>
         selectedMcpToolIds.has(tool.prefixedName)
@@ -103,6 +132,74 @@ export function McpSelectorButton() {
     }
   };
 
+  const handleSelectAllServerTools = (serverName: string) => {
+    if (!currentAgent) {
+      toast.error(t.MCPServers.selector.noActiveAgent);
+      return;
+    }
+
+    try {
+      const serverTools = allTools.filter(
+        (tool) => tool.serverName === serverName && tool.isAvailable
+      );
+      const unselectedTools = serverTools.filter(
+        (tool) => !selectedMcpToolIds.has(tool.prefixedName)
+      );
+
+      if (unselectedTools.length === 0) {
+        toast.info(t.MCPServers.selector.allToolsAlreadySelected);
+        return;
+      }
+
+      // Add all unselected tools from this server
+      for (const tool of unselectedTools) {
+        useToolOverrideStore.getState().addTool(currentAgent.id, tool.prefixedName);
+      }
+
+      toast.success(
+        t.MCPServers.selector.toolsSelected
+          ? t.MCPServers.selector.toolsSelected(unselectedTools.length)
+          : `Selected ${unselectedTools.length} tools from ${serverName}`
+      );
+    } catch (error) {
+      logger.error('Failed to select all server tools:', error);
+      toast.error(t.MCPServers.selector.updateFailed);
+    }
+  };
+
+  const handleClearAllServerTools = (serverName: string) => {
+    if (!currentAgent) {
+      toast.error(t.MCPServers.selector.noActiveAgent);
+      return;
+    }
+
+    try {
+      const serverTools = allTools.filter(
+        (tool) => tool.serverName === serverName && tool.isAvailable
+      );
+      const selectedTools = serverTools.filter((tool) => selectedMcpToolIds.has(tool.prefixedName));
+
+      if (selectedTools.length === 0) {
+        toast.info(t.MCPServers.selector.noToolsToClear);
+        return;
+      }
+
+      // Remove all selected tools from this server
+      for (const tool of selectedTools) {
+        useToolOverrideStore.getState().removeTool(currentAgent.id, tool.prefixedName);
+      }
+
+      toast.success(
+        t.MCPServers.selector.toolsCleared
+          ? t.MCPServers.selector.toolsCleared(selectedTools.length)
+          : `Cleared ${selectedTools.length} tools from ${serverName}`
+      );
+    } catch (error) {
+      logger.error('Failed to clear all server tools:', error);
+      toast.error(t.MCPServers.selector.updateFailed);
+    }
+  };
+
   const handleReset = () => {
     if (!currentAgent) return;
 
@@ -129,7 +226,7 @@ export function McpSelectorButton() {
               variant="ghost"
               size="icon"
               className="h-7 w-7 relative"
-              disabled={!currentAgent}
+              disabled={!currentAgent || !hasEnabledServers}
             >
               <Server className="h-4 w-4" />
               {totalSelectedCount > 0 && (
@@ -187,15 +284,6 @@ export function McpSelectorButton() {
                   {t.MCPServers.selector.reset}
                 </Button>
               )}
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={refreshTools}
-                disabled={isLoading}
-                className="h-6 w-6"
-              >
-                <RefreshCw className={`h-3 w-3 ${isLoading ? 'animate-spin' : ''}`} />
-              </Button>
             </div>
           </div>
 
@@ -210,6 +298,41 @@ export function McpSelectorButton() {
                   <div key={group.server.id} className="space-y-1">
                     {/* Server Header */}
                     <div className="flex items-center gap-2 px-2 py-1 bg-muted/50 rounded">
+                      {/* Server selection checkbox */}
+                      <div
+                        className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 cursor-pointer hover:bg-accent ${
+                          group.selectedCount === group.tools.length
+                            ? 'bg-primary border-primary'
+                            : 'border-input'
+                        }`}
+                        onClick={() => {
+                          if (group.selectedCount === group.tools.length) {
+                            handleClearAllServerTools(group.server.name);
+                          } else {
+                            handleSelectAllServerTools(group.server.name);
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            if (group.selectedCount === group.tools.length) {
+                              handleClearAllServerTools(group.server.name);
+                            } else {
+                              handleSelectAllServerTools(group.server.name);
+                            }
+                          }
+                        }}
+                        role="button"
+                        tabIndex={0}
+                      >
+                        {group.selectedCount === group.tools.length && (
+                          <Check className="h-3 w-3 text-primary-foreground" />
+                        )}
+                        {group.selectedCount > 0 && group.selectedCount < group.tools.length && (
+                          <div className="h-2 w-2 bg-primary rounded-full" />
+                        )}
+                      </div>
+
                       <Server className="h-3 w-3" />
                       <span className="font-medium text-sm flex-1">{group.server.name}</span>
                       {group.isConnected ? (
@@ -275,10 +398,19 @@ export function McpSelectorButton() {
                               </div>
 
                               <div className="flex-1 min-w-0">
-                                <div className="font-medium text-sm truncate">{tool.name}</div>
-                                <div className="text-xs text-muted-foreground truncate">
-                                  {tool.description}
-                                </div>
+                                <div className="font-medium text-sm">{tool.name}</div>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <div className="text-xs text-muted-foreground truncate cursor-help">
+                                      {tool.description}
+                                    </div>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="left" className="max-w-sm">
+                                    <div className="text-xs leading-relaxed">
+                                      {tool.description}
+                                    </div>
+                                  </TooltipContent>
+                                </Tooltip>
                               </div>
                             </div>
                           );

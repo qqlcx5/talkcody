@@ -1,13 +1,7 @@
 // src/services/database/skill-database-service.ts
 
 import { logger } from '@/lib/logger';
-import type {
-  ConversationSkill,
-  Skill,
-  SkillContent,
-  SkillFilter,
-  SkillSortOption,
-} from '@/types/skill';
+import type { Skill, SkillContent, SkillFilter, SkillSortOption, TaskSkill } from '@/types/skill';
 import type { TursoClient } from './turso-client';
 
 /**
@@ -208,9 +202,9 @@ export class SkillDatabaseService {
       }
 
       if (filter?.search) {
-        query += ` AND (name LIKE $${paramIndex} OR description LIKE $${paramIndex})`;
-        values.push(`%${filter.search}%`);
-        paramIndex++;
+        const searchValue = `%${filter.search}%`;
+        query += ` AND (name LIKE $${paramIndex++} OR description LIKE $${paramIndex++})`;
+        values.push(searchValue, searchValue);
       }
 
       if (filter?.tags && filter.tags.length > 0) {
@@ -248,120 +242,114 @@ export class SkillDatabaseService {
     }
   }
 
-  // ==================== Conversation-Skill Association ====================
+  // ==================== Task-Skill Association ====================
 
   /**
-   * Get skills for a conversation
+   * Get skills for a task
    */
-  async getConversationSkills(conversationId: string): Promise<ConversationSkill[]> {
+  async getTaskSkills(taskId: string): Promise<TaskSkill[]> {
     try {
       const results = await this.db.select<any[]>(
         `SELECT * FROM conversation_skills
          WHERE conversation_id = $1
          ORDER BY priority DESC`,
-        [conversationId]
+        [taskId]
       );
 
       return results.map((row) => ({
-        conversationId: row.conversation_id,
+        taskId: row.conversation_id,
         skillId: row.skill_id,
         enabled: Boolean(row.enabled),
         priority: row.priority,
         activatedAt: row.activated_at,
       }));
     } catch (error) {
-      logger.error(`Failed to get conversation skills for ${conversationId}:`, error);
+      logger.error(`Failed to get task skills for ${taskId}:`, error);
       throw error;
     }
   }
 
   /**
-   * Enable a skill for a conversation
+   * Enable a skill for a task
    */
-  async enableSkillForConversation(
-    conversationId: string,
-    skillId: string,
-    priority = 0
-  ): Promise<void> {
+  async enableSkillForTask(taskId: string, skillId: string, priority = 0): Promise<void> {
     const now = Date.now();
 
     try {
       // Check if association already exists
       const existing = await this.db.select<any[]>(
         'SELECT * FROM conversation_skills WHERE conversation_id = $1 AND skill_id = $2',
-        [conversationId, skillId]
+        [taskId, skillId]
       );
 
       if (existing.length > 0) {
         // Update existing association
         await this.db.execute(
           'UPDATE conversation_skills SET enabled = 1, priority = $1 WHERE conversation_id = $2 AND skill_id = $3',
-          [priority, conversationId, skillId]
+          [priority, taskId, skillId]
         );
       } else {
         // Create new association
         await this.db.execute(
           `INSERT INTO conversation_skills (conversation_id, skill_id, enabled, priority, activated_at)
            VALUES ($1, $2, $3, $4, $5)`,
-          [conversationId, skillId, 1, priority, now]
+          [taskId, skillId, 1, priority, now]
         );
       }
 
       // Update last_used_at for the skill
       await this.db.execute('UPDATE skills SET last_used_at = $1 WHERE id = $2', [now, skillId]);
 
-      logger.info(`Enabled skill ${skillId} for conversation ${conversationId}`);
+      logger.info(`Enabled skill ${skillId} for task ${taskId}`);
     } catch (error) {
-      logger.error(`Failed to enable skill for conversation:`, error);
+      logger.error(`Failed to enable skill for task:`, error);
       throw error;
     }
   }
 
   /**
-   * Disable a skill for a conversation
+   * Disable a skill for a task
    */
-  async disableSkillForConversation(conversationId: string, skillId: string): Promise<void> {
+  async disableSkillForTask(taskId: string, skillId: string): Promise<void> {
     try {
       await this.db.execute(
         'UPDATE conversation_skills SET enabled = 0 WHERE conversation_id = $1 AND skill_id = $2',
-        [conversationId, skillId]
+        [taskId, skillId]
       );
 
-      logger.info(`Disabled skill ${skillId} for conversation ${conversationId}`);
+      logger.info(`Disabled skill ${skillId} for task ${taskId}`);
     } catch (error) {
-      logger.error(`Failed to disable skill for conversation:`, error);
+      logger.error(`Failed to disable skill for task:`, error);
       throw error;
     }
   }
 
   /**
-   * Remove a skill association from a conversation
+   * Remove a skill association from a task
    */
-  async removeSkillFromConversation(conversationId: string, skillId: string): Promise<void> {
+  async removeSkillFromTask(taskId: string, skillId: string): Promise<void> {
     try {
       await this.db.execute(
         'DELETE FROM conversation_skills WHERE conversation_id = $1 AND skill_id = $2',
-        [conversationId, skillId]
+        [taskId, skillId]
       );
 
-      logger.info(`Removed skill ${skillId} from conversation ${conversationId}`);
+      logger.info(`Removed skill ${skillId} from task ${taskId}`);
     } catch (error) {
-      logger.error(`Failed to remove skill from conversation:`, error);
+      logger.error(`Failed to remove skill from task:`, error);
       throw error;
     }
   }
 
   /**
-   * Set all skills for a conversation (replaces existing)
+   * Set all skills for a task (replaces existing)
    */
-  async setConversationSkills(conversationId: string, skillIds: string[]): Promise<void> {
+  async setTaskSkills(taskId: string, skillIds: string[]): Promise<void> {
     const now = Date.now();
 
     try {
       // Delete existing associations
-      await this.db.execute('DELETE FROM conversation_skills WHERE conversation_id = $1', [
-        conversationId,
-      ]);
+      await this.db.execute('DELETE FROM conversation_skills WHERE conversation_id = $1', [taskId]);
 
       // Insert new associations
       for (let i = 0; i < skillIds.length; i++) {
@@ -371,13 +359,13 @@ export class SkillDatabaseService {
         await this.db.execute(
           `INSERT INTO conversation_skills (conversation_id, skill_id, enabled, priority, activated_at)
            VALUES ($1, $2, $3, $4, $5)`,
-          [conversationId, skillId, 1, priority, now]
+          [taskId, skillId, 1, priority, now]
         );
       }
 
-      logger.info(`Set ${skillIds.length} skills for conversation ${conversationId}`);
+      logger.info(`Set ${skillIds.length} skills for task ${taskId}`);
     } catch (error) {
-      logger.error(`Failed to set conversation skills:`, error);
+      logger.error(`Failed to set task skills:`, error);
       throw error;
     }
   }

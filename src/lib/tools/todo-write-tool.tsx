@@ -23,18 +23,18 @@ const convertToolTodoToFileTodo = (toolTodo: TodoItem): import('@/types').Create
   };
 };
 
-// Implementation of setTodos with conversation ID binding
+// Implementation of setTodos with task ID binding
 const setTodos = async (todos: TodoItem[]): Promise<void> => {
   try {
-    const conversationId = settingsManager.getCurrentConversationId();
-    if (!conversationId) {
-      logger.warn('No current conversation ID found');
-      throw new Error('No current conversation ID found');
+    const taskId = settingsManager.getCurrentTaskId();
+    if (!taskId) {
+      logger.warn('No current task ID found');
+      throw new Error('No current task ID found');
     }
 
     const fileTodos = todos.map(convertToolTodoToFileTodo);
-    await fileTodoService.saveTodos(conversationId, fileTodos);
-    logger.info(`Saved ${todos.length} todos for conversation ${conversationId}`);
+    await fileTodoService.saveTodos(taskId, fileTodos);
+    logger.info(`Saved ${todos.length} todos for task ${taskId}`);
   } catch (error) {
     logger.error('Error setting todos:', error);
     throw error;
@@ -116,7 +116,7 @@ export const todoWriteTool = createTool({
   renderToolDoing: (params: z.infer<typeof inputSchema>) => {
     return <TodoWriteToolDoing todos={params.todos} />;
   },
-  renderToolResult: (result: any, _params: z.infer<typeof inputSchema>) => {
+  renderToolResult: (result: unknown, _params: z.infer<typeof inputSchema>) => {
     const isError =
       result instanceof Error || (typeof result === 'string' && result.includes('Error'));
 

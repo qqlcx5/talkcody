@@ -40,7 +40,7 @@ function extractLines(
       return {
         success: true,
         content: fullContent,
-        message: `Successfully read file: ${file_path}`,
+        message: `Successfully read ${totalLines} lines from file: ${file_path}`,
       };
     }
   }
@@ -171,14 +171,7 @@ The file path should be an absolute path.`,
     }
   },
   renderToolDoing: ({ file_path }) => <GenericToolDoing operation="read" filePath={file_path} />,
-  renderToolResult: (result, { file_path } = {}) => (
-    <GenericToolResult
-      success={result?.success ?? false}
-      operation="read"
-      filePath={file_path}
-      content={result?.content}
-      message={result?.message}
-      error={result?.success ? undefined : result?.message}
-    />
+  renderToolResult: (result) => (
+    <GenericToolResult success={result?.success ?? false} message={result?.message} />
   ),
 });

@@ -1,4 +1,4 @@
-// src/services/database/conversation-service.ts
+// src/services/database/task-service.ts
 
 import { logger } from '@/lib/logger';
 import { timedMethod } from '@/lib/timer';
@@ -8,28 +8,24 @@ import type { MessageAttachment } from '@/types/agent';
 import { fileService } from '../file-service';
 import type { TursoClient } from './turso-client';
 
-export class ConversationService {
+export class TaskService {
   constructor(private db: TursoClient) {}
 
-  @timedMethod('createConversation')
-  async createConversation(
-    title: string,
-    conversationId: string,
-    projectId = 'default'
-  ): Promise<string> {
+  @timedMethod('createTask')
+  async createTask(title: string, taskId: string, projectId = 'default'): Promise<string> {
     const now = Date.now();
 
-    logger.info('createConversation', conversationId, title, projectId, now);
+    logger.info('createTask', taskId, title, projectId, now);
 
     await this.db.execute(
       'INSERT INTO conversations (id, title, project_id, created_at, updated_at, message_count) VALUES ($1, $2, $3, $4, $5, $6)',
-      [conversationId, title, projectId, now, now, 0]
+      [taskId, title, projectId, now, now, 0]
     );
 
-    return conversationId;
+    return taskId;
   }
 
-  async getConversations(projectId?: string): Promise<Task[]> {
+  async getTasks(projectId?: string): Promise<Task[]> {
     let sql = 'SELECT * FROM conversations';
     const params: any[] = [];
 
@@ -44,39 +40,39 @@ export class ConversationService {
     return result;
   }
 
-  async getConversationDetails(conversationId: string): Promise<Task | null> {
+  async getTaskDetails(taskId: string): Promise<Task | null> {
     const result = await this.db.select<Task[]>('SELECT * FROM conversations WHERE id = $1', [
-      conversationId,
+      taskId,
     ]);
 
     return result[0] || null;
   }
 
-  @timedMethod('updateConversationTitle')
-  async updateConversationTitle(conversationId: string, title: string): Promise<void> {
+  @timedMethod('updateTaskTitle')
+  async updateTaskTitle(taskId: string, title: string): Promise<void> {
     await this.db.execute('UPDATE conversations SET title = $1, updated_at = $2 WHERE id = $3', [
       title,
       Date.now(),
-      conversationId,
+      taskId,
     ]);
   }
 
-  @timedMethod('updateConversationProject')
-  async updateConversationProject(conversationId: string, projectId: string): Promise<void> {
+  @timedMethod('updateTaskProject')
+  async updateTaskProject(taskId: string, projectId: string): Promise<void> {
     await this.db.execute(
       'UPDATE conversations SET project_id = $1, updated_at = $2 WHERE id = $3',
-      [projectId, Date.now(), conversationId]
+      [projectId, Date.now(), taskId]
     );
   }
 
-  @timedMethod('deleteConversation')
-  async deleteConversation(conversationId: string): Promise<void> {
-    logger.info('deleteConversation', conversationId);
+  @timedMethod('deleteTask')
+  async deleteTask(taskId: string): Promise<void> {
+    logger.info('deleteTask', taskId);
 
-    // Get all attachments for this conversation to delete files
+    // Get all attachments for this task to delete files
     const messages = await this.db.select<{ id: string }[]>(
       'SELECT id FROM messages WHERE conversation_id = $1',
-      [conversationId]
+      [taskId]
     );
 
     // Delete attachment files
@@ -97,14 +93,14 @@ export class ConversationService {
     }
 
     // Delete messages
-    await this.db.execute('DELETE FROM messages WHERE conversation_id = $1', [conversationId]);
+    await this.db.execute('DELETE FROM messages WHERE conversation_id = $1', [taskId]);
 
-    // Delete conversation
-    await this.db.execute('DELETE FROM conversations WHERE id = $1', [conversationId]);
+    // Delete task
+    await this.db.execute('DELETE FROM conversations WHERE id = $1', [taskId]);
   }
 
   async saveMessage(
-    conversationId: string,
+    taskId: string,
     role: 'user' | 'assistant' | 'tool',
     content: string,
     positionIndex: number,
@@ -118,15 +114,7 @@ export class ConversationService {
       // Start transaction by saving message first
       await this.db.execute(
         'INSERT INTO messages (id, conversation_id, role, content, timestamp, assistant_id, position_index) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-        [
-          finalMessageId,
-          conversationId,
-          role,
-          content,
-          timestamp,
-          assistant_id || null,
-          positionIndex,
-        ]
+        [finalMessageId, taskId, role, content, timestamp, assistant_id || null, positionIndex]
       );
 
       // Save attachments if present
@@ -136,10 +124,10 @@ export class ConversationService {
         }
       }
 
-      // Update conversation
+      // Update task
       await this.db.execute(
         'UPDATE conversations SET message_count = message_count + 1, updated_at = $1 WHERE id = $2',
-        [timestamp, conversationId]
+        [timestamp, taskId]
       );
 
       return finalMessageId;
@@ -176,10 +164,10 @@ export class ConversationService {
     );
   }
 
-  async getMessages(conversationId: string): Promise<StoredMessage[]> {
+  async getMessages(taskId: string): Promise<StoredMessage[]> {
     const messages = await this.db.select<StoredMessage[]>(
       'SELECT * FROM messages WHERE conversation_id = $1 ORDER BY timestamp ASC',
-      [conversationId]
+      [taskId]
     );
 
     // Load attachments for each message
@@ -226,13 +214,13 @@ export class ConversationService {
   }
 
   @timedMethod('getLatestUserMessageContent')
-  async getLatestUserMessageContent(conversationId: string): Promise<string | null> {
+  async getLatestUserMessageContent(taskId: string): Promise<string | null> {
     const result = await this.db.select<{ content: string }[]>(
       `SELECT content FROM messages
              WHERE conversation_id = $1 AND role = 'user'
              ORDER BY timestamp DESC
              LIMIT 1`,
-      [conversationId]
+      [taskId]
     );
 
     return result.length > 0 ? (result[0]?.content ?? null) : null;
@@ -261,33 +249,33 @@ export class ConversationService {
     return mimeType.startsWith('image/');
   }
 
-  @timedMethod('updateConversationUsage')
-  async updateConversationUsage(
-    conversationId: string,
+  @timedMethod('updateTaskUsage')
+  async updateTaskUsage(
+    taskId: string,
     cost: number,
     inputToken: number,
     outputToken: number
   ): Promise<void> {
     await this.db.execute(
       'UPDATE conversations SET cost = cost + $1, input_token = input_token + $2, output_token = output_token + $3, updated_at = $4 WHERE id = $5',
-      [cost, inputToken, outputToken, Date.now(), conversationId]
+      [cost, inputToken, outputToken, Date.now(), taskId]
     );
   }
 
-  @timedMethod('updateConversationSettings')
-  async updateConversationSettings(conversationId: string, settings: string): Promise<void> {
+  @timedMethod('updateTaskSettings')
+  async updateTaskSettings(taskId: string, settings: string): Promise<void> {
     await this.db.execute('UPDATE conversations SET settings = $1, updated_at = $2 WHERE id = $3', [
       settings,
       Date.now(),
-      conversationId,
+      taskId,
     ]);
   }
 
-  @timedMethod('getConversationSettings')
-  async getConversationSettings(conversationId: string): Promise<string | null> {
+  @timedMethod('getTaskSettings')
+  async getTaskSettings(taskId: string): Promise<string | null> {
     const result = await this.db.select<{ settings: string | null }[]>(
       'SELECT settings FROM conversations WHERE id = $1',
-      [conversationId]
+      [taskId]
     );
 
     return result.length > 0 ? (result[0]?.settings ?? null) : null;

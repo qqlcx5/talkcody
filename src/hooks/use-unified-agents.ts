@@ -1,7 +1,7 @@
 // Unified agents hook for fetching both marketplace and local agents
 
 import type { MarketplaceAgent } from '@talkcody/shared';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { logger } from '@/lib/logger';
 import { agentRegistry } from '@/services/agents/agent-registry';
 import { agentService } from '@/services/database/agent-service';
@@ -96,10 +96,8 @@ export function useUnifiedAgents(): UseUnifiedAgentsReturn {
     }
   }, [loadAgents, agentsMap]);
 
-  // Load local agents on mount and when agent store changes
-  useEffect(() => {
-    refreshLocalAgents();
-  }, [refreshLocalAgents]);
+  // Note: We don't automatically load local agents on mount anymore
+  // This is now handled explicitly by the component when needed
 
   // Mark marketplace agents with _type
   const marketplaceAgents = useMemo(

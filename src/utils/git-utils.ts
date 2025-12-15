@@ -8,7 +8,7 @@ export interface GitResult {
   error?: string;
 }
 
-export async function gitAdd(basePath: string): Promise<GitResult> {
+async function gitAdd(basePath: string): Promise<GitResult> {
   try {
     const command = `cd "${basePath}" && git add .`;
     logger.info('gitAdd command:', command);
@@ -35,7 +35,7 @@ export async function gitAdd(basePath: string): Promise<GitResult> {
   }
 }
 
-export async function gitCommit(commitMessage: string): Promise<GitResult> {
+async function gitCommit(commitMessage: string, basePath: string): Promise<GitResult> {
   if (!commitMessage.trim()) {
     return {
       success: false,
@@ -45,10 +45,9 @@ export async function gitCommit(commitMessage: string): Promise<GitResult> {
   }
 
   try {
-    const result = await Command.create('exec-sh', [
-      '-c',
-      `git commit -m "${commitMessage}"`,
-    ]).execute();
+    const command = `cd "${basePath}" && git commit -m "${commitMessage}"`;
+    logger.info('gitCommit command:', command);
+    const result = await Command.create('exec-sh', ['-c', command]).execute();
 
     if (result.code === 0) {
       return {
@@ -83,7 +82,7 @@ export async function gitAddAndCommit(commitMessage: string, basePath: string): 
   }
 
   // Then commit the changes
-  const commitResult = await gitCommit(commitMessage);
+  const commitResult = await gitCommit(commitMessage, basePath);
   if (commitResult.success) {
     return {
       success: true,
@@ -92,52 +91,4 @@ export async function gitAddAndCommit(commitMessage: string, basePath: string): 
     };
   }
   return commitResult;
-}
-
-export async function isGitRepository(): Promise<boolean> {
-  try {
-    const result = await Command.create('exec-sh', ['-c', 'git status']).execute();
-    logger.info('git status result', result);
-    return result.code === 0;
-  } catch (error) {
-    logger.info('git status error', error);
-    return false;
-  }
-}
-
-export async function getGitStatus(): Promise<GitResult> {
-  try {
-    const result = await Command.create('exec-sh', ['-c', 'git status --porcelain']).execute();
-
-    if (result.code === 0) {
-      return {
-        success: true,
-        message: 'Successfully retrieved git status',
-        output: result.stdout,
-      };
-    }
-    return {
-      success: false,
-      message: 'Failed to get git status',
-      error: result.stderr,
-    };
-  } catch (error) {
-    return {
-      success: false,
-      message: 'Error executing git status command',
-      error: error instanceof Error ? error.message : String(error),
-    };
-  }
-}
-
-/**
- * Check if there are changes to commit
- */
-export async function hasChangesToCommit(): Promise<boolean> {
-  const statusResult = await getGitStatus();
-  if (!statusResult.success) {
-    return false;
-  }
-
-  return statusResult.output?.trim() !== '';
 }

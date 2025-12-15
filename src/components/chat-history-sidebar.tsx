@@ -14,18 +14,18 @@ import { useProjects } from '@/hooks/use-projects';
 import { useTasks } from '@/hooks/use-tasks';
 import { cn } from '@/lib/utils';
 import { useExecutionStore } from '@/stores/execution-store';
-import { ConversationList } from './conversation-list';
+import { TaskList } from './task-list';
 
 interface ChatHistorySidebarProps {
-  currentConversationId?: string;
-  onConversationSelect: (conversationId: string) => void;
+  currentTaskId?: string;
+  onTaskSelect: (taskId: string) => void;
   onNewChat: () => void;
   currentProjectId?: string | null;
 }
 
 export function ChatHistorySidebar({
-  currentConversationId,
-  onConversationSelect,
+  currentTaskId,
+  onTaskSelect,
   onNewChat,
   currentProjectId,
 }: ChatHistorySidebarProps) {
@@ -37,41 +37,41 @@ export function ChatHistorySidebar({
   const isMaxReached = useExecutionStore((state) => state.isMaxReached());
 
   const {
-    conversations,
+    tasks,
     loading,
     editingId,
     editingTitle,
     setEditingTitle,
-    loadTasks: loadConversations,
-    deleteConversation,
+    loadTasks,
+    deleteTask,
     finishEditing,
     startEditing,
     cancelEditing,
-    selectConversation,
+    selectTask,
   } = useTasks();
 
   const { projects } = useProjects();
 
-  // Load conversations based on project filter
+  // Load tasks based on project filter
   useEffect(() => {
     if (selectedProjectFilter === 'all') {
-      loadConversations();
+      loadTasks();
     } else {
-      loadConversations(selectedProjectFilter);
+      loadTasks(selectedProjectFilter);
     }
-  }, [selectedProjectFilter, loadConversations]);
+  }, [selectedProjectFilter, loadTasks]);
 
-  const handleConversationSelect = (conversationId: string) => {
-    selectConversation(conversationId);
-    onConversationSelect(conversationId);
+  const handleTaskSelect = (taskId: string) => {
+    selectTask(taskId);
+    onTaskSelect(taskId);
   };
 
   const handleNewChat = () => {
     onNewChat();
   };
 
-  const filteredConversations = conversations.filter((conv) =>
-    conv.title.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredTasks = tasks.filter((task) =>
+    task.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
@@ -133,23 +133,23 @@ export function ChatHistorySidebar({
               <Input
                 className="h-8 pl-9"
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search conversations..."
+                placeholder="Search tasks..."
                 value={searchQuery}
               />
             </div>
           </div>
 
-          {/* Conversations List */}
+          {/* Tasks List */}
           <div className="flex-1 overflow-auto">
-            <ConversationList
-              conversations={filteredConversations}
-              currentConversationId={currentConversationId}
+            <TaskList
+              tasks={filteredTasks}
+              currentTaskId={currentTaskId}
               editingId={editingId}
               editingTitle={editingTitle}
               loading={loading}
               onCancelEdit={cancelEditing}
-              onConversationSelect={handleConversationSelect}
-              onDeleteConversation={deleteConversation}
+              onTaskSelect={handleTaskSelect}
+              onDeleteTask={deleteTask}
               onSaveEdit={finishEditing}
               onStartEditing={startEditing}
               onTitleChange={setEditingTitle}
@@ -160,8 +160,8 @@ export function ChatHistorySidebar({
           {/* Footer */}
           <div className="border-t p-2">
             <div className="text-muted-foreground text-xs">
-              {filteredConversations.length} conversation
-              {filteredConversations.length !== 1 ? 's' : ''}
+              {filteredTasks.length} task
+              {filteredTasks.length !== 1 ? 's' : ''}
             </div>
           </div>
         </>

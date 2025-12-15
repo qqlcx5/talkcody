@@ -2,13 +2,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { logger } from '@/lib/logger';
 import {
-  type ConversationSkill,
   getSkillService,
   type Skill,
   type SkillFilter,
   type SkillSortOption,
+  type TaskSkill,
 } from '@/services/skills';
 import { useSkillsStore } from '@/stores/skills-store';
+import type { SkillContent } from '@/types/skill';
 
 /**
  * Apply local filters and sorting to skills
@@ -150,17 +151,17 @@ export function useSkill(skillId: string | null) {
 }
 
 /**
- * Hook for managing conversation skills
+ * Hook for managing task skills
  */
-export function useConversationSkills(conversationId: string | null) {
-  const [conversationSkills, setConversationSkills] = useState<ConversationSkill[]>([]);
+export function useTaskSkills(taskId: string | null) {
+  const [taskSkills, setTaskSkills] = useState<TaskSkill[]>([]);
   const [skills, setActiveSkills] = useState<Skill[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  const loadConversationSkills = useCallback(async () => {
-    if (!conversationId) {
-      setConversationSkills([]);
+  const loadTaskSkills = useCallback(async () => {
+    if (!taskId) {
+      setTaskSkills([]);
       setActiveSkills([]);
       setLoading(false);
       return;
@@ -171,12 +172,14 @@ export function useConversationSkills(conversationId: string | null) {
       setError(null);
       const service = await getSkillService();
 
-      // Load conversation-skill associations
-      const cs = await service.getConversationSkills(conversationId);
-      setConversationSkills(cs);
+      // Load task-skill associations
+      const ts = await service.getTaskSkills(taskId);
+      setTaskSkills(ts);
 
       // Load full skill data for active skills
-      const activeSkillIds = cs.filter((c) => c.enabled).map((c) => c.skillId);
+      const activeSkillIds = ts
+        .filter((t: TaskSkill) => t.enabled)
+        .map((t: TaskSkill) => t.skillId);
       const skillsData: Skill[] = [];
       for (const skillId of activeSkillIds) {
         const skill = await service.getSkill(skillId);
@@ -186,98 +189,101 @@ export function useConversationSkills(conversationId: string | null) {
       }
       setActiveSkills(skillsData);
     } catch (err) {
-      logger.error('Failed to load conversation skills:', err);
-      setError(err instanceof Error ? err : new Error('Failed to load conversation skills'));
+      logger.error('Failed to load task skills:', err);
+      setError(err instanceof Error ? err : new Error('Failed to load task skills'));
     } finally {
       setLoading(false);
     }
-  }, [conversationId]);
+  }, [taskId]);
 
   useEffect(() => {
-    loadConversationSkills();
-  }, [loadConversationSkills]);
+    loadTaskSkills();
+  }, [loadTaskSkills]);
 
   const enableSkill = useCallback(
     async (skillId: string, priority?: number) => {
-      if (!conversationId) return;
+      if (!taskId) return;
 
       try {
         const service = await getSkillService();
-        await service.enableSkillForConversation(conversationId, skillId, priority);
-        await loadConversationSkills();
+        await service.enableSkillForTask(taskId, skillId, priority);
+        await loadTaskSkills();
       } catch (err) {
         logger.error('Failed to enable skill:', err);
         throw err;
       }
     },
-    [conversationId, loadConversationSkills]
+    [taskId, loadTaskSkills]
   );
 
   const disableSkill = useCallback(
     async (skillId: string) => {
-      if (!conversationId) return;
+      if (!taskId) return;
 
       try {
         const service = await getSkillService();
-        await service.disableSkillForConversation(conversationId, skillId);
-        await loadConversationSkills();
+        await service.disableSkillForTask(taskId, skillId);
+        await loadTaskSkills();
       } catch (err) {
         logger.error('Failed to disable skill:', err);
         throw err;
       }
     },
-    [conversationId, loadConversationSkills]
+    [taskId, loadTaskSkills]
   );
 
   const toggleSkill = useCallback(
     async (skillId: string) => {
-      if (!conversationId) return false;
+      if (!taskId) return false;
 
       try {
         const service = await getSkillService();
-        const enabled = await service.toggleSkillForConversation(conversationId, skillId);
-        await loadConversationSkills();
+        const enabled = await service.toggleSkillForTask(taskId, skillId);
+        await loadTaskSkills();
         return enabled;
       } catch (err) {
         logger.error('Failed to toggle skill:', err);
         throw err;
       }
     },
-    [conversationId, loadConversationSkills]
+    [taskId, loadTaskSkills]
   );
 
-  const setConversationSkillsList = useCallback(
+  const setTaskSkillsList = useCallback(
     async (skillIds: string[]) => {
-      if (!conversationId) return;
+      if (!taskId) return;
 
       try {
         const service = await getSkillService();
-        await service.setConversationSkills(conversationId, skillIds);
-        await loadConversationSkills();
+        await service.setTaskSkills(taskId, skillIds);
+        await loadTaskSkills();
       } catch (err) {
-        logger.error('Failed to set conversation skills:', err);
+        logger.error('Failed to set task skills:', err);
         throw err;
       }
     },
-    [conversationId, loadConversationSkills]
+    [taskId, loadTaskSkills]
   );
 
   const refresh = useCallback(() => {
-    loadConversationSkills();
-  }, [loadConversationSkills]);
+    loadTaskSkills();
+  }, [loadTaskSkills]);
 
   return {
-    conversationSkills,
+    taskSkills,
     skills,
     loading,
     error,
     enableSkill,
     disableSkill,
     toggleSkill,
-    setSkills: setConversationSkillsList,
+    setSkills: setTaskSkillsList,
     refresh,
   };
 }
+
+/** @deprecated Use useTaskSkills instead */
+export const useConversationSkills = useTaskSkills;
 
 /**
  * Hook for CRUD operations on skills
@@ -286,137 +292,168 @@ export function useSkillMutations() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
-  const createSkill = useCallback(async (data: any) => {
-    try {
-      setLoading(true);
-      setError(null);
+  const createSkill = useCallback(
+    async (data: {
+      name: string;
+      description: string;
+      category: string;
+      tags?: string[];
+      content: string | SkillContent;
+      metadata?: { tags: string[] };
+    }) => {
+      try {
+        setLoading(true);
+        setError(null);
 
-      // Use FileBasedSkillService to create file-based skills
-      const { getFileBasedSkillService } = await import(
-        '@/services/skills/file-based-skill-service'
-      );
-      const fileService = await getFileBasedSkillService();
-
-      const fileSkill = await fileService.createSkill({
-        name: data.name,
-        description: data.description,
-        category: data.category,
-        tags: data.metadata?.tags || data.tags || [],
-        content: data.content,
-      });
-
-      logger.info(`Created skill: ${data.name} (${fileSkill.id})`);
-
-      // Convert FileBasedSkill to Skill format for return
-      const skill = {
-        id: fileSkill.id,
-        name: fileSkill.name,
-        description: fileSkill.description,
-        category: fileSkill.frontmatter.category || 'other',
-        metadata: {
-          tags: fileSkill.metadata.tags,
-          isBuiltIn: false,
-          sourceType: 'local' as const,
-          createdAt: fileSkill.metadata.installedAt,
-          updatedAt: fileSkill.metadata.lastUpdatedAt,
-        },
-      };
-
-      return skill;
-    } catch (err) {
-      logger.error('Failed to create skill:', err);
-      const error = err instanceof Error ? err : new Error('Failed to create skill');
-      setError(error);
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const updateSkill = useCallback(async (id: string, data: any) => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      // Use FileBasedSkillService to update file-based skills
-      const { getFileBasedSkillService } = await import(
-        '@/services/skills/file-based-skill-service'
-      );
-      const fileService = await getFileBasedSkillService();
-
-      // Get the existing skill
-      const existingSkill = await fileService.getSkillById(id);
-      if (!existingSkill) {
-        throw new Error(`Skill with ID ${id} not found`);
-      }
-
-      const updatedName = data.name ?? existingSkill.name;
-      const updatedDescription = data.description ?? existingSkill.description;
-      const updatedCategory = data.category ?? existingSkill.frontmatter.category;
-
-      // If content is provided, regenerate SKILL.md content
-      let updatedContent = existingSkill.content;
-      if (data.content) {
-        const { SkillMdParser } = await import('@/services/skills/skill-md-parser');
-        const fullContent = SkillMdParser.createSkillMdFromContent(
-          updatedName,
-          updatedDescription,
-          data.content,
-          updatedCategory
+        // Use FileBasedSkillService to create file-based skills
+        const { getFileBasedSkillService } = await import(
+          '@/services/skills/file-based-skill-service'
         );
-        // Parse the generated content to extract just the markdown part
-        const parsed = SkillMdParser.parse(fullContent);
-        updatedContent = parsed.content;
-      }
+        const fileService = await getFileBasedSkillService();
 
-      // Update the skill object
-      const updatedSkill = {
-        ...existingSkill,
-        name: updatedName,
-        description: updatedDescription,
-        content: updatedContent,
-        frontmatter: {
-          ...existingSkill.frontmatter,
+        const fileSkill = await fileService.createSkill({
+          name: data.name,
+          description: data.description,
+          category: data.category,
+          tags: data.metadata?.tags || data.tags || [],
+          content:
+            typeof data.content === 'string'
+              ? { systemPromptFragment: data.content }
+              : data.content,
+        });
+
+        logger.info(`Created skill: ${data.name} (${fileSkill.id})`);
+
+        // Convert FileBasedSkill to Skill format for return
+        const skill = {
+          id: fileSkill.id,
+          name: fileSkill.name,
+          description: fileSkill.description,
+          category: fileSkill.frontmatter.category || 'other',
+          metadata: {
+            tags: fileSkill.metadata.tags,
+            isBuiltIn: false,
+            sourceType: 'local' as const,
+            createdAt: fileSkill.metadata.installedAt,
+            updatedAt: fileSkill.metadata.lastUpdatedAt,
+          },
+        };
+
+        return skill;
+      } catch (err) {
+        logger.error('Failed to create skill:', err);
+        const error = err instanceof Error ? err : new Error('Failed to create skill');
+        setError(error);
+        throw error;
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
+
+  const updateSkill = useCallback(
+    async (
+      id: string,
+      data: {
+        name?: string;
+        description?: string;
+        category?: string;
+        tags?: string[];
+        content?: string | SkillContent;
+        metadata?: { tags: string[] };
+      }
+    ) => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        // Use FileBasedSkillService to update file-based skills
+        const { getFileBasedSkillService } = await import(
+          '@/services/skills/file-based-skill-service'
+        );
+        const fileService = await getFileBasedSkillService();
+
+        // Get the existing skill
+        const existingSkill = await fileService.getSkillById(id);
+        if (!existingSkill) {
+          throw new Error(`Skill with ID ${id} not found`);
+        }
+
+        const updatedName = data.name ?? existingSkill.name;
+        const updatedDescription = data.description ?? existingSkill.description;
+        const updatedCategory =
+          data.category ?? (existingSkill.frontmatter.category as string) ?? undefined;
+
+        // If content is provided, regenerate SKILL.md content
+        let updatedContent = existingSkill.content;
+        if (data.content) {
+          const { SkillMdParser } = await import('@/services/skills/skill-md-parser');
+          const content =
+            typeof data.content === 'string'
+              ? { systemPromptFragment: data.content }
+              : data.content;
+          const fullContent = SkillMdParser.createSkillMdFromContent(
+            updatedName,
+            updatedDescription,
+            content,
+            updatedCategory
+          );
+          // Parse the generated content to extract just the markdown part
+          const parsed = SkillMdParser.parse(fullContent);
+          updatedContent = String(parsed.content);
+        }
+
+        // Update the skill object
+        const updatedSkill = {
+          ...existingSkill,
           name: updatedName,
           description: updatedDescription,
-          category: updatedCategory,
-        },
-        metadata: {
-          ...existingSkill.metadata,
-          tags: data.metadata?.tags ?? data.tags ?? existingSkill.metadata.tags,
-        },
-      };
+          content: updatedContent,
+          frontmatter: {
+            ...existingSkill.frontmatter,
+            name: updatedName,
+            description: updatedDescription,
+            category: updatedCategory,
+          },
+          metadata: {
+            ...existingSkill.metadata,
+            tags: data.metadata?.tags ?? data.tags ?? existingSkill.metadata.tags,
+          },
+        };
 
-      // Save the updated skill
-      await fileService.updateSkill(updatedSkill);
+        // Save the updated skill
+        await fileService.updateSkill(updatedSkill);
 
-      logger.info(`Updated skill: ${updatedSkill.name} (${id})`);
+        logger.info(`Updated skill: ${updatedSkill.name} (${id})`);
 
-      // Convert FileBasedSkill to Skill format for return
-      const skill = {
-        id: updatedSkill.id,
-        name: updatedSkill.name,
-        description: updatedSkill.description,
-        category: updatedSkill.frontmatter.category || 'other',
-        metadata: {
-          tags: updatedSkill.metadata.tags,
-          isBuiltIn: false,
-          sourceType: 'local' as const,
-          createdAt: updatedSkill.metadata.installedAt,
-          updatedAt: updatedSkill.metadata.lastUpdatedAt,
-        },
-      };
+        // Convert FileBasedSkill to Skill format for return
+        const skill = {
+          id: updatedSkill.id,
+          name: updatedSkill.name,
+          description: updatedSkill.description,
+          category: updatedSkill.frontmatter.category || 'other',
+          metadata: {
+            tags: updatedSkill.metadata.tags,
+            isBuiltIn: false,
+            sourceType: 'local' as const,
+            createdAt: updatedSkill.metadata.installedAt,
+            updatedAt: updatedSkill.metadata.lastUpdatedAt,
+          },
+        };
 
-      return skill;
-    } catch (err) {
-      logger.error('Failed to update skill:', err);
-      const error = err instanceof Error ? err : new Error('Failed to update skill');
-      setError(error);
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+        return skill;
+      } catch (err) {
+        logger.error('Failed to update skill:', err);
+        const error = err instanceof Error ? err : new Error('Failed to update skill');
+        setError(error);
+        throw error;
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
 
   const deleteSkill = useCallback(async (id: string) => {
     try {

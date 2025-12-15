@@ -7,9 +7,9 @@ import { StickToBottom, useStickToBottomContext } from 'use-stick-to-bottom';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-export type ConversationProps = ComponentProps<typeof StickToBottom>;
+export type TaskProps = ComponentProps<typeof StickToBottom>;
 
-export const Conversation = ({ className, ...props }: ConversationProps) => (
+export const Task = ({ className, ...props }: TaskProps) => (
   <StickToBottom
     className={cn('relative flex-1', className)}
     initial="smooth"
@@ -19,18 +19,15 @@ export const Conversation = ({ className, ...props }: ConversationProps) => (
   />
 );
 
-export type ConversationContentProps = ComponentProps<typeof StickToBottom.Content>;
+export type TaskContentProps = ComponentProps<typeof StickToBottom.Content>;
 
-export const ConversationContent = ({ className, ...props }: ConversationContentProps) => (
+export const TaskContent = ({ className, ...props }: TaskContentProps) => (
   <StickToBottom.Content className={cn('p-4', className)} {...props} />
 );
 
-export type ConversationScrollButtonProps = ComponentProps<typeof Button>;
+export type TaskScrollButtonProps = ComponentProps<typeof Button>;
 
-export const ConversationScrollButton = ({
-  className,
-  ...props
-}: ConversationScrollButtonProps) => {
+export const TaskScrollButton = ({ className, ...props }: TaskScrollButtonProps) => {
   const { isAtBottom, scrollToBottom } = useStickToBottomContext();
 
   const handleScrollToBottom = useCallback(() => {

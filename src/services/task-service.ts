@@ -51,7 +51,7 @@ class TaskService {
 
     // 2. Persist to database
     try {
-      await databaseService.createConversation(title, taskId, projectId);
+      await databaseService.createTask(title, taskId, projectId);
       logger.info('[TaskService] Task created', { taskId, title });
     } catch (error) {
       logger.error('[TaskService] Failed to create task:', error);
@@ -76,8 +76,8 @@ class TaskService {
 
     try {
       const tasks = projectId
-        ? await databaseService.getConversations(projectId)
-        : await databaseService.getConversations();
+        ? await databaseService.getTasks(projectId)
+        : await databaseService.getTasks();
 
       taskStore.setTasks(tasks);
       logger.info('[TaskService] Tasks loaded', { count: tasks.length });
@@ -127,7 +127,7 @@ class TaskService {
 
     // Set as current task
     taskStore.setCurrentTaskId(taskId);
-    settingsManager.setCurrentConversationId(taskId);
+    settingsManager.setCurrentTaskId(taskId);
 
     // Touch cache for LRU tracking
     taskStore.touchMessageCache(taskId);
@@ -140,7 +140,7 @@ class TaskService {
 
     // Update usage tracking from database
     try {
-      const details = await databaseService.getConversationDetails(taskId);
+      const details = await databaseService.getTaskDetails(taskId);
       if (details) {
         taskStore.updateTask(taskId, {
           cost: details.cost,
@@ -162,7 +162,7 @@ class TaskService {
 
     // 2. Delete from database
     try {
-      await databaseService.deleteConversation(taskId);
+      await databaseService.deleteTask(taskId);
       logger.info('[TaskService] Task deleted', { taskId });
     } catch (error) {
       logger.error('[TaskService] Failed to delete task:', error);
@@ -179,7 +179,7 @@ class TaskService {
 
     // 2. Persist to database
     try {
-      await databaseService.updateConversationTitle(taskId, title);
+      await databaseService.updateTaskTitle(taskId, title);
       logger.info('[TaskService] Task renamed', { taskId, title });
     } catch (error) {
       logger.error('[TaskService] Failed to rename task:', error);
@@ -196,7 +196,7 @@ class TaskService {
 
     // 2. Persist to database
     try {
-      await databaseService.updateConversationSettings(taskId, JSON.stringify(settings));
+      await databaseService.updateTaskSettings(taskId, JSON.stringify(settings));
       logger.info('[TaskService] Task settings updated', { taskId, settings });
     } catch (error) {
       logger.error('[TaskService] Failed to update task settings:', error);
@@ -218,7 +218,7 @@ class TaskService {
 
     // 2. Persist to database
     try {
-      await databaseService.updateConversationUsage(taskId, cost, inputTokens, outputTokens);
+      await databaseService.updateTaskUsage(taskId, cost, inputTokens, outputTokens);
       logger.info('[TaskService] Task usage updated', { taskId, cost, inputTokens, outputTokens });
     } catch (error) {
       logger.error('[TaskService] Failed to update task usage:', error);
@@ -237,7 +237,7 @@ class TaskService {
 
     // Fetch from database
     try {
-      const task = await databaseService.getConversationDetails(taskId);
+      const task = await databaseService.getTaskDetails(taskId);
       if (!task) return null;
 
       // Update store cache
@@ -255,9 +255,9 @@ class TaskService {
    */
   startNewChat(): void {
     useTaskStore.getState().setCurrentTaskId(null);
-    // Note: settingsManager.setCurrentConversationId requires a string,
+    // Note: settingsManager.setCurrentTaskId requires a string,
     // but clearing it requires passing empty string to indicate no selection
-    settingsManager.setCurrentConversationId('');
+    settingsManager.setCurrentTaskId('');
   }
 }
 

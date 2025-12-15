@@ -244,7 +244,7 @@ export class PlannerAgent {
       description: 'Analyzes tasks, plans, and delegates work to tools/agents.',
       modelType: ModelType.MAIN,
       hidden: false,
-      isDefault: true,
+      isDefault: false,
       version: PlannerAgent.VERSION,
       systemPrompt: PlannerPrompt,
       tools: tools,

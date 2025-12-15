@@ -12,7 +12,7 @@ vi.mock('@/services/file-todo-service', () => ({
 
 vi.mock('@/stores/settings-store', () => ({
   settingsManager: {
-    getCurrentConversationId: vi.fn(),
+    getCurrentTaskId: vi.fn(),
   },
 }));
 
@@ -37,7 +37,7 @@ const mockLogger = logger as any;
 describe('todoWriteTool', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockSettingsManager.getCurrentConversationId.mockReturnValue('test-conversation-id');
+    mockSettingsManager.getCurrentTaskId.mockReturnValue('test-task-id');
   });
 
   afterEach(() => {
@@ -205,7 +205,7 @@ describe('todoWriteTool', () => {
 
       const result = await todoWriteTool.execute?.(input);
 
-      expect(mockFileTodoService.saveTodos).toHaveBeenCalledWith('test-conversation-id', [
+      expect(mockFileTodoService.saveTodos).toHaveBeenCalledWith('test-task-id', [
         {
           content: 'Test todo',
           status: 'pending',
@@ -220,7 +220,7 @@ describe('todoWriteTool', () => {
 
       expect(result).toEqual(input.todos);
       expect(mockLogger.info).toHaveBeenCalledWith(
-        'Saved 2 todos for conversation test-conversation-id'
+        'Saved 2 todos for task test-task-id'
       );
     });
 
@@ -230,7 +230,7 @@ describe('todoWriteTool', () => {
       const input = { todos: [] };
       const result = await todoWriteTool.execute?.(input);
 
-      expect(mockFileTodoService.saveTodos).toHaveBeenCalledWith('test-conversation-id', []);
+      expect(mockFileTodoService.saveTodos).toHaveBeenCalledWith('test-task-id', []);
       expect(result).toEqual([]);
     });
 
@@ -254,8 +254,8 @@ describe('todoWriteTool', () => {
   });
 
   describe('error handling', () => {
-    it('should handle missing conversation ID', async () => {
-      mockSettingsManager.getCurrentConversationId.mockReturnValue(null);
+    it('should handle missing task ID', async () => {
+      mockSettingsManager.getCurrentTaskId.mockReturnValue(null);
 
       const input = {
         todos: [
@@ -268,7 +268,7 @@ describe('todoWriteTool', () => {
       };
 
       await expect(todoWriteTool.execute?.(input)).rejects.toThrow();
-      expect(mockLogger.warn).toHaveBeenCalledWith('No current conversation ID found');
+      expect(mockLogger.warn).toHaveBeenCalledWith('No current task ID found');
     });
 
     it('should handle file save errors', async () => {
@@ -409,7 +409,7 @@ describe('todoWriteTool', () => {
 
       await todoWriteTool.execute?.(input);
 
-      expect(mockFileTodoService.saveTodos).toHaveBeenCalledWith('test-conversation-id', [
+      expect(mockFileTodoService.saveTodos).toHaveBeenCalledWith('test-task-id', [
         {
           content: 'Test todo',
           status: 'in_progress',
@@ -434,7 +434,7 @@ describe('todoWriteTool', () => {
       await todoWriteTool.execute?.(input);
 
       expect(mockLogger.info).toHaveBeenCalledWith(
-        'Saved 1 todos for conversation test-conversation-id'
+        'Saved 1 todos for task test-task-id'
       );
     });
   });

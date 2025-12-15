@@ -4,10 +4,10 @@ import { WriteFileToolDoing } from '@/components/tools/write-file-tool-doing';
 import { createTool } from '@/lib/create-tool';
 import { logger } from '@/lib/logger';
 import { createPathSecurityError, isPathWithinProjectDirectory } from '@/lib/utils/path-security';
-import { ConversationManager } from '@/services/conversation-manager';
 import { notificationService } from '@/services/notification-service';
 import { repositoryService } from '@/services/repository-service';
 import { normalizeFilePath } from '@/services/repository-utils';
+import { TaskManager } from '@/services/task-manager';
 import { getValidatedWorkspaceRoot } from '@/services/workspace-root-service';
 import {
   type FileEditReviewResult,
@@ -72,9 +72,9 @@ The file path should be an absolute path.`,
         fileExists = false;
       }
 
-      // Check if auto-approve is enabled for this conversation
-      const conversationId = settingsManager.getCurrentConversationId();
-      const settingsJson = await ConversationManager.getConversationSettings(conversationId);
+      // Check if auto-approve is enabled for this task
+      const taskId = settingsManager.getCurrentTaskId();
+      const settingsJson = await TaskManager.getTaskSettings(taskId);
 
       if (settingsJson) {
         try {
@@ -91,7 +91,7 @@ The file path should be an absolute path.`,
             useFileChangesStore
               .getState()
               .addChange(
-                conversationId,
+                taskId,
                 file_path,
                 fileExists ? 'edit' : 'write',
                 originalContent,
@@ -136,7 +136,7 @@ The file path should be an absolute path.`,
             useFileChangesStore
               .getState()
               .addChange(
-                conversationId,
+                taskId,
                 file_path,
                 fileExists ? 'edit' : 'write',
                 originalContent,
@@ -156,11 +156,8 @@ The file path should be an absolute path.`,
           onAllowAll: async () => {
             // 1. Update conversation settings to enable auto-approve
             const newSettings: TaskSettings = { autoApproveEdits: true };
-            await ConversationManager.updateConversationSettings(
-              conversationId,
-              JSON.stringify(newSettings)
-            );
-            logger.info(`Auto-approve enabled for conversation ${conversationId}`);
+            await TaskManager.updateTaskSettings(taskId, JSON.stringify(newSettings));
+            logger.info(`Auto-approve enabled for conversation ${taskId}`);
 
             // 2. Approve current write
             await repositoryService.writeFile(file_path, normalizedContent);
@@ -173,7 +170,7 @@ The file path should be an absolute path.`,
             useFileChangesStore
               .getState()
               .addChange(
-                conversationId,
+                taskId,
                 file_path,
                 fileExists ? 'edit' : 'write',
                 originalContent,
@@ -252,7 +249,7 @@ The file path should be an absolute path.`,
       useFileChangesStore
         .getState()
         .addChange(
-          conversationId,
+          taskId,
           file_path,
           fileExists ? 'edit' : 'write',
           originalContent,
@@ -274,16 +271,9 @@ The file path should be an absolute path.`,
     }
   },
   renderToolDoing: ({ file_path }) => {
-    // Use the responsive wrapper component that subscribes to the store
     return <WriteFileToolDoing file_path={file_path} />;
   },
-  renderToolResult: (result, { file_path } = {}) => (
-    <GenericToolResult
-      success={result?.success ?? false}
-      operation="write"
-      filePath={file_path}
-      message={result?.message}
-      error={result?.success ? undefined : result?.message}
-    />
+  renderToolResult: (result) => (
+    <GenericToolResult success={result?.success ?? false} message={result?.message} />
   ),
 });

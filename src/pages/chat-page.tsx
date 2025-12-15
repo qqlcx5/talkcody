@@ -14,7 +14,7 @@ export function ChatOnlyPage() {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
 
-  const { currentConversationId, selectConversation, startNewChat } = useTasks();
+  const { currentTaskId, selectTask, startNewChat } = useTasks();
 
   const rootPath = useRepositoryStore((state) => state.rootPath);
   const openFiles = useRepositoryStore((state) => state.openFiles);
@@ -64,13 +64,13 @@ export function ChatOnlyPage() {
     setIsHistoryOpen(false);
   };
 
-  const handleHistoryConversationSelect = (conversationId: string) => {
-    selectConversation(conversationId);
+  const handleHistoryTaskSelect = (taskId: string) => {
+    selectTask(taskId);
     setIsHistoryOpen(false);
   };
 
-  const handleConversationStart = (conversationId: string, _title: string) => {
-    selectConversation(conversationId);
+  const handleTaskStart = (taskId: string, _title: string) => {
+    selectTask(taskId);
   };
 
   const handleDiffApplied = () => {
@@ -106,17 +106,17 @@ export function ChatOnlyPage() {
   return (
     <div className="flex h-full">
       <ChatHistorySidebar
-        currentConversationId={currentConversationId}
-        onConversationSelect={handleHistoryConversationSelect}
+        currentTaskId={currentTaskId}
+        onTaskSelect={handleHistoryTaskSelect}
         onNewChat={handleNewChat}
         currentProjectId={currentProjectId}
       />
 
       <div className="flex flex-1 flex-col bg-white dark:bg-gray-950">
         <ChatToolbar
-          currentConversationId={currentConversationId}
+          currentTaskId={currentTaskId}
           isHistoryOpen={isHistoryOpen}
-          onConversationSelect={handleHistoryConversationSelect}
+          onTaskSelect={handleHistoryTaskSelect}
           onHistoryOpenChange={setIsHistoryOpen}
           onNewChat={handleNewChat}
           currentProjectId={currentProjectId}
@@ -133,17 +133,17 @@ export function ChatOnlyPage() {
 
         {/* Running tasks tabs for quick switching between concurrent tasks */}
         <RunningTasksTabs
-          currentTaskId={currentConversationId}
-          onSelectTask={handleHistoryConversationSelect}
+          currentTaskId={currentTaskId}
+          onSelectTask={handleHistoryTaskSelect}
           onNewChat={handleNewChat}
           onStopTask={(taskId) => executionService.stopExecution(taskId)}
         />
 
         <div className="flex-1 overflow-hidden">
           <ChatBox
-            conversationId={currentConversationId}
+            taskId={currentTaskId}
             fileContent={currentFile?.content || null}
-            onConversationStart={handleConversationStart}
+            onTaskStart={handleTaskStart}
             onDiffApplied={handleDiffApplied}
             repositoryPath={rootPath || undefined}
             selectedFile={currentFile?.path || null}

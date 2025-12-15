@@ -173,7 +173,7 @@ export class LLMService {
         // Clear file changes from previous agent loop for this task
         if (effectiveTaskId && effectiveTaskId !== 'nested') {
           const { useFileChangesStore } = await import('@/stores/file-changes-store');
-          useFileChangesStore.getState().clearConversation(effectiveTaskId);
+          useFileChangesStore.getState().clearTask(effectiveTaskId);
         }
 
         const providerStore = useProviderStore.getState();
@@ -243,15 +243,7 @@ export class LLMService {
             // This allows tools to change when plan mode is toggled during the loop
             // (e.g., when user approves a plan, plan mode becomes false and writeFile/editFile become available)
             isPlanModeEnabled = usePlanModeStore.getState().isPlanModeEnabled;
-
-            if (isPlanModeEnabled) {
-              // In plan mode: remove file modification tools
-              delete filteredTools.writeFile;
-              delete filteredTools.editFile;
-              logger.info('[Plan Mode] Removed writeFile and editFile tools', {
-                iteration: loopState.currentIteration,
-              });
-            } else {
+            if (!isPlanModeEnabled) {
               // In normal mode: remove plan-specific tools
               delete filteredTools.exitPlanMode;
               delete filteredTools.askUserQuestions;

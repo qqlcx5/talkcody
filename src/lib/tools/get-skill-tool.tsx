@@ -151,14 +151,7 @@ Skills may include executable scripts (Python, Bash, Node.js) that you can run u
   renderToolDoing: ({ skill_name }) => (
     <GenericToolDoing operation="skill" filePath={`skill: ${skill_name}`} />
   ),
-  renderToolResult: (result, { skill_name } = {}) => (
-    <GenericToolResult
-      success={result?.success ?? false}
-      operation="skill"
-      filePath={`skill: ${skill_name}`}
-      content={result?.content}
-      message={result?.message}
-      error={result?.success ? undefined : result?.message}
-    />
+  renderToolResult: (result) => (
+    <GenericToolResult success={result?.success ?? false} message={result?.content} />
   ),
 });

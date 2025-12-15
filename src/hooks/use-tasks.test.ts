@@ -32,8 +32,8 @@ vi.mock('@/stores/ui-state-store', () => ({
 vi.mock('@/stores/settings-store', () => ({
   settingsManager: {
     getProject: vi.fn(),
-    setCurrentConversationId: vi.fn(),
-    getCurrentConversationId: vi.fn(),
+    setCurrentTaskId: vi.fn(),
+    getCurrentTaskId: vi.fn(),
   },
 }));
 
@@ -52,7 +52,7 @@ vi.mock('@/services/task-service', () => ({
 vi.mock('@/services/database-service', () => ({
   databaseService: {
     saveMessage: vi.fn(),
-    getConversationDetails: vi.fn(),
+    getTaskDetails: vi.fn(),
   },
 }));
 
@@ -83,15 +83,15 @@ describe('useTasks', () => {
   it('should initialize with correct default values', () => {
     const { result } = renderHook(() => useTasks());
 
-    expect(result.current.conversations).toEqual([]);
-    expect(result.current.currentConversationId).toBeUndefined();
+    expect(result.current.tasks).toEqual([]);
+    expect(result.current.currentTaskId).toBeUndefined();
     expect(result.current.loading).toBe(false);
     expect(result.current.error).toBeNull();
     expect(result.current.editingId).toBeNull();
     expect(result.current.editingTitle).toBe('');
   });
 
-  it('should return conversations sorted by updated_at descending', () => {
+  it('should return tasks sorted by updated_at descending', () => {
     const task1 = {
       id: 'task1',
       title: 'Task 1',
@@ -120,8 +120,8 @@ describe('useTasks', () => {
     const { result } = renderHook(() => useTasks());
 
     // Should be sorted by updated_at descending (task2 first)
-    expect(result.current.conversations[0].id).toBe('task2');
-    expect(result.current.conversations[1].id).toBe('task1');
+    expect(result.current.tasks[0].id).toBe('task2');
+    expect(result.current.tasks[1].id).toBe('task1');
   });
 
   it('should load tasks', async () => {
@@ -146,13 +146,13 @@ describe('useTasks', () => {
       await result.current.loadTasks();
     });
 
-    expect(result.current.error).toBe('Failed to load conversations');
-    expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to load conversations:', expect.any(Error));
+    expect(result.current.error).toBe('Failed to load tasks');
+    expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to load tasks:', expect.any(Error));
 
     loggerErrorSpy.mockRestore();
   });
 
-  it('should create a conversation', async () => {
+  it('should create a task', async () => {
     const { taskService } = await import('@/services/task-service');
     (taskService.createTask as any).mockResolvedValueOnce('new-task-id');
 
@@ -161,7 +161,7 @@ describe('useTasks', () => {
 
     let taskId: string;
     await act(async () => {
-      taskId = await result.current.createConversation('Hello world');
+      taskId = await result.current.createTask('Hello world');
     });
 
     expect(taskService.createTask).toHaveBeenCalledWith('Hello world', {
@@ -170,23 +170,23 @@ describe('useTasks', () => {
     expect(taskId!).toBe('new-task-id');
   });
 
-  it('should select a conversation', async () => {
+  it('should select a task', async () => {
     const { taskService } = await import('@/services/task-service');
 
     const { result } = renderHook(() => useTasks());
     await act(async () => {
-      await result.current.selectConversation('task1');
+      await result.current.selectTask('task1');
     });
 
     expect(taskService.selectTask).toHaveBeenCalledWith('task1');
   });
 
-  it('should delete a conversation', async () => {
+  it('should delete a task', async () => {
     const { taskService } = await import('@/services/task-service');
 
     const { result } = renderHook(() => useTasks());
     await act(async () => {
-      await result.current.deleteConversation('task1');
+      await result.current.deleteTask('task1');
     });
 
     expect(taskService.deleteTask).toHaveBeenCalledWith('task1');
@@ -210,15 +210,15 @@ describe('useTasks', () => {
     );
   });
 
-  it('should get conversation details', async () => {
+  it('should get task details', async () => {
     const { databaseService } = await import('@/services/database-service');
     const mockDetails = { id: 'task1', title: 'Test' };
-    (databaseService.getConversationDetails as any).mockResolvedValueOnce(mockDetails);
+    (databaseService.getTaskDetails as any).mockResolvedValueOnce(mockDetails);
 
     const { result } = renderHook(() => useTasks());
-    const details = await result.current.getConversationDetails('task1');
+    const details = await result.current.getTaskDetails('task1');
 
-    expect(databaseService.getConversationDetails).toHaveBeenCalledWith('task1');
+    expect(databaseService.getTaskDetails).toHaveBeenCalledWith('task1');
     expect(details).toEqual(mockDetails);
   });
 
@@ -233,7 +233,7 @@ describe('useTasks', () => {
     expect(taskService.startNewChat).toHaveBeenCalled();
   });
 
-  it('should set current conversation ID', async () => {
+  it('should set current task ID', async () => {
     const { settingsManager } = await import('@/stores/settings-store');
     const { useTaskStore } = await import('@/stores/task-store');
     const mockSetCurrentTaskId = vi.fn();
@@ -243,11 +243,11 @@ describe('useTasks', () => {
 
     const { result } = renderHook(() => useTasks());
     act(() => {
-      result.current.setCurrentConversationId('task1');
+      result.current.setCurrentTaskId('task1');
     });
 
     expect(mockSetCurrentTaskId).toHaveBeenCalledWith('task1');
-    expect(settingsManager.setCurrentConversationId).toHaveBeenCalledWith('task1');
+    expect(settingsManager.setCurrentTaskId).toHaveBeenCalledWith('task1');
   });
 
   it('should handle editing flow', async () => {
@@ -295,7 +295,7 @@ describe('useTasks', () => {
     expect(mockUIStateStoreState.cancelEditing).toHaveBeenCalled();
   });
 
-  it('should clear conversation', async () => {
+  it('should clear task', async () => {
     const { useTaskStore } = await import('@/stores/task-store');
     const mockSetCurrentTaskId = vi.fn();
     (useTaskStore as any).getState = vi.fn().mockReturnValue({
@@ -304,7 +304,7 @@ describe('useTasks', () => {
 
     const { result } = renderHook(() => useTasks());
     act(() => {
-      result.current.clearConversation();
+      result.current.clearTask();
     });
 
     expect(mockSetCurrentTaskId).toHaveBeenCalledWith(null);

@@ -7,21 +7,21 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { useTranslation } from '@/hooks/use-locale';
 import { useTasks } from '@/hooks/use-tasks';
 import { useExecutionStore } from '@/stores/execution-store';
-import { ConversationList } from './conversation-list';
+import { TaskList } from './task-list';
 
 interface ChatHistoryProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  currentConversationId?: string;
-  onConversationSelect: (conversationId: string) => void;
+  currentTaskId?: string;
+  onTaskSelect: (taskId: string) => void;
   onNewChat: () => void;
 }
 
 export function ChatHistory({
   isOpen,
   onOpenChange,
-  currentConversationId,
-  onConversationSelect,
+  currentTaskId,
+  onTaskSelect,
   onNewChat,
 }: ChatHistoryProps) {
   const t = useTranslation();
@@ -31,29 +31,29 @@ export function ChatHistory({
   const isMaxReached = useExecutionStore((state) => state.isMaxReached());
 
   const {
-    conversations,
+    tasks,
     loading,
     editingId,
     editingTitle,
     setEditingTitle,
-    loadTasks: loadConversations,
-    deleteConversation,
+    loadTasks,
+    deleteTask,
     finishEditing,
     startEditing,
     cancelEditing,
-    selectConversation,
+    selectTask,
   } = useTasks();
 
-  // Refresh conversations when history opens or active conversation changes
+  // Refresh tasks when history opens or active task changes
   useEffect(() => {
     if (isOpen) {
-      loadConversations();
+      loadTasks();
     }
-  }, [isOpen, loadConversations]);
+  }, [isOpen, loadTasks]);
 
-  const handleConversationSelect = (conversationId: string) => {
-    selectConversation(conversationId);
-    onConversationSelect(conversationId);
+  const handleTaskSelect = (taskId: string) => {
+    selectTask(taskId);
+    onTaskSelect(taskId);
     onOpenChange(false);
   };
 
@@ -62,8 +62,8 @@ export function ChatHistory({
     onOpenChange(false);
   };
 
-  const filteredConversations = conversations.filter((conv) =>
-    conv.title.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredTasks = tasks.filter((task) =>
+    task.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
@@ -101,23 +101,23 @@ export function ChatHistory({
               <Input
                 className="h-8 pl-9"
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={t.Chat.searchConversations}
+                placeholder={t.Chat.searchTasks}
                 value={searchQuery}
               />
             </div>
           </div>
 
-          {/* Conversations List */}
+          {/* Tasks List */}
           <div className="flex-1 overflow-auto">
-            <ConversationList
-              conversations={filteredConversations}
-              currentConversationId={currentConversationId}
+            <TaskList
+              tasks={filteredTasks}
+              currentTaskId={currentTaskId}
               editingId={editingId}
               editingTitle={editingTitle}
               loading={loading}
               onCancelEdit={cancelEditing}
-              onConversationSelect={handleConversationSelect}
-              onDeleteConversation={deleteConversation}
+              onTaskSelect={handleTaskSelect}
+              onDeleteTask={deleteTask}
               onSaveEdit={finishEditing}
               onStartEditing={startEditing}
               onTitleChange={setEditingTitle}

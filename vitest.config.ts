@@ -33,6 +33,11 @@ export default defineConfig({
       'apps/**/node_modules/**',
       'packages/**/node_modules/**',
       '**/e2e/**', // Playwright e2e tests should be run separately
+      // Database tests that require bun:sqlite - run with `bun test:db` instead
+      'src/test/infrastructure/infrastructure-adapters.test.ts',
+      'src/test/infrastructure/infrastructure-ipc.test.ts',
+      'src/services/database/**/*.real-db.test.ts',
+      'src/services/database/task-service.test.ts',
     ],
     coverage: {
       provider: 'v8',

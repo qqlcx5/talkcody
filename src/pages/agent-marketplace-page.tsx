@@ -62,6 +62,9 @@ export function AgentMarketplacePage() {
   const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null);
   const [publishingAgent, setPublishingAgent] = useState<Agent | null>(null);
 
+  // Tab-specific loading state
+  const [isMarketplaceDataLoaded, setIsMarketplaceDataLoaded] = useState(false);
+
   const t = useTranslation();
   const refreshAgents = useAgentStore((state) => state.refreshAgents);
 
@@ -113,8 +116,8 @@ export function AgentMarketplacePage() {
     return result;
   }, [myAgents, searchQuery, sortBy]);
 
+  // Load local agents on mount only
   useEffect(() => {
-    // Initialize agents on mount
     const initializeAgents = async () => {
       try {
         await refreshLocalAgents();
@@ -126,42 +129,88 @@ export function AgentMarketplacePage() {
     initializeAgents();
   }, [refreshLocalAgents]);
 
+  // Load marketplace data only when switching to marketplace tab
   useEffect(() => {
-    // Load marketplace data
-    loadCategories();
-    loadTags();
-    loadFeaturedAgents();
-    loadMarketplaceAgents({
-      sortBy,
-      search: searchQuery || undefined,
-      categoryIds: selectedCategory !== 'all' ? [selectedCategory] : undefined,
-      tagIds: selectedTags.length > 0 ? selectedTags : undefined,
-    });
+    if (activeTab === 'all' && !isMarketplaceDataLoaded) {
+      logger.info('Loading marketplace data for first time...');
+      const loadMarketplaceData = async () => {
+        try {
+          await Promise.all([
+            loadCategories(),
+            loadTags(),
+            loadFeaturedAgents(),
+            loadMarketplaceAgents({
+              sortBy,
+              search: searchQuery || undefined,
+              categoryIds: selectedCategory !== 'all' ? [selectedCategory] : undefined,
+              tagIds: selectedTags.length > 0 ? selectedTags : undefined,
+            }),
+          ]);
+          setIsMarketplaceDataLoaded(true);
+        } catch (error) {
+          logger.error('Failed to load marketplace data:', error);
+        }
+      };
+
+      loadMarketplaceData();
+    }
   }, [
-    searchQuery,
-    selectedCategory,
-    selectedTags,
-    sortBy,
-    loadMarketplaceAgents,
+    activeTab,
+    isMarketplaceDataLoaded,
     loadCategories,
     loadTags,
     loadFeaturedAgents,
+    loadMarketplaceAgents,
+    sortBy,
+    searchQuery,
+    selectedCategory,
+    selectedTags,
   ]);
 
-  const handleRefresh = () => {
-    logger.info('Refreshing marketplace data...');
-    if (activeTab === 'myagents') {
-      refreshLocalAgents();
-    } else {
-      loadCategories();
-      loadTags();
-      loadFeaturedAgents();
+  // Load marketplace data when filters change and we're on marketplace tab
+  useEffect(() => {
+    if (activeTab === 'all' && isMarketplaceDataLoaded) {
       loadMarketplaceAgents({
         sortBy,
         search: searchQuery || undefined,
         categoryIds: selectedCategory !== 'all' ? [selectedCategory] : undefined,
         tagIds: selectedTags.length > 0 ? selectedTags : undefined,
       });
+    }
+  }, [
+    searchQuery,
+    selectedCategory,
+    selectedTags,
+    sortBy,
+    activeTab,
+    isMarketplaceDataLoaded,
+    loadMarketplaceAgents,
+  ]);
+
+  const handleRefresh = async () => {
+    logger.info('Refreshing data...');
+    if (activeTab === 'myagents') {
+      await refreshLocalAgents();
+    } else {
+      // Directly reload marketplace data without tab switching hack
+      setIsMarketplaceDataLoaded(false);
+      try {
+        await Promise.all([
+          loadCategories(),
+          loadTags(),
+          loadFeaturedAgents(),
+          loadMarketplaceAgents({
+            sortBy,
+            search: searchQuery || undefined,
+            categoryIds: selectedCategory !== 'all' ? [selectedCategory] : undefined,
+            tagIds: selectedTags.length > 0 ? selectedTags : undefined,
+          }),
+        ]);
+        setIsMarketplaceDataLoaded(true);
+      } catch (error) {
+        logger.error('Failed to refresh marketplace data:', error);
+        setIsMarketplaceDataLoaded(true); // Still mark as loaded to show error state
+      }
     }
   };
 
@@ -486,7 +535,8 @@ export function AgentMarketplacePage() {
           </div>
 
           <TabsContent value="all" className="px-6 pb-6 mt-4">
-            {isLoading ? (
+            {/* Only show loading if marketplace data is being loaded for the first time */}
+            {isLoading && !isMarketplaceDataLoaded ? (
               <div className="flex items-center justify-center h-64">
                 <div className="text-muted-foreground">{t.Agents.page.loading}</div>
               </div>

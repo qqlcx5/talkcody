@@ -1,7 +1,7 @@
 import { Plus, RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { ModelSelector } from '@/components/selectors/model-selector';
+import { ModelSelectorWithSearch } from '@/components/selectors/model-selector-with-search';
 import { ProviderSelector } from '@/components/selectors/provider-selector';
 import {
   AddCustomModelDialog,
@@ -302,7 +302,7 @@ export function ModelTypeSettings() {
                 <Label htmlFor={`model-type-${modelType}`} className="shrink-0 font-medium text-sm">
                   {t.Settings.models.customModels.model}
                 </Label>
-                <ModelSelector
+                <ModelSelectorWithSearch
                   value={selectedModels[modelType]}
                   onChange={(value) => handleModelChange(modelType, value)}
                   placeholder={getPlaceholder(modelType)}

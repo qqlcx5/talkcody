@@ -93,11 +93,11 @@ export interface Skill {
 }
 
 /**
- * Conversation-Skill association
- * Represents the activation state of a skill in a conversation
+ * Task-Skill association
+ * Represents the activation state of a skill in a task
  */
-export interface ConversationSkill {
-  conversationId: string;
+export interface TaskSkill {
+  taskId: string;
   skillId: string;
   enabled: boolean;
   priority: number; // Higher number = higher priority

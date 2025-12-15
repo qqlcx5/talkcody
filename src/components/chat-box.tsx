@@ -30,11 +30,7 @@ import { settingsManager, useSettingsStore } from '@/stores/settings-store';
 import { useTaskStore } from '@/stores/task-store';
 import type { MessageAttachment, UIMessage } from '@/types/agent';
 import type { Command, CommandContext, CommandResult } from '@/types/command';
-import {
-  Conversation,
-  ConversationContent,
-  ConversationScrollButton,
-} from './ai-elements/conversation';
+import { Task, TaskContent, TaskScrollButton } from './ai-elements/task';
 import { ChatInput, type ChatInputRef } from './chat/chat-input';
 import { FileChangesSummary } from './chat/file-changes-summary';
 import { MessageList } from './chat/message-list';
@@ -44,8 +40,8 @@ interface ChatBoxProps {
   onMessageSent?: (message: string) => void;
   onResponseReceived?: (response: string) => void;
   onError?: (error: string) => void;
-  conversationId?: string;
-  onConversationStart?: (conversationId: string, title: string) => void;
+  taskId?: string;
+  onTaskStart?: (taskId: string, title: string) => void;
   selectedFile?: string | null;
   fileContent?: string | null;
   repositoryPath?: string;
@@ -66,8 +62,8 @@ export const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(
       onMessageSent,
       onResponseReceived,
       onError,
-      conversationId,
-      onConversationStart,
+      taskId,
+      onTaskStart,
       selectedFile,
       fileContent,
       repositoryPath,
@@ -79,20 +75,20 @@ export const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(
   ) => {
     const [input, setInput] = useState('');
     const chatInputRef = useRef<ChatInputRef>(null);
-    // Ref to track the currently displayed conversationId (from props) for background task UI isolation
-    const displayedConversationIdRef = useRef<string | undefined>(conversationId);
+    // Ref to track the currently displayed taskId (from props) for background task UI isolation
+    const displayedTaskIdRef = useRef<string | undefined>(taskId);
     const language = useSettingsStore((state) => state.language);
     const t = useMemo(() => getLocale((language || 'en') as SupportedLocale), [language]);
 
     // Derive loading state from TaskExecutionStore (instead of local state)
-    // This ensures correct state when switching between conversations
+    // This ensures correct state when switching between tasks
     // Using useShallow to combine subscriptions and reduce re-renders
     const { isLoading, serverStatus, error } = useExecutionStore(
       useShallow((state) => {
-        if (!conversationId) return { isLoading: false, serverStatus: '', error: undefined };
-        const execution = state.getExecution(conversationId);
+        if (!taskId) return { isLoading: false, serverStatus: '', error: undefined };
+        const execution = state.getExecution(taskId);
         return {
-          isLoading: state.isTaskRunning(conversationId),
+          isLoading: state.isTaskRunning(taskId),
           serverStatus: execution?.serverStatus ?? '',
           error: execution?.error,
         };
@@ -100,19 +96,13 @@ export const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(
     );
     const status: ChatStatus = isLoading ? 'streaming' : 'ready';
 
-    // useConversations first to get currentConversationId
-    const {
-      currentConversationId,
-      setCurrentConversationId,
-      setError,
-      loadTask,
-      createConversation,
-      getConversationDetails,
-    } = useTasks(onConversationStart);
+    // useTasks first to get currentTaskId
+    const { currentTaskId, setCurrentTaskId, setError, loadTask, createTask, getTaskDetails } =
+      useTasks(onTaskStart);
 
-    // useMessages with conversationId for per-conversation message caching
+    // useMessages with taskId for per-task message caching
     const { messages, stopStreaming, deleteMessage, deleteMessagesFromIndex, findMessageIndex } =
-      useMessages(currentConversationId);
+      useMessages(currentTaskId);
 
     // Handle input changes
     const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -145,39 +135,39 @@ export const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(
 
     // Command registry is now initialized in InitializationManager during app startup
 
-    // Sync conversationId prop to ref for background task UI isolation
+    // Sync taskId prop to ref for background task UI isolation
     // This ensures isCurrentlyDisplayed() checks always use the latest prop value
     useEffect(() => {
-      displayedConversationIdRef.current = conversationId;
-    }, [conversationId]);
+      displayedTaskIdRef.current = taskId;
+    }, [taskId]);
 
     useEffect(() => {
-      const handleConversationLoad = async () => {
-        logger.info('[ChatBox] Loading conversation:', conversationId, currentConversationId);
-        if (conversationId && conversationId !== currentConversationId) {
+      const handleTaskLoad = async () => {
+        logger.info('[ChatBox] Loading task:', taskId, currentTaskId);
+        if (taskId && taskId !== currentTaskId) {
           const taskStore = useTaskStore.getState();
 
           // Check if messages exist in memory
-          const hasMessagesInMemory = taskStore.getMessages(conversationId).length > 0;
+          const hasMessagesInMemory = taskStore.getMessages(taskId).length > 0;
 
           if (hasMessagesInMemory) {
             // Messages exist in memory, don't reload from DB to avoid overwriting
             // This preserves user messages that were just added but not yet persisted
             logger.info('[ChatBox] Skipping DB load - messages exist in memory', {
-              conversationId,
+              taskId,
             });
-            // Still need to update currentConversationId for UI to switch
-            setCurrentConversationId(conversationId);
+            // Still need to update currentTaskId for UI to switch
+            setCurrentTaskId(taskId);
           } else {
             // No messages in memory, fetch from database
             // Note: loadTask already calls taskStore.setMessages via taskService.loadMessages
-            await loadTask(conversationId);
+            await loadTask(taskId);
           }
         }
       };
 
-      handleConversationLoad();
-    }, [conversationId, currentConversationId, loadTask, setCurrentConversationId]);
+      handleTaskLoad();
+    }, [taskId, currentTaskId, loadTask, setCurrentTaskId]);
 
     // Note: State sync effect removed - isLoading and serverStatus now derived from store
     // Note: Streaming content sync effect removed - executionService handles message updates
@@ -210,22 +200,22 @@ export const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(
 
       onMessageSent?.(userMessage);
 
-      let activeConversationId = conversationId;
-      let isNewConversation = false;
+      let activeTaskId = taskId;
+      let isNewTask = false;
 
-      if (!activeConversationId) {
+      if (!activeTaskId) {
         try {
-          activeConversationId = await createConversation(userMessage);
-          isNewConversation = true;
+          activeTaskId = await createTask(userMessage);
+          isNewTask = true;
         } catch (error) {
-          logger.error('Failed to create conversation:', error);
+          logger.error('Failed to create task:', error);
           // Note: No need to reset loading state - nothing was started
           return;
         }
       }
 
-      if (!activeConversationId) {
-        logger.error('No conversation ID available');
+      if (!activeTaskId) {
+        logger.error('No task ID available');
         return;
       }
 
@@ -251,8 +241,8 @@ export const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(
           attachments,
         };
 
-        logger.info('Adding user message to conversation:', activeConversationId, userMessage);
-        await messageService.addUserMessage(activeConversationId, userMessage, {
+        logger.info('Adding user message to task:', activeTaskId, userMessage);
+        await messageService.addUserMessage(activeTaskId, userMessage, {
           attachments,
           agentId,
         });
@@ -301,13 +291,13 @@ export const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(
         // Use executionService for proper message persistence
         await executionService.startExecution(
           {
-            taskId: activeConversationId,
+            taskId: activeTaskId,
             messages: conversationHistory,
             model,
             systemPrompt,
             tools,
             agentId,
-            isNewTask: isNewConversation,
+            isNewTask: isNewTask,
             userMessage,
           },
           {
@@ -323,11 +313,11 @@ export const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(
           }
         );
 
-        if (activeConversationId) {
-          // Fetch the updated conversation data for cost logging
-          const updatedConv = await getConversationDetails(activeConversationId);
-          if (updatedConv) {
-            logger.info('Updated conversation cost:', updatedConv.cost);
+        if (activeTaskId) {
+          // Fetch the updated task data for cost logging
+          const updatedTask = await getTaskDetails(activeTaskId);
+          if (updatedTask) {
+            logger.info('Updated task cost:', updatedTask.cost);
           }
         }
       } catch (error) {
@@ -345,8 +335,8 @@ export const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(
       } finally {
         // Stop task execution if still running (e.g., on error)
         // executionService handles its own cleanup
-        if (activeConversationId && executionService.isRunning(activeConversationId)) {
-          executionService.stopExecution(activeConversationId);
+        if (activeTaskId && executionService.isRunning(activeTaskId)) {
+          executionService.stopExecution(activeTaskId);
         }
       }
     };
@@ -393,7 +383,7 @@ export const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(
       deleteMessagesFromIndex(regenerateFromIndex);
 
       // Kick off database deletions in the background (non-blocking)
-      if (currentConversationId) {
+      if (currentTaskId) {
         const messagesToDelete = messages.slice(regenerateFromIndex);
         (async () => {
           for (const msg of messagesToDelete) {
@@ -413,7 +403,7 @@ export const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(
           ? userMessage.content
           : JSON.stringify(userMessage.content),
         userMessage.attachments,
-        currentConversationId,
+        currentTaskId,
         true,
         baseHistory
       );
@@ -423,7 +413,7 @@ export const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(
       if (isLoading) return;
 
       // Delete from database
-      if (currentConversationId) {
+      if (currentTaskId) {
         try {
           logger.info('Deleting message from database:', messageId);
           await databaseService.deleteMessage(messageId);
@@ -445,12 +435,11 @@ export const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(
       const userMessage = input.trim();
       setInput('');
 
-      await processMessage(userMessage, attachments, currentConversationId);
+      await processMessage(userMessage, attachments, currentTaskId);
     };
 
     const stopGeneration = () => {
-      // Use conversationId prop to stop the currently displayed conversation
-      const taskId = conversationId;
+      // Use taskId prop to stop the currently displayed task
       if (taskId) {
         stopStreaming();
         // executionService handles abort controller and store updates
@@ -465,16 +454,16 @@ export const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(
       try {
         // Build command context
         const context: CommandContext = {
-          conversationId: currentConversationId,
+          taskId: currentTaskId,
           repositoryPath,
           selectedFile: selectedFile || undefined,
           fileContent: fileContent || undefined,
           sendMessage: async (message: string) => {
-            await processMessage(message, undefined, currentConversationId);
+            await processMessage(message, undefined, currentTaskId);
           },
-          createNewConversation: async () => {
-            if (onConversationStart) {
-              onConversationStart('', '');
+          createNewTask: async () => {
+            if (onTaskStart) {
+              onTaskStart('', '');
             }
           },
           showNotification: (message: string, type = 'info') => {
@@ -500,7 +489,7 @@ export const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(
             await processMessage(
               result.aiMessage,
               undefined,
-              currentConversationId,
+              currentTaskId,
               false,
               undefined,
               command.preferredAgentId
@@ -520,8 +509,8 @@ export const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(
 
     return (
       <div className="flex h-full w-full min-w-0 flex-col">
-        <Conversation className="flex min-h-0 w-full flex-1 flex-col">
-          <ConversationContent className="w-full min-w-0">
+        <Task className="flex min-h-0 w-full flex-1 flex-col">
+          <TaskContent className="w-full min-w-0">
             <MessageList
               messages={messages}
               onDelete={handleDeleteMessage}
@@ -544,9 +533,9 @@ export const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(
                 <div>{error || serverStatus}</div>
               </div>
             )}
-          </ConversationContent>
-          <ConversationScrollButton />
-        </Conversation>
+          </TaskContent>
+          <TaskScrollButton />
+        </Task>
 
         {isLoading && (
           <div className="flex justify-center py-3">
@@ -562,7 +551,7 @@ export const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(
           </div>
         )}
 
-        {currentConversationId && <FileChangesSummary conversationId={currentConversationId} />}
+        {currentTaskId && <FileChangesSummary taskId={currentTaskId} />}
 
         <ChatInput
           ref={chatInputRef}
@@ -575,7 +564,7 @@ export const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(
           repositoryPath={repositoryPath}
           selectedFile={selectedFile}
           status={status}
-          conversationId={currentConversationId}
+          taskId={currentTaskId}
         />
       </div>
     );

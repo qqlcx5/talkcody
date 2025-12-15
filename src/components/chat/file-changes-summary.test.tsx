@@ -8,8 +8,8 @@ const mockSelectFile = vi.fn();
 const mockChangesByConversation = new Map<string, FileChange[]>();
 
 vi.mock('@/stores/file-changes-store', () => ({
-  useFileChangesStore: (selector: (state: { changesByConversation: Map<string, FileChange[]> }) => Map<string, FileChange[]>) => {
-    return selector({ changesByConversation: mockChangesByConversation });
+  useFileChangesStore: (selector: (state: { changesByTask: Map<string, FileChange[]> }) => Map<string, FileChange[]>) => {
+    return selector({ changesByTask: mockChangesByConversation });
   },
 }));
 
@@ -65,7 +65,7 @@ describe('FileChangesSummary - Infinite Loop Regression Test', () => {
   });
 
   it('should render without causing infinite re-renders', () => {
-    const conversationId = 'test-conversation-1';
+    const taskId = 'test-task-1';
     const changes: FileChange[] = [
       {
         filePath: 'src/test.ts',
@@ -74,11 +74,11 @@ describe('FileChangesSummary - Infinite Loop Regression Test', () => {
       },
     ];
 
-    mockChangesByConversation.set(conversationId, changes);
+    mockChangesByConversation.set(taskId, changes);
 
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-    const { unmount } = render(<FileChangesSummary conversationId={conversationId} />);
+    const { unmount } = render(<FileChangesSummary taskId={taskId} />);
 
     // Verify no React errors occurred
     expect(consoleErrorSpy).not.toHaveBeenCalledWith(
@@ -92,8 +92,8 @@ describe('FileChangesSummary - Infinite Loop Regression Test', () => {
     consoleErrorSpy.mockRestore();
   });
 
-  it('should not re-render infinitely when changes map updates with same conversation data', () => {
-    const conversationId = 'test-conversation-1';
+  it('should not re-render infinitely when changes map updates with same task data', () => {
+    const taskId = 'test-task-1';
     const changes: FileChange[] = [
       {
         filePath: 'src/test.ts',
@@ -102,15 +102,15 @@ describe('FileChangesSummary - Infinite Loop Regression Test', () => {
       },
     ];
 
-    mockChangesByConversation.set(conversationId, changes);
+    mockChangesByConversation.set(taskId, changes);
 
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-    const { rerender, unmount } = render(<FileChangesSummary conversationId={conversationId} />);
+    const { rerender, unmount } = render(<FileChangesSummary taskId={taskId} />);
 
     // Force multiple re-renders to simulate store updates
     for (let i = 0; i < 5; i++) {
-      rerender(<FileChangesSummary conversationId={conversationId} />);
+      rerender(<FileChangesSummary taskId={taskId} />);
     }
 
     // Verify no React errors occurred
@@ -123,14 +123,14 @@ describe('FileChangesSummary - Infinite Loop Regression Test', () => {
   });
 
   it('should render null when there are no changes', () => {
-    const conversationId = 'test-conversation-empty';
-    const { container } = render(<FileChangesSummary conversationId={conversationId} />);
+    const taskId = 'test-task-empty';
+    const { container } = render(<FileChangesSummary taskId={taskId} />);
 
     expect(container.firstChild).toBeNull();
   });
 
   it('should render new files section when there are write operations', () => {
-    const conversationId = 'test-conversation-2';
+    const taskId = 'test-task-2';
     const changes: FileChange[] = [
       {
         filePath: 'src/new-file.ts',
@@ -144,9 +144,9 @@ describe('FileChangesSummary - Infinite Loop Regression Test', () => {
       },
     ];
 
-    mockChangesByConversation.set(conversationId, changes);
+    mockChangesByConversation.set(taskId, changes);
 
-    render(<FileChangesSummary conversationId={conversationId} />);
+    render(<FileChangesSummary taskId={taskId} />);
 
     // Expand the collapsible to see the content
     const expandButton = screen.getByRole('button', { expanded: false });
@@ -158,7 +158,7 @@ describe('FileChangesSummary - Infinite Loop Regression Test', () => {
   });
 
   it('should render edited files section when there are edit operations', () => {
-    const conversationId = 'test-conversation-3';
+    const taskId = 'test-task-3';
     const changes: FileChange[] = [
       {
         filePath: 'src/edited-file.ts',
@@ -169,9 +169,9 @@ describe('FileChangesSummary - Infinite Loop Regression Test', () => {
       },
     ];
 
-    mockChangesByConversation.set(conversationId, changes);
+    mockChangesByConversation.set(taskId, changes);
 
-    render(<FileChangesSummary conversationId={conversationId} />);
+    render(<FileChangesSummary taskId={taskId} />);
 
     // Expand the collapsible to see the content
     const expandButton = screen.getByRole('button', { expanded: false });
@@ -182,7 +182,7 @@ describe('FileChangesSummary - Infinite Loop Regression Test', () => {
   });
 
   it('should render both new and edited files sections', () => {
-    const conversationId = 'test-conversation-4';
+    const taskId = 'test-task-4';
     const changes: FileChange[] = [
       {
         filePath: 'src/new-file.ts',
@@ -198,9 +198,9 @@ describe('FileChangesSummary - Infinite Loop Regression Test', () => {
       },
     ];
 
-    mockChangesByConversation.set(conversationId, changes);
+    mockChangesByConversation.set(taskId, changes);
 
-    render(<FileChangesSummary conversationId={conversationId} />);
+    render(<FileChangesSummary taskId={taskId} />);
 
     // Expand the collapsible to see the content
     const expandButton = screen.getByRole('button', { expanded: false });
@@ -211,7 +211,7 @@ describe('FileChangesSummary - Infinite Loop Regression Test', () => {
   });
 
   it('should call selectFile when file is opened', () => {
-    const conversationId = 'test-conversation-5';
+    const taskId = 'test-task-5';
     const changes: FileChange[] = [
       {
         filePath: 'src/test-file.ts',
@@ -220,9 +220,9 @@ describe('FileChangesSummary - Infinite Loop Regression Test', () => {
       },
     ];
 
-    mockChangesByConversation.set(conversationId, changes);
+    mockChangesByConversation.set(taskId, changes);
 
-    render(<FileChangesSummary conversationId={conversationId} />);
+    render(<FileChangesSummary taskId={taskId} />);
 
     // Expand the collapsible to see the content
     const expandButton = screen.getByRole('button', { expanded: false });
@@ -235,7 +235,7 @@ describe('FileChangesSummary - Infinite Loop Regression Test', () => {
   });
 
   it('should open diff modal when View Diff is clicked for edited files', () => {
-    const conversationId = 'test-conversation-6';
+    const taskId = 'test-task-6';
     const changes: FileChange[] = [
       {
         filePath: 'src/edited-file.ts',
@@ -246,9 +246,9 @@ describe('FileChangesSummary - Infinite Loop Regression Test', () => {
       },
     ];
 
-    mockChangesByConversation.set(conversationId, changes);
+    mockChangesByConversation.set(taskId, changes);
 
-    render(<FileChangesSummary conversationId={conversationId} />);
+    render(<FileChangesSummary taskId={taskId} />);
 
     // Expand the collapsible to see the content
     const expandButton = screen.getByRole('button', { expanded: false });
@@ -261,7 +261,7 @@ describe('FileChangesSummary - Infinite Loop Regression Test', () => {
   });
 
   it('should not open diff modal for files without content', () => {
-    const conversationId = 'test-conversation-7';
+    const taskId = 'test-task-7';
     const changes: FileChange[] = [
       {
         filePath: 'src/edited-file.ts',
@@ -271,9 +271,9 @@ describe('FileChangesSummary - Infinite Loop Regression Test', () => {
       },
     ];
 
-    mockChangesByConversation.set(conversationId, changes);
+    mockChangesByConversation.set(taskId, changes);
 
-    render(<FileChangesSummary conversationId={conversationId} />);
+    render(<FileChangesSummary taskId={taskId} />);
 
     // Expand the collapsible to see the content
     const expandButton = screen.getByRole('button', { expanded: false });
@@ -285,9 +285,9 @@ describe('FileChangesSummary - Infinite Loop Regression Test', () => {
     expect(screen.queryByTestId('file-diff-modal')).toBeNull();
   });
 
-  it('should handle conversation ID changes without infinite loops', () => {
-    const conversationId1 = 'test-conversation-8';
-    const conversationId2 = 'test-conversation-9';
+  it('should handle task ID changes without infinite loops', () => {
+    const taskId1 = 'test-task-8';
+    const taskId2 = 'test-task-9';
 
     const changes1: FileChange[] = [
       {
@@ -307,18 +307,18 @@ describe('FileChangesSummary - Infinite Loop Regression Test', () => {
       },
     ];
 
-    mockChangesByConversation.set(conversationId1, changes1);
-    mockChangesByConversation.set(conversationId2, changes2);
+    mockChangesByConversation.set(taskId1, changes1);
+    mockChangesByConversation.set(taskId2, changes2);
 
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-    const { rerender, unmount } = render(<FileChangesSummary conversationId={conversationId1} />);
+    const { rerender, unmount } = render(<FileChangesSummary taskId={taskId1} />);
 
     // Switch conversation
-    rerender(<FileChangesSummary conversationId={conversationId2} />);
+    rerender(<FileChangesSummary taskId={taskId2} />);
 
     // Switch back
-    rerender(<FileChangesSummary conversationId={conversationId1} />);
+    rerender(<FileChangesSummary taskId={taskId1} />);
 
     // Verify no React errors occurred
     expect(consoleErrorSpy).not.toHaveBeenCalledWith(
@@ -330,7 +330,7 @@ describe('FileChangesSummary - Infinite Loop Regression Test', () => {
   });
 
   it('should properly memoize changes array', () => {
-    const conversationId = 'test-conversation-10';
+    const taskId = 'test-task-10';
     const changes: FileChange[] = [
       {
         filePath: 'src/test.ts',
@@ -339,15 +339,15 @@ describe('FileChangesSummary - Infinite Loop Regression Test', () => {
       },
     ];
 
-    mockChangesByConversation.set(conversationId, changes);
+    mockChangesByConversation.set(taskId, changes);
 
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-    const { rerender, unmount } = render(<FileChangesSummary conversationId={conversationId} />);
+    const { rerender, unmount } = render(<FileChangesSummary taskId={taskId} />);
 
     // Multiple re-renders with same data should not cause issues
     for (let i = 0; i < 10; i++) {
-      rerender(<FileChangesSummary conversationId={conversationId} />);
+      rerender(<FileChangesSummary taskId={taskId} />);
     }
 
     // Verify no infinite loop warnings
@@ -360,16 +360,16 @@ describe('FileChangesSummary - Infinite Loop Regression Test', () => {
   });
 
   it('should handle empty changes array without errors', () => {
-    const conversationId = 'test-conversation-11';
-    mockChangesByConversation.set(conversationId, []);
+    const taskId = 'test-task-11';
+    mockChangesByConversation.set(taskId, []);
 
-    const { container } = render(<FileChangesSummary conversationId={conversationId} />);
+    const { container } = render(<FileChangesSummary taskId={taskId} />);
 
     expect(container.firstChild).toBeNull();
   });
 
   it('should group files by operation type correctly', () => {
-    const conversationId = 'test-conversation-12';
+    const taskId = 'test-task-12';
     const changes: FileChange[] = [
       {
         filePath: 'src/new1.ts',
@@ -404,9 +404,9 @@ describe('FileChangesSummary - Infinite Loop Regression Test', () => {
       },
     ];
 
-    mockChangesByConversation.set(conversationId, changes);
+    mockChangesByConversation.set(taskId, changes);
 
-    render(<FileChangesSummary conversationId={conversationId} />);
+    render(<FileChangesSummary taskId={taskId} />);
 
     // Click the collapsible trigger to expand it (more than 3 files means it starts collapsed)
     const trigger = screen.getByRole('button', { expanded: false });

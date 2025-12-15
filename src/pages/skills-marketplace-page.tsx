@@ -34,7 +34,13 @@ import { useMarketplaceSkills } from '@/hooks/use-marketplace-skills';
 import { useSkillMutations, useSkills } from '@/hooks/use-skills';
 import { getDocLinks } from '@/lib/doc-links';
 import { logger } from '@/lib/logger';
-import type { MarketplaceSkill, Skill, SkillSortOption } from '@/types/skill';
+import type {
+  CreateSkillRequest,
+  MarketplaceSkill,
+  Skill,
+  SkillSortOption,
+  UpdateSkillRequest,
+} from '@/types/skill';
 
 /**
  * Helper function to convert MarketplaceSkill to Skill format for UI components
@@ -231,9 +237,32 @@ export function SkillsMarketplacePage() {
 
   const handleSaveSkill = async (skillData: Partial<Skill>) => {
     if (editingSkill) {
-      await updateSkill(editingSkill.id, skillData);
+      // Transform Partial<Skill> to UpdateSkillRequest
+      const updateRequest: UpdateSkillRequest = {
+        name: skillData.name,
+        description: skillData.description,
+        longDescription: skillData.longDescription,
+        category: skillData.category,
+        icon: skillData.icon,
+        content: skillData.content ? { ...skillData.content } : undefined,
+        tags: skillData.metadata?.tags,
+      };
+      await updateSkill(editingSkill.id, updateRequest);
     } else {
-      await createSkill(skillData);
+      // Transform Partial<Skill> to CreateSkillRequest
+      if (!skillData.name || !skillData.description || !skillData.category || !skillData.content) {
+        throw new Error('Name, description, category, and content are required to create a skill');
+      }
+      const createRequest: CreateSkillRequest = {
+        name: skillData.name,
+        description: skillData.description,
+        longDescription: skillData.longDescription,
+        category: skillData.category,
+        icon: skillData.icon,
+        content: skillData.content,
+        tags: skillData.metadata?.tags,
+      };
+      await createSkill(createRequest);
     }
     refreshLocal();
   };

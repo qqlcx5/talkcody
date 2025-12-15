@@ -16,9 +16,9 @@
 import type { ToolSet } from 'ai';
 import { logger } from '@/lib/logger';
 import { createLLMService, type LLMService } from '@/services/agents/llm-service';
-import { ConversationManager } from '@/services/conversation-manager';
 import { messageService } from '@/services/message-service';
 import { notificationService } from '@/services/notification-service';
+import { TaskManager } from '@/services/task-manager';
 import { taskService } from '@/services/task-service';
 import { useExecutionStore } from '@/stores/execution-store';
 import { useTaskStore } from '@/stores/task-store';
@@ -226,7 +226,7 @@ class ExecutionService {
   ): Promise<void> {
     // Generate AI title for new tasks
     if (isNewTask && userMessage) {
-      ConversationManager.generateAndUpdateTitle(taskId, userMessage).catch((error) => {
+      TaskManager.generateAndUpdateTitle(taskId, userMessage).catch((error: Error) => {
         logger.error('Background title generation failed:', error);
       });
     }

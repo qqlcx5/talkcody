@@ -445,38 +445,31 @@ Note: For public repositories only. Rate limited to 60 requests/hour without aut
     <GenericToolDoing operation="fetch" target={url} details={`Fetching PR ${action}`} />
   ),
   renderToolResult: (result, params = {}) => {
-    const { url = '', action = '' } = params as { url?: string; action?: string };
-
     if (!result.success) {
       return (
-        <GenericToolResult
-          success={false}
-          operation="fetch"
-          target={url}
-          error={result.error || 'Failed to fetch PR data'}
-        />
+        <GenericToolResult success={false} message={result.error || 'Failed to fetch PR data'} />
       );
     }
 
     let message: string;
     if (
-      action === 'info' &&
+      result.action === 'info' &&
       result.data &&
       typeof result.data === 'object' &&
       'title' in result.data
     ) {
       const info = result.data as GitHubPRInfo;
       message = `PR #${info.number}: ${info.title} (${info.state})`;
-    } else if (action === 'files' && Array.isArray(result.data)) {
+    } else if (result.action === 'files' && Array.isArray(result.data)) {
       message = `${result.data.length} files changed`;
-    } else if (action === 'diff' && typeof result.data === 'string') {
+    } else if (result.action === 'diff' && typeof result.data === 'string') {
       message = `Diff: ${result.data.length} characters`;
-    } else if (action === 'comments' && Array.isArray(result.data)) {
+    } else if (result.action === 'comments' && Array.isArray(result.data)) {
       message = `${result.data.length} review comments`;
     } else {
       message = 'PR data fetched successfully';
     }
 
-    return <GenericToolResult success={true} operation="fetch" target={url} message={message} />;
+    return <GenericToolResult success={true} message={message} />;
   },
 });

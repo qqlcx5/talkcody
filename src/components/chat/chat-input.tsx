@@ -60,7 +60,7 @@ interface ChatInputProps {
   selectedFile?: string | null;
   fileContent?: string | null;
   repositoryPath?: string | undefined;
-  conversationId?: string | null;
+  taskId?: string | null;
 }
 
 export interface ChatInputRef {
@@ -80,7 +80,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       selectedFile,
       fileContent,
       repositoryPath,
-      conversationId,
+      taskId,
     },
     ref
   ) => {
@@ -835,7 +835,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
             )}
 
             <ChatInputToolsBar
-              conversationId={conversationId}
+              taskId={taskId}
               disabled={isLoading}
               onAddCurrentFile={handleAddCurrentFile}
             />

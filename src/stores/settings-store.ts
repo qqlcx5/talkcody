@@ -36,7 +36,7 @@ interface SettingsState {
 
   // Project Settings
   project: string;
-  current_conversationid: string;
+  current_task_id: string;
   current_root_path: string;
 
   // Model Type Settings
@@ -87,7 +87,7 @@ interface SettingsActions {
   // Project Settings
   setProject: (project: string) => Promise<void>;
   setCurrentProjectId: (projectId: string) => Promise<void>;
-  setCurrentConversationId: (conversationId: string) => void;
+  setCurrentTaskId: (taskId: string) => void;
   setCurrentRootPath: (rootPath: string) => void;
 
   // Model Type Settings
@@ -135,7 +135,7 @@ interface SettingsActions {
   getAgentId: () => string;
   getProject: () => string;
   getIsThink: () => boolean;
-  getCurrentConversationId: () => string;
+  getCurrentTaskId: () => string;
   getCurrentRootPath: () => string;
   getAICompletionEnabled: () => boolean;
   getPlanModeEnabled: () => boolean;
@@ -154,7 +154,7 @@ const DEFAULT_SETTINGS: Omit<SettingsState, 'loading' | 'error' | 'isInitialized
   get_context_tool_model: GROK_CODE_FAST,
   is_plan_mode_enabled: false,
   project: DEFAULT_PROJECT,
-  current_conversationid: '',
+  current_task_id: '',
   current_root_path: '',
   model_type_main: '',
   model_type_small: '',
@@ -204,7 +204,7 @@ class SettingsDatabase {
       agentId: 'planner',
       is_think: 'false',
       project: DEFAULT_PROJECT,
-      current_conversationid: '',
+      current_task_id: '',
       current_root_path: '',
       ai_completion_enabled: 'false',
       get_context_tool_model: GROK_CODE_FAST,
@@ -318,7 +318,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         'get_context_tool_model',
         'is_plan_mode_enabled',
         'project',
-        'current_conversationid',
+        'current_task_id',
         'current_root_path',
         'model_type_main',
         'model_type_small',
@@ -380,7 +380,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         get_context_tool_model: rawSettings.get_context_tool_model || GROK_CODE_FAST,
         is_plan_mode_enabled: rawSettings.is_plan_mode_enabled === 'true',
         project: rawSettings.project || DEFAULT_PROJECT,
-        current_conversationid: rawSettings.current_conversationid || '',
+        current_task_id: rawSettings.current_task_id || '',
         current_root_path: rawSettings.current_root_path || '',
         model_type_main: rawSettings.model_type_main || '',
         model_type_small: rawSettings.model_type_small || '',
@@ -491,10 +491,10 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     set({ project: projectId });
   },
 
-  setCurrentConversationId: (conversationId: string) => {
-    set({ current_conversationid: conversationId });
-    settingsDb.set('current_conversationid', conversationId).catch((error) => {
-      logger.error('Failed to persist current_conversationid:', error);
+  setCurrentTaskId: (taskId: string) => {
+    set({ current_task_id: taskId });
+    settingsDb.set('current_task_id', taskId).catch((error) => {
+      logger.error('Failed to persist current_task_id:', error);
     });
   },
 
@@ -731,8 +731,8 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     return get().is_think;
   },
 
-  getCurrentConversationId: () => {
-    return get().current_conversationid;
+  getCurrentTaskId: () => {
+    return get().current_task_id;
   },
 
   getCurrentRootPath: () => {
@@ -764,8 +764,7 @@ export const settingsManager = {
   setApiKey: (apiKey: string) => useSettingsStore.getState().set('apiKey', apiKey),
   setProject: (project: string) => useSettingsStore.getState().setProject(project),
   setIsThink: (isThink: boolean) => useSettingsStore.getState().setIsThink(isThink),
-  setCurrentConversationId: (conversationId: string) =>
-    useSettingsStore.getState().setCurrentConversationId(conversationId),
+  setCurrentTaskId: (taskId: string) => useSettingsStore.getState().setCurrentTaskId(taskId),
   setCurrentRootPath: (rootPath: string) =>
     useSettingsStore.getState().setCurrentRootPath(rootPath),
   setCurrentProjectId: (projectId: string) =>
@@ -778,7 +777,7 @@ export const settingsManager = {
   getAgentId: () => useSettingsStore.getState().getAgentId(),
   getProject: () => useSettingsStore.getState().getProject(),
   getIsThink: () => useSettingsStore.getState().getIsThink(),
-  getCurrentConversationId: () => useSettingsStore.getState().getCurrentConversationId(),
+  getCurrentTaskId: () => useSettingsStore.getState().getCurrentTaskId(),
   getCurrentRootPath: () => useSettingsStore.getState().getCurrentRootPath(),
   getAICompletionEnabled: () => useSettingsStore.getState().getAICompletionEnabled(),
   getPlanModeEnabled: () => useSettingsStore.getState().getPlanModeEnabled(),

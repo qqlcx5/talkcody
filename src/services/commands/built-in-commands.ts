@@ -9,30 +9,30 @@ import { CommandCategory, CommandType } from '@/types/command';
  */
 export async function getBuiltInCommands(): Promise<Command[]> {
   const commands: Command[] = [
-    // /new - Create new conversation
+    // /new - Create new task
     {
-      id: 'new-conversation',
+      id: 'new-task',
       name: 'new',
-      description: 'Create a new conversation',
-      category: CommandCategory.CONVERSATION,
+      description: 'Create a new task',
+      category: CommandCategory.TASK,
       type: CommandType.ACTION,
       executor: async (_args, context) => {
         try {
-          if (context.createNewConversation) {
-            await context.createNewConversation();
+          if (context.createNewTask) {
+            await context.createNewTask();
             return {
               success: true,
-              message: 'New conversation created successfully',
+              message: 'New task created successfully',
             };
           }
           return {
             success: false,
-            error: 'Unable to create new conversation - function not available',
+            error: 'Unable to create new task - function not available',
           };
         } catch (error) {
           return {
             success: false,
-            error: `Failed to create new conversation: ${error}`,
+            error: `Failed to create new task: ${error}`,
           };
         }
       },

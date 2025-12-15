@@ -5,12 +5,17 @@ import '@testing-library/jest-dom';
 // Note: monaco-editor is mocked via alias in vitest.config.ts
 // See src/test/mocks/monaco-editor.ts
 
-// Mock window object for Tauri APIs
-Object.defineProperty(window, '__TAURI_INTERNALS__', {
-  value: {
-    invoke: vi.fn(),
-  },
-});
+// Mock window object for Tauri APIs (only in browser environment)
+// NOTE: configurable and writable must be true to allow @tauri-apps/api/mocks to override
+if (typeof window !== 'undefined') {
+  Object.defineProperty(window, '__TAURI_INTERNALS__', {
+    value: {
+      invoke: vi.fn(),
+    },
+    configurable: true,
+    writable: true,
+  });
+}
 
 // Mock Tauri APIs
 vi.mock('@tauri-apps/api/core', () => ({
@@ -104,7 +109,7 @@ vi.mock('../services/repository-utils', () => ({
 vi.mock('../stores/settings-store', () => ({
   settingsManager: {
     getCurrentRootPath: vi.fn().mockReturnValue('/test/root'),
-    getCurrentConversationId: vi.fn().mockReturnValue('conv-123'),
+    getCurrentTaskId: vi.fn().mockReturnValue('conv-123'),
     getProject: vi.fn().mockResolvedValue(null),
     getSync: vi.fn().mockReturnValue(undefined),
     getBatchSync: vi.fn().mockReturnValue({}),
@@ -115,7 +120,7 @@ vi.mock('../stores/settings-store', () => ({
   },
   SettingsManager: vi.fn().mockImplementation(() => ({
     getCurrentRootPath: vi.fn().mockReturnValue('/test/root'),
-    getCurrentConversationId: vi.fn().mockReturnValue('conv-123'),
+    getCurrentTaskId: vi.fn().mockReturnValue('conv-123'),
     getProject: vi.fn().mockResolvedValue(null),
   })),
   useSettingsStore: {
@@ -157,11 +162,11 @@ vi.mock('../lib/model-loader', () => ({
   },
 }));
 
-// Mock conversation manager
-vi.mock('../services/conversation-manager', () => ({
-  ConversationManager: {
-    getConversationSettings: vi.fn().mockResolvedValue(null),
-    updateConversationSettings: vi.fn().mockResolvedValue(undefined),
+// Mock task manager
+vi.mock('../services/task-manager', () => ({
+  TaskManager: {
+    getTaskSettings: vi.fn().mockResolvedValue(null),
+    updateTaskSettings: vi.fn().mockResolvedValue(undefined),
   },
 }));
 

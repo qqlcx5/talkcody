@@ -46,7 +46,7 @@ export class GeneralAgent {
 
     return {
       id: 'general',
-      name: 'General Assistant',
+      name: 'Chat',
       description: 'Versatile AI assistant for general questions and tasks',
       modelType: ModelType.MAIN,
       hidden: false,

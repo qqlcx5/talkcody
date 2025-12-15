@@ -151,6 +151,7 @@ export interface LocaleDefinition {
     };
     chatHistory: string;
     searchConversations: string;
+    searchTasks: string;
   };
 
   Settings: {
@@ -652,6 +653,7 @@ export interface LocaleDefinition {
     title: string;
     description: string;
     refreshAll: string;
+    refreshAllTooltip: string;
     addServer: string;
     builtIn: string;
     connected: (count: number) => string;
@@ -674,6 +676,10 @@ export interface LocaleDefinition {
       updateFailed: string;
       overridesReset: string;
       resetFailed: string;
+      allToolsAlreadySelected: string;
+      noToolsToClear: string;
+      toolsSelected: (count: number) => string;
+      toolsCleared: (count: number) => string;
     };
     refreshConnection: string;
     enableServer: string;

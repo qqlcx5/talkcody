@@ -6,13 +6,13 @@ import { v4 as uuidv4 } from 'uuid';
 import { logger } from '@/lib/logger';
 import { simpleFetch } from '@/lib/tauri-fetch';
 import type {
-  ConversationSkill,
   CreateSkillRequest,
   DocumentationItem,
   Skill,
   SkillFilter,
   SkillSortOption,
   SkillStats,
+  TaskSkill,
   UpdateSkillRequest,
 } from '@/types/skill';
 import type { SkillDatabaseService } from '../database/skill-database-service';
@@ -155,30 +155,30 @@ export class SkillService {
     return this.dbService.listSkills(filter, sort);
   }
 
-  // ==================== Conversation Association ====================
+  // ==================== Task Association ====================
 
   /**
-   * Get skills associated with a conversation
+   * Get skills associated with a task
    */
-  async getConversationSkills(conversationId: string): Promise<ConversationSkill[]> {
-    return this.dbService.getConversationSkills(conversationId);
+  async getTaskSkills(taskId: string): Promise<TaskSkill[]> {
+    return this.dbService.getTaskSkills(taskId);
   }
 
   /**
-   * Get active (enabled) skills for a conversation with full skill data
+   * Get active (enabled) skills for a task with full skill data
    */
-  async getActiveSkillsForConversation(conversationId: string): Promise<Skill[]> {
-    const conversationSkills = await this.dbService.getConversationSkills(conversationId);
+  async getActiveSkillsForTask(taskId: string): Promise<Skill[]> {
+    const taskSkills = await this.dbService.getTaskSkills(taskId);
 
     // Filter enabled skills and sort by priority
-    const activeConversationSkills = conversationSkills
-      .filter((cs) => cs.enabled)
-      .sort((a, b) => b.priority - a.priority);
+    const activeTaskSkills = taskSkills
+      .filter((ts: TaskSkill) => ts.enabled)
+      .sort((a: TaskSkill, b: TaskSkill) => b.priority - a.priority);
 
     // Fetch full skill data
     const skills: Skill[] = [];
-    for (const cs of activeConversationSkills) {
-      const skill = await this.dbService.getSkill(cs.skillId);
+    for (const ts of activeTaskSkills) {
+      const skill = await this.dbService.getSkill(ts.skillId);
       if (skill) {
         skills.push(skill);
       }
@@ -188,55 +188,51 @@ export class SkillService {
   }
 
   /**
-   * Enable a skill for a conversation
+   * Enable a skill for a task
    */
-  async enableSkillForConversation(
-    conversationId: string,
-    skillId: string,
-    priority?: number
-  ): Promise<void> {
-    await this.dbService.enableSkillForConversation(conversationId, skillId, priority);
-    logger.info(`Enabled skill ${skillId} for conversation ${conversationId}`);
+  async enableSkillForTask(taskId: string, skillId: string, priority?: number): Promise<void> {
+    await this.dbService.enableSkillForTask(taskId, skillId, priority);
+    logger.info(`Enabled skill ${skillId} for task ${taskId}`);
   }
 
   /**
-   * Disable a skill for a conversation
+   * Disable a skill for a task
    */
-  async disableSkillForConversation(conversationId: string, skillId: string): Promise<void> {
-    await this.dbService.disableSkillForConversation(conversationId, skillId);
-    logger.info(`Disabled skill ${skillId} for conversation ${conversationId}`);
+  async disableSkillForTask(taskId: string, skillId: string): Promise<void> {
+    await this.dbService.disableSkillForTask(taskId, skillId);
+    logger.info(`Disabled skill ${skillId} for task ${taskId}`);
   }
 
   /**
-   * Toggle skill status for a conversation
+   * Toggle skill status for a task
    */
-  async toggleSkillForConversation(conversationId: string, skillId: string): Promise<boolean> {
-    const conversationSkills = await this.dbService.getConversationSkills(conversationId);
-    const existing = conversationSkills.find((cs) => cs.skillId === skillId);
+  async toggleSkillForTask(taskId: string, skillId: string): Promise<boolean> {
+    const taskSkills = await this.dbService.getTaskSkills(taskId);
+    const existing = taskSkills.find((ts: TaskSkill) => ts.skillId === skillId);
 
     if (!existing) {
       // Enable if not exists
-      await this.enableSkillForConversation(conversationId, skillId);
+      await this.enableSkillForTask(taskId, skillId);
       return true;
     }
 
     if (existing.enabled) {
       // Disable if currently enabled
-      await this.disableSkillForConversation(conversationId, skillId);
+      await this.disableSkillForTask(taskId, skillId);
       return false;
     }
 
     // Enable if currently disabled
-    await this.enableSkillForConversation(conversationId, skillId);
+    await this.enableSkillForTask(taskId, skillId);
     return true;
   }
 
   /**
-   * Set skills for a conversation (replaces existing)
+   * Set skills for a task (replaces existing)
    */
-  async setConversationSkills(conversationId: string, skillIds: string[]): Promise<void> {
-    await this.dbService.setConversationSkills(conversationId, skillIds);
-    logger.info(`Set ${skillIds.length} skills for conversation ${conversationId}`);
+  async setTaskSkills(taskId: string, skillIds: string[]): Promise<void> {
+    await this.dbService.setTaskSkills(taskId, skillIds);
+    logger.info(`Set ${skillIds.length} skills for task ${taskId}`);
   }
 
   // ==================== Documentation Resolution ====================
@@ -384,7 +380,11 @@ export class SkillService {
     await this.dbService.updateSkill(skillId, {
       metadata: {
         lastUsed: now,
-      } as any,
+        isBuiltIn: false,
+        tags: [],
+        createdAt: Date.now(),
+        updatedAt: now,
+      },
     });
   }
 

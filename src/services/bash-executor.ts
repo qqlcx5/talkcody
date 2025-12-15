@@ -1,5 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
+import { isAbsolute, join } from '@tauri-apps/api/path';
 import { logger } from '@/lib/logger';
+import { isPathWithinProjectDirectory } from '@/lib/utils/path-security';
 import { getValidatedWorkspaceRoot } from '@/services/workspace-root-service';
 
 // Result from Rust backend execute_user_shell command
@@ -197,13 +199,55 @@ export class BashExecutor {
   private readonly logger = logger;
 
   /**
+   * Extract command parts excluding heredoc content
+   * Heredoc syntax: << DELIMITER or <<- DELIMITER or << 'DELIMITER' or << "DELIMITER"
+   * Content between << DELIMITER and DELIMITER should not be checked as commands
+   * But commands AFTER the heredoc delimiter MUST be checked
+   */
+  private extractCommandExcludingHeredocContent(command: string): string {
+    // Match heredoc start: << or <<- followed by optional quotes and delimiter
+    const heredocMatch = command.match(/<<-?\s*['"]?(\w+)['"]?/);
+    if (!heredocMatch) {
+      return command;
+    }
+
+    const delimiter = heredocMatch[1];
+    const heredocStartIndex = command.indexOf('<<');
+
+    // Get the part before heredoc
+    const beforeHeredoc = command.slice(0, heredocStartIndex);
+
+    // Find the end of heredoc (delimiter on its own line)
+    // The delimiter must be at the start of a line (after newline) and may have trailing whitespace
+    const afterHeredocStart = command.slice(heredocStartIndex + heredocMatch[0].length);
+    const delimiterPattern = new RegExp(`\\n${delimiter}\\s*(?:\\n|$)`);
+    const delimiterMatch = afterHeredocStart.match(delimiterPattern);
+
+    if (!delimiterMatch || delimiterMatch.index === undefined) {
+      // No closing delimiter found, only check the part before heredoc
+      return beforeHeredoc;
+    }
+
+    // Get commands after the heredoc delimiter
+    const afterHeredoc = afterHeredocStart.slice(delimiterMatch.index + delimiterMatch[0].length);
+
+    // Recursively process in case there are more heredocs
+    const processedAfter = this.extractCommandExcludingHeredocContent(afterHeredoc);
+
+    return `${beforeHeredoc} ${processedAfter}`;
+  }
+
+  /**
    * Check if a command is dangerous
    */
   private isDangerousCommand(command: string): {
     dangerous: boolean;
     reason?: string;
   } {
-    const trimmedCommand = command.trim().toLowerCase();
+    // Extract command excluding heredoc content - heredoc content should not be checked
+    // but commands after heredoc must still be checked
+    const commandToCheck = this.extractCommandExcludingHeredocContent(command);
+    const trimmedCommand = commandToCheck.trim().toLowerCase();
 
     // Check for exact dangerous commands
     for (const dangerousCmd of DANGEROUS_COMMANDS) {
@@ -215,9 +259,9 @@ export class BashExecutor {
       }
     }
 
-    // Check for dangerous patterns
+    // Check for dangerous patterns (use commandToCheck to exclude heredoc content)
     for (const pattern of DANGEROUS_PATTERNS) {
-      if (pattern.test(command)) {
+      if (pattern.test(commandToCheck)) {
         return {
           dangerous: true,
           reason: 'Command matches dangerous pattern and is not allowed for security reasons',
@@ -228,8 +272,13 @@ export class BashExecutor {
     // Check for multiple command chaining with dangerous commands
     // Only split on actual command separators: && || ;
     // Don't split on single | as it's used in sed patterns and pipes
-    if (command.includes('&&') || command.includes('||') || command.includes(';')) {
-      const parts = command.split(/\s*(?:&&|\|\||;)\s*/);
+    // Use commandToCheck to avoid splitting heredoc content
+    if (
+      commandToCheck.includes('&&') ||
+      commandToCheck.includes('||') ||
+      commandToCheck.includes(';')
+    ) {
+      const parts = commandToCheck.split(/\s*(?:&&|\|\||;)\s*/);
       for (const part of parts) {
         const partCheck = this.isDangerousCommand(part.trim());
         if (partCheck.dangerous) {
@@ -239,6 +288,131 @@ export class BashExecutor {
     }
 
     return { dangerous: false };
+  }
+
+  /**
+   * Extract paths from rm command
+   * Returns an array of paths that the rm command targets
+   */
+  private extractRmPaths(command: string): string[] {
+    // Match rm command with optional flags
+    // rm [-options] path1 [path2 ...]
+    const rmMatch = command.match(/\brm\s+(.+)/);
+    if (!rmMatch) {
+      return [];
+    }
+
+    const args = rmMatch[1] ?? '';
+    const paths: string[] = [];
+
+    // Split by spaces, but respect quoted strings
+    const parts = args.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) ?? [];
+
+    for (const part of parts) {
+      // Skip flags (start with -)
+      if (part.startsWith('-')) {
+        continue;
+      }
+      // Remove surrounding quotes if present
+      const cleanPath = part.replace(/^["']|["']$/g, '');
+      if (cleanPath) {
+        paths.push(cleanPath);
+      }
+    }
+
+    return paths;
+  }
+
+  /**
+   * Check if a path is within the workspace directory
+   */
+  private async isPathWithinWorkspace(targetPath: string, workspaceRoot: string): Promise<boolean> {
+    // If the path is relative, it's relative to the workspace
+    const isAbs = await isAbsolute(targetPath);
+    if (!isAbs) {
+      // Relative paths are allowed, but we need to resolve them first to check for ../ escapes
+      const resolvedPath = await join(workspaceRoot, targetPath);
+      return await isPathWithinProjectDirectory(resolvedPath, workspaceRoot);
+    }
+
+    // Check if the absolute path is within the workspace
+    return await isPathWithinProjectDirectory(targetPath, workspaceRoot);
+  }
+
+  /**
+   * Check if the command contains rm and validate the paths
+   * Returns error message if rm is not allowed, null if allowed
+   */
+  private async validateRmCommand(
+    command: string,
+    workspaceRoot: string | null
+  ): Promise<{ allowed: boolean; reason?: string }> {
+    // Check if command contains rm (excluding heredoc content)
+    const commandToCheck = this.extractCommandExcludingHeredocContent(command);
+
+    // Simple check for rm command presence
+    if (!/\brm\b/.test(commandToCheck)) {
+      return { allowed: true };
+    }
+
+    // If no workspace root is set, rm is not allowed
+    if (!workspaceRoot) {
+      return {
+        allowed: false,
+        reason: 'rm command is not allowed: no workspace root is set',
+      };
+    }
+
+    // Check if workspace is a git repository by checking for .git directory
+    try {
+      const result = await invoke<TauriShellResult>('execute_user_shell', {
+        command: 'git rev-parse --is-inside-work-tree',
+        cwd: workspaceRoot,
+        timeoutMs: 5000,
+      });
+
+      if (result.code !== 0 || result.stdout.trim() !== 'true') {
+        return {
+          allowed: false,
+          reason: 'rm command is only allowed in git repositories',
+        };
+      }
+    } catch {
+      return {
+        allowed: false,
+        reason: 'rm command is only allowed in git repositories (git check failed)',
+      };
+    }
+
+    // Extract and validate paths from rm command
+    // Need to check each part of the command that might contain rm
+    const commandParts = commandToCheck.split(/\s*(?:&&|\|\||;)\s*/);
+
+    for (const part of commandParts) {
+      const trimmedPart = part.trim();
+      if (!/\brm\b/.test(trimmedPart)) {
+        continue;
+      }
+
+      const paths = this.extractRmPaths(trimmedPart);
+
+      if (paths.length === 0) {
+        // rm without paths is likely an error, let it through and shell will handle it
+        continue;
+      }
+
+      for (const targetPath of paths) {
+        const isWithin = await this.isPathWithinWorkspace(targetPath, workspaceRoot);
+        if (!isWithin) {
+          return {
+            allowed: false,
+            reason: `rm command blocked: path "${targetPath}" is outside the workspace directory`,
+          };
+        }
+      }
+    }
+
+    return { allowed: true };
   }
 
   /**
@@ -260,6 +434,18 @@ export class BashExecutor {
 
       this.logger.info('Executing bash command:', command);
       const rootPath = await getValidatedWorkspaceRoot();
+
+      // Validate rm command paths
+      const rmValidation = await this.validateRmCommand(command, rootPath || null);
+      if (!rmValidation.allowed) {
+        this.logger.warn('Blocked rm command:', command, rmValidation.reason);
+        return {
+          success: false,
+          command,
+          message: `Command blocked: ${rmValidation.reason}`,
+          error: rmValidation.reason,
+        };
+      }
       if (rootPath) {
         this.logger.info('rootPath:', rootPath);
       } else {
@@ -346,7 +532,7 @@ export class BashExecutor {
     } else {
       // Failure: always show full error information regardless of strategy
       message = `Command failed with exit code ${result.code}`;
-      if (result.stderr && result.stderr.trim()) {
+      if (result.stderr?.trim()) {
         error = result.stderr;
         // Also include stdout if it contains useful info
         if (result.stdout.trim()) {

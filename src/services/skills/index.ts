@@ -6,7 +6,6 @@ import { SkillService } from './skill-service';
 
 // Re-export types
 export type {
-  ConversationSkill,
   CreateSkillRequest,
   DocumentationItem,
   DocumentationType,
@@ -18,6 +17,7 @@ export type {
   SkillSortOption,
   SkillStats,
   SkillTag,
+  TaskSkill,
   UpdateSkillRequest,
 } from '@/types/skill';
 
@@ -61,17 +61,28 @@ export async function listSkills(filter?: any, sort?: any) {
 }
 
 /**
- * Convenience function to get conversation skills
+ * Convenience function to get task skills
  */
-export async function getConversationSkills(conversationId: string) {
+export async function getTaskSkills(taskId: string) {
   const service = await getSkillService();
-  return service.getConversationSkills(conversationId);
+  return service.getTaskSkills(taskId);
 }
 
 /**
- * Convenience function to get active skills for a conversation
+ * Convenience function to get active skills for a task
  */
-export async function getActiveSkillsForConversation(conversationId: string) {
+export async function getActiveSkillsForTask(taskId: string) {
   const service = await getSkillService();
-  return service.getActiveSkillsForConversation(conversationId);
+  return service.getActiveSkillsForTask(taskId);
+}
+
+// Deprecated aliases for backward compatibility
+/** @deprecated Use getTaskSkills instead */
+export async function getConversationSkills(taskId: string) {
+  return getTaskSkills(taskId);
+}
+
+/** @deprecated Use getActiveSkillsForTask instead */
+export async function getActiveSkillsForConversation(taskId: string) {
+  return getActiveSkillsForTask(taskId);
 }

@@ -171,6 +171,9 @@ export function MCPServersPage() {
     reloadData,
   } = useMultiMCPTools();
 
+  // Check if there are any enabled servers
+  const hasEnabledServers = servers.some((serverData) => serverData.server.is_enabled);
+
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingServer, setEditingServer] = useState<MCPServer | null>(null);
@@ -452,10 +455,25 @@ export function MCPServersPage() {
           <p className="text-gray-600 dark:text-gray-400 mt-1">{t.MCPServers.description}</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={refreshTools} disabled={isLoading}>
-            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-            {t.MCPServers.refreshAll}
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={refreshTools}
+                disabled={isLoading || !hasEnabledServers}
+                className={!hasEnabledServers ? 'opacity-50 cursor-not-allowed' : ''}
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+                {t.MCPServers.refreshAll}
+              </Button>
+            </TooltipTrigger>
+            {!hasEnabledServers && (
+              <TooltipContent>
+                <p>{t.MCPServers.refreshAllTooltip}</p>
+              </TooltipContent>
+            )}
+          </Tooltip>
           <Button size="sm" onClick={openCreateDialog}>
             <Plus className="h-4 w-4 mr-2" />
             {t.MCPServers.addServer}

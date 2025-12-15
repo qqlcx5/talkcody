@@ -16,11 +16,11 @@ import { ChatHistory } from './chat-history';
 import { ProjectDropdown } from './project-dropdown';
 
 interface ChatToolbarProps {
-  currentConversationId?: string;
+  currentTaskId?: string;
   onSettingsOpen?: () => void;
   isHistoryOpen: boolean;
   onHistoryOpenChange: (open: boolean) => void;
-  onConversationSelect: (conversationId: string) => void;
+  onTaskSelect: (taskId: string) => void;
   onNewChat: () => void;
   // Project selector props
   currentProjectId?: string | null;
@@ -36,11 +36,11 @@ interface ChatToolbarProps {
 }
 
 export function ChatToolbar({
-  currentConversationId,
+  currentTaskId,
   isHistoryOpen,
   onSettingsOpen: _onSettingsOpen,
   onHistoryOpenChange,
-  onConversationSelect,
+  onTaskSelect,
   onNewChat,
   currentProjectId,
   onProjectSelect,
@@ -93,6 +93,8 @@ export function ChatToolbar({
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
+                    role="img"
+                    aria-label="Plan mode icon"
                   >
                     <path
                       strokeLinecap="round"
@@ -222,9 +224,9 @@ export function ChatToolbar({
           <TooltipTrigger asChild>
             <div>
               <ChatHistory
-                currentConversationId={currentConversationId}
+                currentTaskId={currentTaskId}
                 isOpen={isHistoryOpen}
-                onConversationSelect={onConversationSelect}
+                onTaskSelect={onTaskSelect}
                 onNewChat={onNewChat}
                 onOpenChange={onHistoryOpenChange}
               />

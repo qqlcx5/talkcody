@@ -52,7 +52,7 @@ export class PromptComposer {
       workspaceRoot,
       currentWorkingDirectory,
       recentFilePaths,
-      conversationId,
+      taskId,
     } = options;
 
     // Extract systemPrompt from agent (handle function case)
@@ -88,7 +88,7 @@ export class PromptComposer {
       workspaceRoot,
       currentWorkingDirectory,
       recentFilePaths,
-      conversationId,
+      taskId,
       agentId: agent.id,
       cache: new Map(),
       readFile: (root, file) => repositoryService.readFile(root, file),

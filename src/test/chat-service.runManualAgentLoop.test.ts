@@ -57,7 +57,7 @@ vi.mock('../stores/provider-store', () => ({
 vi.mock('../stores/settings-store', () => ({
   settingsManager: {
     getCurrentRootPath: vi.fn().mockReturnValue('/test/path'),
-    getCurrentConversationId: vi.fn().mockReturnValue('test-conversation-id'),
+    getCurrentTaskId: vi.fn().mockReturnValue('test-task-id'),
     getSync: vi.fn().mockReturnValue(undefined),
     getBatchSync: vi.fn().mockReturnValue({}),
   },
@@ -78,9 +78,9 @@ vi.mock('../services/ai-pricing-service', () => ({
   },
 }));
 
-vi.mock('../services/conversation-manager', () => ({
-  ConversationManager: {
-    updateConversationUsage: vi.fn().mockResolvedValue(undefined),
+vi.mock('../services/task-manager', () => ({
+  TaskManager: {
+    updateTaskUsage: vi.fn().mockResolvedValue(undefined),
   },
 }));
 
@@ -821,9 +821,9 @@ describe('ChatService.runManualAgentLoop', () => {
       expect(mockCallbacks.onComplete).toHaveBeenCalledWith('Test response');
     });
 
-    it('should handle conversation usage update error gracefully', async () => {
-      const { ConversationManager } = await import('../services/conversation-manager');
-      vi.mocked(ConversationManager.updateConversationUsage).mockRejectedValue(
+    it('should handle task usage update error gracefully', async () => {
+      const { TaskManager } = await import('../services/task-manager');
+      vi.mocked(TaskManager.updateTaskUsage).mockRejectedValue(
         new Error('Database error')
       );
 

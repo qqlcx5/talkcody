@@ -74,6 +74,7 @@ export class DocumentWriterAgent {
       codeSearch: getToolSync('codeSearch'),
       listFiles: getToolSync('listFiles'),
       bash: getToolSync('bash'),
+      writeFile: getToolSync('writeFile'),
     };
 
     return {

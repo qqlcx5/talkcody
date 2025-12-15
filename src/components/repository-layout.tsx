@@ -124,7 +124,7 @@ export function RepositoryLayout() {
     }
   };
 
-  const { currentConversationId, selectConversation, startNewChat } = useTasks();
+  const { currentTaskId, selectTask, startNewChat } = useTasks();
 
   // Removed isSpecOpen state as it's replaced by mode system
 
@@ -232,13 +232,13 @@ export function RepositoryLayout() {
     setIsHistoryOpen(false);
   };
 
-  const handleHistoryConversationSelect = (conversationId: string) => {
-    selectConversation(conversationId);
+  const handleHistoryTaskSelect = (taskId: string) => {
+    selectTask(taskId);
     setIsHistoryOpen(false);
   };
 
-  const handleConversationStart = (conversationId: string, _title: string) => {
-    selectConversation(conversationId);
+  const handleTaskStart = (taskId: string, _title: string) => {
+    selectTask(taskId);
   };
 
   const handleDiffApplied = () => {
@@ -587,10 +587,10 @@ export function RepositoryLayout() {
                   {/* Chat Panel Header - only show when repository is loaded */}
                   {hasRepository && (
                     <ChatPanelHeader
-                      currentConversationId={currentConversationId}
+                      currentTaskId={currentTaskId}
                       isHistoryOpen={isHistoryOpen}
                       onHistoryOpenChange={setIsHistoryOpen}
-                      onConversationSelect={handleHistoryConversationSelect}
+                      onTaskSelect={handleHistoryTaskSelect}
                       onNewChat={handleNewChat}
                       isFullscreen={isChatFullscreen}
                       onToggleFullscreen={() => toggleFullscreen('chat')}
@@ -599,9 +599,9 @@ export function RepositoryLayout() {
                   <div className="flex-1 overflow-hidden">
                     <ChatBox
                       ref={chatBoxRef}
-                      conversationId={currentConversationId}
+                      taskId={currentTaskId}
                       fileContent={hasRepository ? currentFile?.content || null : null}
-                      onConversationStart={handleConversationStart}
+                      onTaskStart={handleTaskStart}
                       onDiffApplied={handleDiffApplied}
                       repositoryPath={rootPath ?? undefined}
                       selectedFile={hasRepository ? currentFile?.path || null : null}

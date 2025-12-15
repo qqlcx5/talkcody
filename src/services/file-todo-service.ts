@@ -6,7 +6,7 @@ import { timedMethod } from '@/lib/timer';
 import type { CreateTodoItem, TodoItem } from '@/types';
 
 export interface FileTodoData {
-  conversationId: string;
+  taskId: string;
   todos: TodoItem[];
   lastUpdated: number;
   version: string;
@@ -47,43 +47,43 @@ export class FileTodoService {
     }
   }
 
-  private async getTodoFilePath(conversationId: string): Promise<string> {
+  private async getTodoFilePath(taskId: string): Promise<string> {
     const todosDir = await this.ensureTodosDirectory();
-    return join(todosDir, `${conversationId}.json`);
+    return join(todosDir, `${taskId}.json`);
   }
 
-  @timedMethod('getTodosByConversation')
-  async getTodosByConversation(conversationId: string): Promise<TodoItem[]> {
+  @timedMethod('getTodosByTask')
+  async getTodosByTask(taskId: string): Promise<TodoItem[]> {
     try {
-      const filePath = await this.getTodoFilePath(conversationId);
+      const filePath = await this.getTodoFilePath(taskId);
 
       if (!(await exists(filePath))) {
-        logger.info(`No todos file found for conversation ${conversationId}`);
+        logger.info(`No todos file found for task ${taskId}`);
         return [];
       }
 
       const content = await readTextFile(filePath);
       const data: FileTodoData = JSON.parse(content);
 
-      logger.info(`Retrieved ${data.todos.length} todos for conversation ${conversationId}`);
+      logger.info(`Retrieved ${data.todos.length} todos for task ${taskId}`);
       return data.todos;
     } catch (error) {
-      logger.error(`Error reading todos for conversation ${conversationId}:`, error);
+      logger.error(`Error reading todos for task ${taskId}:`, error);
       // Return empty array instead of throwing to maintain compatibility
       return [];
     }
   }
 
   @timedMethod('saveTodos')
-  async saveTodos(conversationId: string, todos: CreateTodoItem[]): Promise<void> {
+  async saveTodos(taskId: string, todos: CreateTodoItem[]): Promise<void> {
     try {
-      const filePath = await this.getTodoFilePath(conversationId);
+      const filePath = await this.getTodoFilePath(taskId);
       const now = Date.now();
 
       // Convert CreateTodoItem to TodoItem by adding required fields
       const todoItems: TodoItem[] = todos.map((todo, index) => ({
         id: (todo as any).id || `todo-${now}-${index}`, // Use existing ID or generate new one
-        conversation_id: conversationId,
+        conversation_id: taskId,
         content: todo.content,
         status: todo.status,
         created_at: (todo as any).created_at || now,
@@ -91,7 +91,7 @@ export class FileTodoService {
       }));
 
       const data: FileTodoData = {
-        conversationId,
+        taskId,
         todos: todoItems,
         lastUpdated: now,
         version: '1.0',
@@ -99,38 +99,38 @@ export class FileTodoService {
 
       await writeTextFile(filePath, JSON.stringify(data, null, 2));
 
-      logger.info(`Saved ${todos.length} todos for conversation ${conversationId}`);
+      logger.info(`Saved ${todos.length} todos for task ${taskId}`);
     } catch (error) {
-      logger.error(`Error saving todos for conversation ${conversationId}:`, error);
+      logger.error(`Error saving todos for task ${taskId}:`, error);
       throw error;
     }
   }
 
-  @timedMethod('deleteTodosByConversation')
-  async deleteTodosByConversation(conversationId: string): Promise<void> {
+  @timedMethod('deleteTodosByTask')
+  async deleteTodosByTask(taskId: string): Promise<void> {
     try {
-      const filePath = await this.getTodoFilePath(conversationId);
+      const filePath = await this.getTodoFilePath(taskId);
 
       if (await exists(filePath)) {
         await remove(filePath);
-        logger.info(`Deleted todos for conversation ${conversationId}`);
+        logger.info(`Deleted todos for task ${taskId}`);
       } else {
-        logger.info(`No todos file to delete for conversation ${conversationId}`);
+        logger.info(`No todos file to delete for task ${taskId}`);
       }
     } catch (error) {
-      logger.error(`Error deleting todos for conversation ${conversationId}:`, error);
+      logger.error(`Error deleting todos for task ${taskId}:`, error);
       throw error;
     }
   }
 
   @timedMethod('updateTodo')
   async updateTodo(
-    conversationId: string,
+    taskId: string,
     todoId: string,
     updates: Partial<Pick<TodoItem, 'content' | 'status'>>
   ): Promise<void> {
     try {
-      const todos = await this.getTodosByConversation(conversationId);
+      const todos = await this.getTodosByTask(taskId);
       const todoIndex = todos.findIndex((todo) => todo.id === todoId);
 
       if (todoIndex === -1) {
@@ -155,8 +155,8 @@ export class FileTodoService {
         status: todo.status,
       }));
 
-      await this.saveTodos(conversationId, createTodos);
-      logger.info(`Updated todo ${todoId} in conversation ${conversationId}`);
+      await this.saveTodos(taskId, createTodos);
+      logger.info(`Updated todo ${todoId} in task ${taskId}`);
     } catch (error) {
       logger.error(`Error updating todo ${todoId}:`, error);
       throw error;
@@ -164,9 +164,9 @@ export class FileTodoService {
   }
 
   @timedMethod('getTodoById')
-  async getTodoById(conversationId: string, todoId: string): Promise<TodoItem | null> {
+  async getTodoById(taskId: string, todoId: string): Promise<TodoItem | null> {
     try {
-      const todos = await this.getTodosByConversation(conversationId);
+      const todos = await this.getTodosByTask(taskId);
       return todos.find((todo) => todo.id === todoId) || null;
     } catch (error) {
       logger.error(`Error getting todo ${todoId}:`, error);
@@ -175,14 +175,14 @@ export class FileTodoService {
   }
 
   @timedMethod('getTodoStats')
-  async getTodoStats(conversationId: string): Promise<{
+  async getTodoStats(taskId: string): Promise<{
     total: number;
     pending: number;
     inProgress: number;
     completed: number;
   }> {
     try {
-      const todos = await this.getTodosByConversation(conversationId);
+      const todos = await this.getTodosByTask(taskId);
 
       return {
         total: todos.length,
@@ -191,13 +191,13 @@ export class FileTodoService {
         completed: todos.filter((t) => t.status === 'completed').length,
       };
     } catch (error) {
-      logger.error(`Error getting todo stats for conversation ${conversationId}:`, error);
+      logger.error(`Error getting todo stats for task ${taskId}:`, error);
       return { total: 0, pending: 0, inProgress: 0, completed: 0 };
     }
   }
 
-  // Additional utility method to get all conversation IDs that have todos
-  async getAllTodoConversations(): Promise<string[]> {
+  // Additional utility method to get all task IDs that have todos
+  async getAllTodoTasks(): Promise<string[]> {
     try {
       const todosDir = await this.ensureTodosDirectory();
       const entries = await readDir(todosDir);
@@ -205,7 +205,7 @@ export class FileTodoService {
         .filter((entry: any) => entry.name?.endsWith('.json'))
         .map((entry: any) => entry.name?.replace('.json', ''));
     } catch (error) {
-      logger.error('Error getting all todo conversations:', error);
+      logger.error('Error getting all todo tasks:', error);
       return [];
     }
   }

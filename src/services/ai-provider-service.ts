@@ -177,14 +177,6 @@ export class AIProviderService {
       );
     }
 
-    logger.info(`Getting provider model for ${modelIdentifier}`, {
-      modelKey,
-      providerId,
-      hasProvider: this.providers.has(providerId),
-      totalProviders: this.providers.size,
-      availableProviders: Array.from(this.providers.keys()),
-    });
-
     const provider = this.providers.get(providerId);
     if (!provider) {
       logger.warn(

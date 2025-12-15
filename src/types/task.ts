@@ -24,12 +24,12 @@ export interface Task {
   cost: number;
   input_token: number;
   output_token: number;
-  settings?: string; // JSON string for conversation-level settings
+  settings?: string; // JSON string for task-level settings
   context_usage?: number; // Percentage of context window used
 }
 
 export interface TaskSettings {
-  autoApproveEdits?: boolean; // When true, skip review dialog for file edits in this conversation
+  autoApproveEdits?: boolean; // When true, skip review dialog for file edits in this task
 }
 
 export interface CreateProjectData {

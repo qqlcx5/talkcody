@@ -16,12 +16,12 @@ import { logger } from '@/lib/logger';
 import { useSkillsStore } from '@/stores/skills-store';
 
 interface SkillsSelectorButtonProps {
-  conversationId?: string | null;
+  taskId?: string | null;
   onBrowseMarketplace?: () => void;
 }
 
 export function SkillsSelectorButton({
-  conversationId: _conversationId,
+  taskId: _taskId,
   onBrowseMarketplace,
 }: SkillsSelectorButtonProps) {
   const t = useTranslation();

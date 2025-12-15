@@ -1,6 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
 import { isAbsolute, join } from '@tauri-apps/api/path';
-import { Search } from 'lucide-react';
 import { z } from 'zod';
 import { GenericToolDoing } from '@/components/tools/generic-tool-doing';
 import { GenericToolResult } from '@/components/tools/generic-tool-result';
@@ -129,35 +128,19 @@ Use this to find code patterns, function definitions, variable usage, or any tex
   renderToolResult: (
     output: CodeSearchResult,
     {
-      pattern = 'Unknown pattern',
       path: _path = 'Unknown path',
       file_types: _file_types = [],
     }: { pattern?: string; path?: string; file_types?: string[] } = {}
   ) => {
     if (!output.success) {
-      return (
-        <GenericToolResult
-          operation="search"
-          success={false}
-          target={pattern}
-          error={output.error}
-        />
-      );
+      return <GenericToolResult success={false} message={output.error} />;
     }
 
     // Check if "No matches found" to show appropriate message
     const isNoMatches = output.result === 'No matches found';
-    const targetName = pattern;
 
     if (isNoMatches) {
-      return (
-        <GenericToolResult
-          operation="search"
-          success={true}
-          target={targetName}
-          message="No matches found"
-        />
-      );
+      return <GenericToolResult success={true} message="No matches found" />;
     }
 
     return (
