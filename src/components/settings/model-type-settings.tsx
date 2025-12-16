@@ -160,12 +160,10 @@ export function ModelTypeSettings() {
 
       const providers = availableModels
         .filter((m) => m.key === modelKey)
-        .map((m) => ({ id: m.provider, name: m.providerName, priority: m.priority }));
+        .map((m) => ({ id: m.provider, name: m.providerName }));
 
       // Deduplicate by provider id
-      const dedupedProviders = Array.from(new Map(providers.map((p) => [p.id, p])).values()).sort(
-        (a, b) => a.priority - b.priority
-      );
+      const dedupedProviders = Array.from(new Map(providers.map((p) => [p.id, p])).values());
 
       return dedupedProviders;
     };
@@ -180,7 +178,7 @@ export function ModelTypeSettings() {
       const providers = getAvailableProviders(modelKey);
       // logger.info(`Available providers for model ${modelKey}:`, providers);
 
-      // Auto-select the first (highest priority) provider
+      // Auto-select the first provider (alphabetically first)
       const defaultProvider = providers[0]?.id || '';
       setSelectedProviders((prev) => ({ ...prev, [modelType]: defaultProvider }));
 

@@ -55,7 +55,6 @@ export class ModelService {
           imageInput: modelConfig.imageInput ?? false,
           imageOutput: modelConfig.imageOutput ?? false,
           audioInput: modelConfig.audioInput ?? false,
-          priority: provider.priority,
         });
       }
     }
@@ -94,7 +93,6 @@ export class ModelService {
               imageInput: modelConfig.imageInput ?? false,
               imageOutput: modelConfig.imageOutput ?? false,
               audioInput: modelConfig.audioInput ?? false,
-              priority: 100, // Custom models have lower priority than built-in
             });
           }
         }
@@ -103,13 +101,8 @@ export class ModelService {
       logger.warn('Failed to load custom models:', error);
     }
 
-    // Sort by priority (lower number = higher priority) then by name
-    return availableModels.sort((a, b) => {
-      if (a.priority !== b.priority) {
-        return a.priority - b.priority;
-      }
-      return a.name.localeCompare(b.name);
-    });
+    // Sort by name
+    return availableModels.sort((a, b) => a.name.localeCompare(b.name));
   }
 
   /**
@@ -144,17 +137,11 @@ export class ModelService {
           imageInput: modelConfig.imageInput ?? false,
           imageOutput: modelConfig.imageOutput ?? false,
           audioInput: modelConfig.audioInput ?? false,
-          priority: provider.priority,
         });
       }
     }
 
-    return availableModels.sort((a, b) => {
-      if (a.priority !== b.priority) {
-        return a.priority - b.priority;
-      }
-      return a.name.localeCompare(b.name);
-    });
+    return availableModels.sort((a, b) => a.name.localeCompare(b.name));
   }
 
   /**
@@ -297,13 +284,10 @@ export class ModelService {
   }
 
   /**
-   * Find the best available provider from a list based on priority and API key availability
+   * Find the best available provider from a list based on API key availability
    */
   private getBestAvailableProvider(providers: any[], apiKeys: ApiKeySettings): any | null {
-    // Sort providers by priority (lower number = higher priority)
-    const sortedProviders = [...providers].sort((a, b) => a.priority - b.priority);
-
-    for (const provider of sortedProviders) {
+    for (const provider of providers) {
       if (this.hasApiKeyForProvider(provider.id, apiKeys)) {
         return provider;
       }

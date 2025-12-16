@@ -12,7 +12,7 @@ describe('LLMService - empty tool calls bug fix', () => {
    * This test documents the bug fix for repeated callAgent tool invocations.
    *
    * BUG SCENARIO:
-   * - Parent agent calls nested agent (e.g., context-gatherer) via callAgent tool
+   * - Parent agent calls nested agent (e.g., explore) via callAgent tool
    * - Nested agent completes successfully and returns result
    * - Parent agent's LLM receives the tool result
    * - LLM returns finishReason: 'tool-calls' BUT toolCalls array is empty (0 tool calls)
@@ -101,7 +101,7 @@ describe('LLMService - empty tool calls bug fix', () => {
   it('verifies the condition allows tool execution when toolCalls is not empty', () => {
     // Normal scenario
     const finishReason = 'tool-calls';
-    const toolCalls = [{ toolName: 'callAgent', args: { agentId: 'context-gatherer' } }];
+    const toolCalls = [{ toolName: 'callAgent', args: { agentId: 'explore' } }];
 
     // The fixed condition
     const shouldExecuteTools = finishReason === 'tool-calls' && toolCalls.length > 0;

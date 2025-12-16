@@ -116,8 +116,8 @@ export type DynamicPromptConfig = {
  * Agent role classification based on primary function
  */
 export type AgentRole =
-  | 'information-gathering' // Primarily reads and analyzes existing content
-  | 'content-modification'; // Primarily creates, edits, or deletes content (includes mixed operations)
+  | 'read' // Primarily reads and analyzes existing content
+  | 'write'; // Primarily creates, edits, or deletes content (includes mixed operations)
 
 /**
  * Execution phase types for better semantic naming
@@ -142,4 +142,5 @@ export interface AgentDefinition {
   defaultSkills?: string[]; // array of skill IDs
   isBeta?: boolean; // if true, show beta badge in UI
   role?: AgentRole; // Primary function classification for dependency analysis
+  canBeSubagent?: boolean; // if false, cannot be called via callAgent. Default: true
 }

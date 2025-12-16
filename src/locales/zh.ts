@@ -525,6 +525,10 @@ const zh: LocaleDefinition = {
     directoryNotFound: '目录不存在',
   },
 
+  FileChanges: {
+    codeReviewMessage: '请调用 code review agent，review 当前的代码变动。',
+  },
+
   Skills: {
     title: '技能',
     system: '系统',

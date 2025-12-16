@@ -34,7 +34,7 @@ export class DependencyAnalyzer {
    * Analyze tool calls and generate an optimized execution plan
    *
    * Strategy:
-   * 1. Check if all calls are agent calls (callAgent/callAgentV2)
+   * 1. Check if all calls are agent calls (callAgent)
    * 2. If yes, use AgentDependencyAnalyzer for optimized agent delegation
    * 3. If no, validate no mixed agent + other tools (strict isolation)
    * 4. Use ToolDependencyAnalyzer for regular tool execution
@@ -96,7 +96,7 @@ export class DependencyAnalyzer {
         toolCall.toolName = normalizedToolName;
       }
 
-      if (toolCall.toolName === 'callAgent' || toolCall.toolName === 'callAgentV2') {
+      if (toolCall.toolName === 'callAgent') {
         agentCalls.push(toolCall);
       } else {
         otherTools.push(toolCall);
@@ -119,7 +119,7 @@ Found mixed calls:
 
 Solution: Use separate responses for:
 1. Information gathering (readFile, grepSearch, etc.)
-2. Agent delegation (callAgent/callAgentV2)
+2. Agent delegation (callAgent)
 
 This ensures clean context boundaries and prevents tool conflicts.`;
 

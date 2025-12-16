@@ -202,13 +202,11 @@ describe('Agent Registry - Auto-load Behavior', () => {
     // Don't call loadAllAgents() explicitly
     // The registry should auto-load when we call get()
     const agent = await agentRegistry.get('planner');
-    const plannerV2 = await agentRegistry.get('planner-v2');
 
     // Should find the planner agent (system agent loaded from code)
     expect(agent).toBeDefined();
     expect(agent?.id).toBe('planner');
     expect(agent?.name).toBe('Code Planner');
-    expect(plannerV2?.id).toBe('planner-v2');
   });
 
   it('should auto-load agents when getWithResolvedTools() is called before loadAllAgents()', async () => {
@@ -256,21 +254,5 @@ describe('Agent Registry - Auto-load Behavior', () => {
     expect(results[0]?.id).toBe('planner');
     expect(results[1]?.id).toBe('general');
     expect(results[2]?.id).toBe('planner');
-  });
-});
-
-describe('Agent Registry - Tool Access Restrictions', () => {
-  beforeEach(() => {
-    agentRegistry.reset();
-    useToolOverrideStore.getState().clearAll();
-  });
-
-  it('should prevent callAgentV2 on non planner-v2 agents', async () => {
-    useToolOverrideStore.getState().addTool('planner', 'callAgentV2');
-
-    const agent = await agentRegistry.getWithResolvedTools('planner');
-    expect(agent).toBeDefined();
-    expect(agent?.tools).toBeDefined();
-    expect(Object.keys(agent?.tools || {})).not.toContain('callAgentV2');
   });
 });

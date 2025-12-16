@@ -539,6 +539,10 @@ const en: LocaleDefinition = {
     directoryNotFound: 'Directory no longer exists',
   },
 
+  FileChanges: {
+    codeReviewMessage: 'Please use the code review agent to review the current code changes.',
+  },
+
   Skills: {
     title: 'Skills',
     system: 'System',

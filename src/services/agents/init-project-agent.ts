@@ -150,7 +150,8 @@ export class InitProjectAgent {
       tools: selectedTools,
       hidden: true,
       isDefault: true,
-      role: 'content-modification',
+      canBeSubagent: false,
+      role: 'write',
       dynamicPrompt: {
         enabled: true,
         providers: ['env', 'agents_md'],

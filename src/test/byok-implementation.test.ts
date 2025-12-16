@@ -12,12 +12,12 @@ const mockModelService = {
   isModelAvailable: vi.fn(),
   isModelAvailableSync: vi.fn(),
   getAllProviders: vi.fn(() => ({
-    openai: { priority: 1 },
-    google: { priority: 2 },
-    anthropic: { priority: 2 },
-    aiGateway: { priority: 0 },
-    qwen: { priority: 2 },
-    openRouter: { priority: 1 },
+    openai: {},
+    google: {},
+    anthropic: {},
+    aiGateway: {},
+    qwen: {},
+    openRouter: {},
   })),
 };
 
@@ -70,7 +70,6 @@ describe('BYOK Implementation', () => {
           imageInput: true,
           imageOutput: false,
           audioInput: false,
-          priority: 1,
         },
         {
           key: 'dall-e-3',
@@ -80,7 +79,6 @@ describe('BYOK Implementation', () => {
           imageInput: false,
           imageOutput: true,
           audioInput: false,
-          priority: 1,
         },
       ];
       mockModelService.getAvailableModels.mockResolvedValue(mockModels);
@@ -109,7 +107,6 @@ describe('BYOK Implementation', () => {
           imageInput: true,
           imageOutput: false,
           audioInput: false,
-          priority: 0,
         },
       ];
       mockModelService.getAvailableModels.mockResolvedValue(mockModels);
@@ -138,7 +135,6 @@ describe('BYOK Implementation', () => {
           imageInput: true,
           imageOutput: false,
           audioInput: false,
-          priority: 0,
         },
       ];
       mockModelService.getAvailableModels.mockResolvedValue(mockModels);
@@ -209,7 +205,6 @@ describe('BYOK Implementation', () => {
           imageInput: true,
           imageOutput: false,
           audioInput: false,
-          priority: 1,
         },
         {
           key: 'dall-e-3',
@@ -219,7 +214,6 @@ describe('BYOK Implementation', () => {
           imageInput: false,
           imageOutput: true,
           audioInput: false,
-          priority: 1,
         },
       ];
       mockModelService.getAvailableModels.mockResolvedValue(mockModels);
@@ -251,8 +245,9 @@ describe('BYOK Implementation', () => {
       expect(providers).toHaveProperty('qwen');
       expect(providers).toHaveProperty('openRouter');
 
-      expect(providers.openai.priority).toBe(1);
-      expect(providers.aiGateway.priority).toBe(0);
+      // Provider objects should exist but no longer have priority property
+      expect(providers.openai).toBeDefined();
+      expect(providers.aiGateway).toBeDefined();
     });
   });
 });

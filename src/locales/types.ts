@@ -523,6 +523,10 @@ export interface LocaleDefinition {
     directoryNotFound: string;
   };
 
+  FileChanges: {
+    codeReviewMessage: string;
+  };
+
   Skills: {
     title: string;
     system: string;

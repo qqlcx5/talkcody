@@ -807,6 +807,8 @@ pub fn run() {
             git::git_is_repository,
             git::git_get_all_file_statuses,
             git::git_get_line_changes,
+            git::git_get_all_file_diffs,
+            git::git_get_raw_diff_text,
             // WebSocket commands
             websocket::ws_connect,
             websocket::ws_send,

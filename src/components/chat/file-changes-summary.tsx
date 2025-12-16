@@ -4,28 +4,31 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useGit } from '@/hooks/use-git';
-import type { GitFileDiff } from '@/services/ai-git-messages-service';
+import { getLocale, type SupportedLocale } from '@/locales';
 import { useFileChangesStore } from '@/stores/file-changes-store';
 import { useRepositoryStore } from '@/stores/repository-store';
+import { useSettingsStore } from '@/stores/settings-store';
+import { useTaskStore } from '@/stores/task-store';
 import { FileChangeItem } from './file-change-item';
 import { FileDiffModal } from './file-diff-modal';
-import MyMarkdown from './my-markdown';
 
 interface FileChangesSummaryProps {
   taskId: string;
+  onSendMessage?: (message: string) => void;
 }
 
-export function FileChangesSummary({ taskId }: FileChangesSummaryProps) {
+export function FileChangesSummary({ taskId, onSendMessage }: FileChangesSummaryProps) {
   const changesByTask = useFileChangesStore((state) => state.changesByTask);
   const changes = useMemo(() => changesByTask.get(taskId) || [], [changesByTask, taskId]);
   const selectFile = useRepositoryStore((state) => state.selectFile);
   const rootPath = useRepositoryStore((state) => state.rootPath);
+  const getLastUserMessage = useTaskStore((state) => state.getLastUserMessage);
   const { commitWithAIMessage, isLoading: isGitLoading, isGeneratingMessage } = useGit();
+  const language = useSettingsStore((state) => state.language);
+  const t = useMemo(() => getLocale((language || 'en') as SupportedLocale), [language]);
 
   const totalChanges = changes.length;
   const [isExpanded, setIsExpanded] = useState(false);
-  const [isCodeReviewing, setIsCodeReviewing] = useState(false);
-  const [codeReviewResult, setCodeReviewResult] = useState<string | null>(null);
 
   const [diffModalOpen, setDiffModalOpen] = useState(false);
   const [selectedFileForDiff, setSelectedFileForDiff] = useState<{
@@ -41,67 +44,21 @@ export function FileChangesSummary({ taskId }: FileChangesSummaryProps) {
   const newFiles = changes.filter((c) => c.operation === 'write');
   const editedFiles = changes.filter((c) => c.operation === 'edit');
 
-  // Convert file changes to git format
-  const convertToGitFileDiffs = (): GitFileDiff[] => {
-    return changes.map((change) => {
-      let action: 'create' | 'update' | 'update_full' | 'delete';
-
-      if (change.operation === 'write') {
-        action = 'create';
-      } else if (change.operation === 'edit') {
-        action = 'update';
-      } else {
-        action = 'update';
-      }
-
-      return {
-        filename: change.filePath,
-        action,
-      };
-    });
-  };
-
   // Handle git commit with AI-generated message
   const handleGitCommit = async () => {
     if (changes.length === 0 || !rootPath) return;
-    const fileDiffs = convertToGitFileDiffs();
-    await commitWithAIMessage(fileDiffs, rootPath);
+
+    // Get the last user message as context for commit message generation
+    const lastMessage = getLastUserMessage(taskId);
+    const userMessage = typeof lastMessage?.content === 'string' ? lastMessage.content : undefined;
+
+    await commitWithAIMessage(userMessage, rootPath);
   };
 
-  // Handle code review using callAgentV2
-  const handleCodeReview = async () => {
-    if (changes.length === 0) return;
-
-    setIsCodeReviewing(true);
-    setCodeReviewResult(null);
-
-    try {
-      // Prepare context for code review
-      const changesContext = changes.map((change) => ({
-        filePath: change.filePath,
-        operation: change.operation,
-        originalContent: change.originalContent || '',
-        newContent: change.newContent || '',
-      }));
-
-      // Use callAgentV2 to trigger code review
-      const { callAgentV2 } = await import('@/lib/tools/call-agent-v2-tool');
-
-      const result = (await callAgentV2.execute({
-        agentId: 'code-planner-agent',
-        task: 'Please review the code changes and provide feedback on code quality, best practices, potential issues, and suggestions for improvement.',
-        context: `File changes for review:\n${JSON.stringify(changesContext, null, 2)}`,
-      })) as { success: boolean; task_result?: string };
-
-      // Save result for display
-      if (result.success && result.task_result) {
-        setCodeReviewResult(result.task_result);
-      }
-    } catch (error) {
-      console.error('Code review failed:', error);
-    } finally {
-      setIsCodeReviewing(false);
-    }
+  // Handle code review by sending a message
+  const handleCodeReview = () => {
+    if (changes.length === 0 || !onSendMessage) return;
+    onSendMessage(t.FileChanges.codeReviewMessage);
   };
 
   const handleOpen = (filePath: string) => {
@@ -142,11 +99,11 @@ export function FileChangesSummary({ taskId }: FileChangesSummaryProps) {
                   size="sm"
                   variant="outline"
                   onClick={handleCodeReview}
-                  disabled={isCodeReviewing || isGeneratingMessage || isGitLoading}
+                  disabled={!onSendMessage || isGeneratingMessage || isGitLoading}
                   className="ml-2"
                 >
                   <Bug className="h-3 w-3 mr-1" />
-                  {isCodeReviewing ? 'Reviewing...' : 'Review'}
+                  Review
                 </Button>
                 {/* Git Commit Button */}
                 <Button
@@ -214,19 +171,6 @@ export function FileChangesSummary({ taskId }: FileChangesSummaryProps) {
             </CardContent>
           </CollapsibleContent>
         </Collapsible>
-
-        {/* Code Review Result */}
-        {codeReviewResult && (
-          <CardContent className="border-t pt-3 px-3">
-            <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
-              <Bug className="h-3.5 w-3.5" />
-              Code Review Result
-            </h4>
-            <div className="text-sm prose prose-sm dark:prose-invert max-w-none">
-              <MyMarkdown content={codeReviewResult} />
-            </div>
-          </CardContent>
-        )}
       </Card>
 
       {selectedFileForDiff && (

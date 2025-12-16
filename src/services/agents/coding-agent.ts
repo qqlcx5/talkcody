@@ -414,7 +414,7 @@ export class CodingAgent {
       version: CodingAgent.VERSION,
       systemPrompt: CodingPrompt,
       tools: selectedTools,
-      role: 'content-modification',
+      role: 'write',
       dynamicPrompt: {
         enabled: true,
         providers: ['env', 'agents_md', 'skills'],

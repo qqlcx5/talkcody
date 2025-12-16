@@ -2,8 +2,6 @@
 
 import type { ModelMessage, TextPart, ToolCallPart, ToolResultPart } from 'ai';
 import { logger } from '@/lib/logger';
-import { mergeConsecutiveAssistantMessages } from '@/lib/message-convert';
-import { validateAnthropicMessages } from '@/lib/message-validate';
 
 // Type for assistant message content parts
 type AssistantContentPart = TextPart | ToolCallPart;
@@ -15,6 +13,9 @@ type AssistantContentPart = TextPart | ToolCallPart;
 export class MessageFilter {
   // Exploratory tools that can be filtered after initial discovery phase
   private readonly exploratoryTools = new Set(['glob', 'listFiles', 'codeSearch']);
+
+  // Tools that should be deduplicated (keep only the last occurrence)
+  private readonly deduplicateTools = new Set(['todoWrite', 'exitPlanMode']);
 
   /**
    * Main filtering entry point
@@ -60,6 +61,12 @@ export class MessageFilter {
     // Collect from exploratory tools
     const exploratoryIds = this.getExploratoryToolIds(messages);
     for (const id of exploratoryIds) {
+      toolCallIdsToFilter.add(id);
+    }
+
+    // Collect from deduplicate tools (todoWrite, exitPlanMode)
+    const deduplicateIds = this.getDeduplicateToolIds(messages);
+    for (const id of deduplicateIds) {
       toolCallIdsToFilter.add(id);
     }
 
@@ -135,6 +142,38 @@ export class MessageFilter {
   }
 
   /**
+   * Get toolCallIds for tools that should be deduplicated (keeping only the last occurrence)
+   * Unlike file reads, these are deduplicated by tool name only, not by parameters
+   */
+  private getDeduplicateToolIds(messages: ModelMessage[]): Set<string> {
+    const duplicateIds = new Set<string>();
+    // Map to track the latest toolCallId for each deduplicate tool
+    const toolCallMap = new Map<string, string>();
+
+    for (const message of messages) {
+      if (message.role === 'assistant' && Array.isArray(message.content)) {
+        for (const part of message.content) {
+          if (
+            part.type === 'tool-call' &&
+            part.toolCallId &&
+            this.deduplicateTools.has(part.toolName)
+          ) {
+            const previous = toolCallMap.get(part.toolName);
+            if (previous) {
+              // Mark the old one for removal
+              duplicateIds.add(previous);
+              logger.info(`Marking duplicate ${part.toolName} for removal`);
+            }
+            toolCallMap.set(part.toolName, part.toolCallId);
+          }
+        }
+      }
+    }
+
+    return duplicateIds;
+  }
+
+  /**
    * Filter messages by removing tool-call and tool-result parts with matching toolCallIds
    */
   private filterByToolCallIds(
@@ -153,8 +192,10 @@ export class MessageFilter {
           return true;
         });
 
-        // Only keep message if it has remaining content
-        if (filteredContent.length > 0) {
+        // Only keep message if it has remaining tool-call content
+        // (discard messages that only have text parts after filtering)
+        const hasToolCall = filteredContent.some((part) => part.type === 'tool-call');
+        if (hasToolCall) {
           result.push({
             ...message,
             content: filteredContent,

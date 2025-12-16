@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AUTO_SAVE_DELAY, TYPING_TIMEOUT } from '@/constants/editor';
 import { logger } from '@/lib/logger';
 import { repositoryService } from '@/services/repository-service';
+import { useRepositoryStore } from '@/stores/repository-store';
 
 interface UseFileEditorStateProps {
   filePath: string | null;
@@ -20,6 +21,9 @@ export function useFileEditorState({
   currentAICompletion,
   onContentChange,
 }: UseFileEditorStateProps) {
+  // Get store method to sync content after save
+  const updateFileContent = useRepositoryStore((state) => state.updateFileContent);
+
   const [currentContent, setCurrentContent] = useState<string>('');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -49,6 +53,9 @@ export function useFileEditorState({
       try {
         await repositoryService.writeFile(filePathToSave, content);
 
+        // Sync content to openFiles store to prevent file watcher from treating it as external change
+        updateFileContent(filePathToSave, content);
+
         if (filePathToSave === filePath) {
           setHasUnsavedChanges(false);
           setLastSavedTime(new Date());
@@ -63,7 +70,7 @@ export function useFileEditorState({
         setIsSaving(false);
       }
     },
-    [filePath, onFileSaved, isSaving]
+    [filePath, onFileSaved, isSaving, updateFileContent]
   );
 
   const scheduleAutoSave = useCallback(

@@ -21,7 +21,6 @@ export interface AgentAccessRule {
  * - Runtime (tool overrides + toolset loading)
  */
 export const TOOL_ACCESS_RULES: Record<string, ToolAccessRule> = {
-  callAgentV2: { allowAgents: ['planner-v2'] },
   callAgent: { allowAgents: ['planner'] },
 };
 

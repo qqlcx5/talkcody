@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { aiGitMessagesService, type GitFileDiff } from '@/services/ai-git-messages-service';
+import { aiGitMessagesService } from '@/services/ai-git-messages-service';
+import { gitService } from '@/services/git-service';
 import { useGitStore } from '@/stores/git-store';
 import { type GitResult, gitAddAndCommit } from '@/utils/git-utils';
 
@@ -12,10 +13,11 @@ export function useGit() {
   /**
    * Commit with AI-generated message - full flow:
    * 1. Check for changes first (fast)
-   * 2. Generate AI commit message
-   * 3. Execute git commit
+   * 2. Get raw diff text from git
+   * 3. Generate AI commit message with diff text and user message
+   * 4. Execute git commit
    */
-  const commitWithAIMessage = async (fileDiffs: GitFileDiff[], basePath = '.') => {
+  const commitWithAIMessage = async (userMessage?: string, basePath = '.') => {
     setIsLoading(true);
 
     try {
@@ -31,9 +33,20 @@ export function useGit() {
         return { success: true, message: 'No changes to commit' };
       }
 
-      // 3. Generate AI commit message
+      // Get raw diff text from git (simpler format for AI)
+      const diffText = await gitService.getRawDiffText(basePath);
+
+      if (!diffText || diffText.trim().length === 0) {
+        toast.info('No file changes detected');
+        return { success: true, message: 'No file changes detected' };
+      }
+
+      // Generate AI commit message with raw diff text and user message
       setIsGeneratingMessage(true);
-      const commitResult = await aiGitMessagesService.generateCommitMessage({ fileDiffs });
+      const commitResult = await aiGitMessagesService.generateCommitMessage({
+        userInput: userMessage,
+        diffText,
+      });
       setIsGeneratingMessage(false);
 
       if (!commitResult?.message) {
@@ -41,7 +54,7 @@ export function useGit() {
         return { success: false, message: 'Failed to generate commit message' };
       }
 
-      // 4. Execute git commit
+      // Execute git commit
       const result = await gitAddAndCommit(commitResult.message, basePath);
       setLastResult(result);
 

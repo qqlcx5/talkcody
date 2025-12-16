@@ -64,7 +64,6 @@ export const useModelStore = create<ModelStore>((set, get) => ({
           imageInput: config?.imageInput ?? false,
           imageOutput: config?.imageOutput ?? false,
           audioInput: config?.audioInput ?? false,
-          priority: 999,
         };
       });
 

@@ -15,8 +15,8 @@ import { registerToolUIRenderers } from '../tool-adapter';
 // Import all tools explicitly to avoid dynamic import issues
 import { askUserQuestionsTool } from './ask-user-questions-tool';
 import { bashTool } from './bash-tool';
+
 import { callAgent } from './call-agent-tool';
-import { callAgentV2 } from './call-agent-v2-tool';
 import { codeSearch } from './code-search-tool';
 import { editFile } from './edit-file-tool';
 import { executeSkillScriptTool } from './execute-skill-script-tool';
@@ -180,20 +180,9 @@ export const TOOL_DEFINITIONS = {
     label: 'Call Agent',
     metadata: {
       category: 'other' as ToolCategory,
-      canConcurrent: false,
-      fileOperation: false,
-      renderDoingUI: true,
-    },
-  },
-  callAgentV2: {
-    tool: callAgentV2,
-    label: 'Call Agent v2',
-    metadata: {
-      category: 'other' as ToolCategory,
       canConcurrent: true,
       fileOperation: false,
       renderDoingUI: true,
-      isBeta: true,
       getTargetFile: (input) => {
         const targets = (input as { targets?: unknown })?.targets;
         if (Array.isArray(targets)) {
@@ -209,6 +198,7 @@ export const TOOL_DEFINITIONS = {
       },
     },
   },
+
   todoWrite: {
     tool: todoWriteTool,
     label: 'Todo',

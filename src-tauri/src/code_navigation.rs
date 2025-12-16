@@ -254,13 +254,12 @@ impl CodeNavigationService {
             }
         }
 
-        // Add definitions to index and maintain reverse index
+        // Add definitions to index and always track file as indexed
+        // This ensures files like test files are marked as "indexed" even with 0 definitions
         let def_count = definitions.len();
-        if !defined_names.is_empty() {
-            self.index
-                .file_definitions
-                .insert(file_path.to_string(), defined_names);
-        }
+        self.index
+            .file_definitions
+            .insert(file_path.to_string(), defined_names);
         for symbol in definitions {
             self.index
                 .definitions
@@ -751,6 +750,11 @@ pub async fn code_nav_index_files_batch(
 ) -> Result<(), String> {
     let start = Instant::now();
 
+    // Log files being indexed for debugging
+    for (file_path, _, lang_id) in &files {
+        log::debug!("Batch indexing file: {} (lang: {})", file_path, lang_id);
+    }
+
     // Parallel extraction of definitions
     let def_results: Vec<(Vec<SymbolInfo>, HashSet<String>, String)> = files
         .par_iter()
@@ -763,20 +767,36 @@ pub async fn code_nav_index_files_batch(
                 "cpp" => tree_sitter_cpp::LANGUAGE.into(),
                 "java" => tree_sitter_java::LANGUAGE.into(),
                 "typescript" | "javascript" => tree_sitter_typescript::LANGUAGE_TSX.into(),
-                _ => return None,
+                _ => {
+                    log::warn!("Unsupported language for indexing: {} (file: {})", lang_id, file_path);
+                    return None;
+                }
             };
 
             let mut parser = Parser::new();
             if parser.set_language(&language).is_err() {
+                log::error!("Failed to set language for parser: {} (file: {})", lang_id, file_path);
                 return None;
             }
 
-            let tree = parser.parse(content, None)?;
+            let tree = match parser.parse(content, None) {
+                Some(t) => t,
+                None => {
+                    log::error!("Failed to parse file: {}", file_path);
+                    return None;
+                }
+            };
             let source_bytes = content.as_bytes();
             let lang_family = CodeNavigationService::get_lang_family(lang_id).to_string();
 
             let def_query_str = CodeNavigationService::get_definition_query(lang_id);
-            let def_query = Query::new(&language, def_query_str).ok()?;
+            let def_query = match Query::new(&language, def_query_str) {
+                Ok(q) => q,
+                Err(e) => {
+                    log::error!("Failed to create query for {}: {:?}", file_path, e);
+                    return None;
+                }
+            };
 
             let mut definitions = Vec::new();
             let mut defined_names = HashSet::new();
@@ -786,7 +806,11 @@ pub async fn code_nav_index_files_batch(
                 while let Some(m) = matches.next() {
                     for capture in m.captures {
                         let node = capture.node;
-                        let name = node.utf8_text(source_bytes).ok()?.to_string();
+                        // Use continue instead of ? to avoid skipping the entire file on one bad capture
+                        let name = match node.utf8_text(source_bytes) {
+                            Ok(text) => text.to_string(),
+                            Err(_) => continue,
+                        };
                         let capture_name = def_query.capture_names()[capture.index as usize];
                         let kind = CodeNavigationService::get_symbol_kind(capture_name);
 
@@ -805,6 +829,7 @@ pub async fn code_nav_index_files_batch(
                 }
             }
 
+            log::debug!("File {} parsed with {} definitions", file_path, definitions.len());
             Some((definitions, defined_names, file_path.clone()))
         })
         .collect();
@@ -822,13 +847,12 @@ pub async fn code_nav_index_files_batch(
         service.clear_file(file_path);
         total_defs += definitions.len();
 
-        // Maintain reverse index
-        if !defined_names.is_empty() {
-            service
-                .index
-                .file_definitions
-                .insert(file_path.clone(), defined_names.clone());
-        }
+        // Always track successfully parsed files, even if they have no definitions
+        // This ensures files like test files are marked as "indexed"
+        service
+            .index
+            .file_definitions
+            .insert(file_path.clone(), defined_names.clone());
 
         for symbol in definitions {
             service
@@ -842,8 +866,9 @@ pub async fn code_nav_index_files_batch(
 
     let duration = start.elapsed();
     log::info!(
-        "Batch indexed {} files ({} definitions) in {:.2}ms",
+        "Batch indexed {} files ({} successfully parsed, {} definitions) in {:.2}ms",
         files.len(),
+        def_results.len(),
         total_defs,
         duration.as_secs_f64() * 1000.0
     );

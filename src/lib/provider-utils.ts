@@ -57,7 +57,7 @@ export function hasApiKeyForProvider(
 }
 
 /**
- * Get the best available provider for a model based on priority and API key availability
+ * Get the best available provider for a model based on API key availability
  */
 export function getBestProvider(
   modelKey: string,
@@ -66,10 +66,7 @@ export function getBestProvider(
 ): string | null {
   const providers = getProvidersForModel(modelKey);
 
-  // Sort providers by priority (lower number = higher priority)
-  const sortedProviders = [...providers].sort((a, b) => a.priority - b.priority);
-
-  for (const provider of sortedProviders) {
+  for (const provider of providers) {
     // Check built-in provider
     if (hasApiKeyForProvider(provider.id, apiKeys)) {
       return provider.id;
@@ -91,13 +88,11 @@ export function getBestProvider(
 export function createProviderDefinitionFromCustomConfig(
   config: CustomProviderConfig
 ): ProviderDefinition {
-  const priority = 2; // Same priority as other custom providers
   const apiKeyName = `custom_${config.id}`;
 
   return {
     id: config.id,
     name: config.name,
-    priority,
     apiKeyName,
     baseUrl: config.baseUrl,
     required: true,
@@ -206,7 +201,6 @@ export function computeAvailableModels(
         imageInput: modelConfig.imageInput ?? false,
         imageOutput: modelConfig.imageOutput ?? false,
         audioInput: modelConfig.audioInput ?? false,
-        priority: provider.priority,
       });
     }
   }
@@ -242,19 +236,13 @@ export function computeAvailableModels(
           imageInput: modelConfig.imageInput ?? false,
           imageOutput: modelConfig.imageOutput ?? false,
           audioInput: modelConfig.audioInput ?? false,
-          priority: 100, // Custom models have lower priority than built-in
         });
       }
     }
   }
 
-  // Sort by priority (lower number = higher priority) then by name
-  return availableModels.sort((a, b) => {
-    if (a.priority !== b.priority) {
-      return a.priority - b.priority;
-    }
-    return a.name.localeCompare(b.name);
-  });
+  // Sort by name
+  return availableModels.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /**

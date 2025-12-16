@@ -23,6 +23,15 @@ export interface ValidationResult {
   fixedMessages?: ModelMessage[];
 }
 
+export interface SelectMessagesToCompressResult {
+  /** Messages to be compressed (after filtering) */
+  messagesToCompress: ModelMessage[];
+  /** Messages to preserve (includes system message, critical tool calls, recent messages) */
+  preservedMessages: ModelMessage[];
+  /** Original system message if present */
+  originalSystemMessage: ModelMessage | null;
+}
+
 export class MessageCompactor {
   private readonly COMPRESSION_TIMEOUT_MS = 120000; // 30 seconds timeout
   private readonly MAX_SUMMARY_LENGTH = 8000; // Max chars for condensed summary
@@ -54,7 +63,7 @@ Your summary should include the following sections:
 Please be comprehensive and technical in your summary. Include specific file paths, function names, error messages, and code patterns that would be essential for maintaining context.`;
 
   constructor(
-    private chatService: {
+    private llmService: {
       runAgentLoop: (
         options: AgentLoopOptions,
         callbacks: AgentLoopCallbacks,
@@ -249,17 +258,18 @@ Please be comprehensive and technical in your summary. Include specific file pat
     return { remaining, extracted };
   }
 
-  public async compactMessages(
-    options: MessageCompactionOptions,
-    abortController?: AbortController
-  ): Promise<CompressionResult> {
-    const { messages, config } = options;
-
-    logger.info('Starting message compaction', {
-      originalMessageCount: messages.length,
-      preserveRecentMessages: config.preserveRecentMessages,
-    });
-
+  /**
+   * Selects which messages should be compressed and which should be preserved.
+   * This method handles:
+   * 1. Extracting and preserving the system message
+   * 2. Adjusting preserve boundary to avoid cutting tool-call/tool-result pairs
+   * 3. Extracting critical tool calls (exitPlanMode, todoWrite) for preservation
+   * 4. Applying message filter to remove duplicate file reads and outdated exploratory tools
+   */
+  public selectMessagesToCompress(
+    messages: ModelMessage[],
+    preserveRecentMessages: number
+  ): SelectMessagesToCompressResult {
     // Step 1: Extract and preserve the original system message (systemPrompt)
     // The first message is typically the system prompt, which should never be compressed
     let originalSystemMessage: ModelMessage | null = null;
@@ -268,27 +278,14 @@ Please be comprehensive and technical in your summary. Include specific file pat
     if (messages[0]?.role === 'system') {
       originalSystemMessage = messages[0];
       messagesToProcess = messages.slice(1);
-      logger.info('Preserved original system message for compaction');
     }
 
     // Determine which messages to compress and which to preserve
     // Use adjusted boundary to avoid cutting tool-call/tool-result pairs
-    const initialPreserveCount = Math.min(config.preserveRecentMessages, messagesToProcess.length);
+    const initialPreserveCount = Math.min(preserveRecentMessages, messagesToProcess.length);
     const preserveCount = this.adjustPreserveBoundary(messagesToProcess, initialPreserveCount);
     const recentPreservedMessages = messagesToProcess.slice(-preserveCount);
     let messagesToCompress = messagesToProcess.slice(0, messagesToProcess.length - preserveCount);
-
-    if (messagesToCompress.length === 0) {
-      logger.info('No messages to compress, returning original messages');
-      return {
-        compressedSummary: '',
-        sections: [],
-        preservedMessages: messages,
-        originalMessageCount: messages.length,
-        compressedMessageCount: messages.length,
-        compressionRatio: 1.0,
-      };
-    }
 
     // Extract critical tool calls (exitPlanMode, todoWrite) for preservation
     const { remaining: afterExtraction, extracted: criticalToolMessages } =
@@ -301,24 +298,46 @@ Please be comprehensive and technical in your summary. Include specific file pat
     // Combine extracted critical tool messages with recent preserved messages
     let preservedMessages = [...criticalToolMessages, ...recentPreservedMessages];
 
-    // Step 2: Prepend the original system message to preserved messages
-    // Note: We no longer need to move user messages to preserved because:
-    // 1. The compression process will create a summary user message
-    // 2. This ensures there's always a user message in the final result
-    // 3. All original messages (including user messages) can be compressed together
+    // Prepend the original system message to preserved messages
     if (originalSystemMessage) {
       preservedMessages = [originalSystemMessage, ...preservedMessages];
     }
 
+    return {
+      messagesToCompress,
+      preservedMessages,
+      originalSystemMessage,
+    };
+  }
+
+  public async compactMessages(
+    options: MessageCompactionOptions,
+    abortController?: AbortController
+  ): Promise<CompressionResult> {
+    const { messages, config } = options;
+
+    logger.info('Starting message compaction', {
+      originalMessageCount: messages.length,
+      preserveRecentMessages: config.preserveRecentMessages,
+    });
+
+    // Use selectMessagesToCompress to determine which messages to compress and preserve
+    const { messagesToCompress, preservedMessages } = this.selectMessagesToCompress(
+      messages,
+      config.preserveRecentMessages
+    );
+
     if (messagesToCompress.length === 0) {
-      logger.info('No messages to compress after filtering, returning preserved messages');
+      logger.info('No messages to compress, returning original/preserved messages');
       return {
         compressedSummary: '',
         sections: [],
-        preservedMessages,
+        preservedMessages: preservedMessages.length > 0 ? preservedMessages : messages,
         originalMessageCount: messages.length,
-        compressedMessageCount: preservedMessages.length,
-        compressionRatio: preservedMessages.length / messages.length,
+        compressedMessageCount:
+          preservedMessages.length > 0 ? preservedMessages.length : messages.length,
+        compressionRatio:
+          preservedMessages.length > 0 ? preservedMessages.length / messages.length : 1.0,
       };
     }
 
@@ -426,13 +445,15 @@ Please provide a comprehensive structured summary following the 8-section format
         },
       ];
 
-      this.chatService.runAgentLoop(
+      this.llmService.runAgentLoop(
         {
           messages: compressionMessages,
           model: model || GEMINI_25_FLASH_LITE,
           systemPrompt: MessageCompactor.COMPRESSION_PROMPT,
           tools: {}, // No tools needed for compression
           maxIterations: 1, // Single response for compression
+          suppressReasoning: true,
+          isThink: false,
         },
         {
           onChunk: (chunk: string) => {
@@ -646,7 +667,6 @@ Please provide a comprehensive structured summary following the 8-section format
     }
 
     // Step 2: If we have a compressed summary, add it as a user message
-    // This follows the Aider pattern where summaries are presented as user context
     if (result.compressedSummary) {
       // Check if there's an old summary (from previous compression) that needs condensing
       let summaryContent = result.compressedSummary;
@@ -707,6 +727,77 @@ Please provide a comprehensive structured summary following the 8-section format
 
   public getCompressionStats() {
     return { ...this.compressionStats };
+  }
+
+  /**
+   * Performs full compression workflow: check, compress, validate, and convert.
+   * Returns the compressed messages or null if compression is not needed or fails.
+   */
+  public async performCompressionIfNeeded(
+    messages: ModelMessage[],
+    config: CompressionConfig,
+    lastTokenCount: number,
+    currentModel: string,
+    systemPrompt: string,
+    abortController?: AbortController,
+    onStatus?: (status: string) => void
+  ): Promise<{ messages: ModelMessage[]; result: CompressionResult } | null> {
+    // Check if compression is needed
+    if (!this.shouldCompress(messages, config, lastTokenCount, currentModel)) {
+      return null;
+    }
+
+    logger.info('Starting message compression', {
+      messageCount: messages.length,
+      config,
+    });
+
+    onStatus?.('Compacting messages...');
+
+    const compressionResult = await this.compactMessages(
+      {
+        messages,
+        config,
+        systemPrompt,
+      },
+      abortController
+    );
+
+    // Create compressed messages
+    const compressedMessages = this.createCompressedMessages(compressionResult);
+
+    // Validate compressed messages to catch orphaned tool-calls/results
+    const validation = this.validateCompressedMessages(compressedMessages);
+
+    let finalMessages: ModelMessage[];
+
+    if (!validation.valid) {
+      logger.warn('Compressed messages validation failed', {
+        errors: validation.errors,
+      });
+
+      if (validation.fixedMessages) {
+        finalMessages = validation.fixedMessages;
+        logger.info('Applied auto-fix for compressed messages', {
+          originalCount: compressedMessages.length,
+          fixedCount: finalMessages.length,
+        });
+      } else {
+        finalMessages = compressedMessages;
+        logger.warn('No auto-fix available, using compressed messages as-is');
+      }
+    } else {
+      finalMessages = compressedMessages;
+    }
+
+    logger.info('Message compression completed', {
+      originalCount: compressionResult.originalMessageCount,
+      compressedCount: compressionResult.compressedMessageCount,
+      ratio: compressionResult.compressionRatio,
+      validationPassed: validation.valid,
+    });
+
+    return { messages: finalMessages, result: compressionResult };
   }
 
   private updateStats(result: CompressionResult): void {

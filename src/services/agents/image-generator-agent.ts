@@ -88,10 +88,11 @@ export class ImageGeneratorAgent {
       modelType: ModelType.IMAGE_GENERATOR,
       hidden: false,
       isDefault: false,
+      canBeSubagent: false,
       version: ImageGeneratorAgent.VERSION,
       systemPrompt: ImageGeneratorPrompt,
       tools: selectedTools,
-      role: 'content-modification',
+      role: 'write',
       dynamicPrompt: {
         enabled: false,
         providers: [],

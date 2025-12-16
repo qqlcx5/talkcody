@@ -23,10 +23,10 @@ vi.mock('@/services/agents/agent-registry', () => ({
   agentRegistry: {
     getWithResolvedTools: vi.fn(async (agentId: string) => {
       // Mock different agent types for testing
-      if (agentId === 'context-gatherer') {
+      if (agentId === 'explore') {
         return {
-          id: 'context-gatherer',
-          role: 'information-gathering',
+          id: 'explore',
+          role: 'read',
           tools: {
             readFile: { execute: vi.fn() },
             codeSearch: { execute: vi.fn() },
@@ -37,7 +37,7 @@ vi.mock('@/services/agents/agent-registry', () => ({
       if (agentId === 'coding') {
         return {
           id: 'coding',
-          role: 'content-modification',
+          role: 'write',
           tools: {
             readFile: { execute: vi.fn() },
             writeFile: { execute: vi.fn() },
@@ -94,10 +94,6 @@ vi.mock('@/lib/tools', () => ({
 describe('AgentDependencyAnalyzer', () => {
   let analyzer: AgentDependencyAnalyzer;
   const mockTools: ToolSet = {
-    callAgentV2: {
-      execute: vi.fn(),
-      inputSchema: { type: 'object' as const, properties: {} },
-    },
     callAgent: {
       execute: vi.fn(),
       inputSchema: { type: 'object' as const, properties: {} },
@@ -132,7 +128,7 @@ describe('AgentDependencyAnalyzer', () => {
     it('throws error when mixing agent and non-agent calls', async () => {
       const toolCalls: ToolCallInfo[] = [
         { toolCallId: 'read-1', toolName: 'readFile', input: { path: 'src/a.ts' } },
-        { toolCallId: 'agent-1', toolName: 'callAgentV2', input: { agentId: 'coding' } },
+        { toolCallId: 'agent-1', toolName: 'callAgent', input: { agentId: 'coding' } },
       ];
 
       await expect(analyzer.analyzeDependencies(toolCalls, mockTools)).rejects.toThrow(
@@ -141,13 +137,13 @@ describe('AgentDependencyAnalyzer', () => {
     });
   });
 
-  describe('Information-gathering agents', () => {
-    it('creates read-stage for information-gathering agents', async () => {
+  describe('Read agents', () => {
+    it('creates read-stage for read agents', async () => {
       const toolCalls: ToolCallInfo[] = [
         {
           toolCallId: 'agent-1',
-          toolName: 'callAgentV2',
-          input: { agentId: 'context-gatherer', targets: ['src/a.ts'] },
+          toolName: 'callAgent',
+          input: { agentId: 'explore', targets: ['src/a.ts'] },
         },
       ];
 
@@ -160,22 +156,22 @@ describe('AgentDependencyAnalyzer', () => {
       expect(plan.summary.contentModificationAgents).toBe(0);
     });
 
-    it('groups multiple information-gathering agents in single concurrent group', async () => {
+    it('groups multiple read agents in single concurrent group', async () => {
       const toolCalls: ToolCallInfo[] = [
         {
           toolCallId: 'agent-1',
-          toolName: 'callAgentV2',
-          input: { agentId: 'context-gatherer', targets: ['src/a.ts'] },
+          toolName: 'callAgent',
+          input: { agentId: 'explore', targets: ['src/a.ts'] },
         },
         {
           toolCallId: 'agent-2',
-          toolName: 'callAgentV2',
-          input: { agentId: 'context-gatherer', targets: ['src/b.ts'] },
+          toolName: 'callAgent',
+          input: { agentId: 'explore', targets: ['src/b.ts'] },
         },
         {
           toolCallId: 'agent-3',
-          toolName: 'callAgentV2',
-          input: { agentId: 'context-gatherer', targets: ['src/c.ts'] },
+          toolName: 'callAgent',
+          input: { agentId: 'explore', targets: ['src/c.ts'] },
         },
       ];
 
@@ -191,8 +187,8 @@ describe('AgentDependencyAnalyzer', () => {
     it('respects MAX_PARALLEL_SUBAGENTS limit for read-stage', async () => {
       const toolCalls: ToolCallInfo[] = Array.from({ length: MAX_PARALLEL_SUBAGENTS + 2 }, (_, i) => ({
         toolCallId: `agent-${i}`,
-        toolName: 'callAgentV2',
-        input: { agentId: 'context-gatherer', targets: [`src/file${i}.ts`] },
+        toolName: 'callAgent',
+        input: { agentId: 'explore', targets: [`src/file${i}.ts`] },
       }));
 
       const plan = await analyzer.analyzeDependencies(toolCalls, mockTools);
@@ -205,8 +201,8 @@ describe('AgentDependencyAnalyzer', () => {
       const toolCalls: ToolCallInfo[] = [
         {
           toolCallId: 'agent-1',
-          toolName: 'callAgentV2',
-          input: { agentId: 'context-gatherer', targets: ['src/a.ts', 'src/b.ts'] },
+          toolName: 'callAgent',
+          input: { agentId: 'explore', targets: ['src/a.ts', 'src/b.ts'] },
         },
       ];
 
@@ -216,12 +212,12 @@ describe('AgentDependencyAnalyzer', () => {
     });
   });
 
-  describe('Content-modification agents', () => {
-    it('creates write-edit-stage for content-modification agents', async () => {
+  describe('Write agents', () => {
+    it('creates write-edit-stage for write agents', async () => {
       const toolCalls: ToolCallInfo[] = [
         {
           toolCallId: 'agent-1',
-          toolName: 'callAgentV2',
+          toolName: 'callAgent',
           input: { agentId: 'coding', targets: ['src/a.ts'] },
         },
       ];
@@ -233,16 +229,16 @@ describe('AgentDependencyAnalyzer', () => {
       expect(plan.summary.contentModificationAgents).toBe(1);
     });
 
-    it('separates content-modification agents with target conflicts', async () => {
+    it('separates write agents with target conflicts', async () => {
       const toolCalls: ToolCallInfo[] = [
         {
           toolCallId: 'agent-1',
-          toolName: 'callAgentV2',
+          toolName: 'callAgent',
           input: { agentId: 'coding', targets: ['src/shared.ts'] },
         },
         {
           toolCallId: 'agent-2',
-          toolName: 'callAgentV2',
+          toolName: 'callAgent',
           input: { agentId: 'coding', targets: ['src/shared.ts'] },
         },
       ];
@@ -258,16 +254,16 @@ describe('AgentDependencyAnalyzer', () => {
       });
     });
 
-    it('groups content-modification agents without target conflicts', async () => {
+    it('groups write agents without target conflicts', async () => {
       const toolCalls: ToolCallInfo[] = [
         {
           toolCallId: 'agent-1',
-          toolName: 'callAgentV2',
+          toolName: 'callAgent',
           input: { agentId: 'coding', targets: ['src/a.ts'] },
         },
         {
           toolCallId: 'agent-2',
-          toolName: 'callAgentV2',
+          toolName: 'callAgent',
           input: { agentId: 'coding', targets: ['src/b.ts'] },
         },
       ];
@@ -280,11 +276,11 @@ describe('AgentDependencyAnalyzer', () => {
       expect(plan.stages[0].groups[0].agentCalls).toHaveLength(2);
     });
 
-    it('runs callAgentV2 without targets sequentially for safety', async () => {
+    it('runs callAgent without targets sequentially for safety', async () => {
       const toolCalls: ToolCallInfo[] = [
         {
           toolCallId: 'agent-1',
-          toolName: 'callAgentV2',
+          toolName: 'callAgent',
           input: { agentId: 'coding' }, // No targets
         },
       ];
@@ -299,7 +295,7 @@ describe('AgentDependencyAnalyzer', () => {
     it('respects MAX_PARALLEL_SUBAGENTS limit for write-edit-stage', async () => {
       const toolCalls: ToolCallInfo[] = Array.from({ length: MAX_PARALLEL_SUBAGENTS + 2 }, (_, i) => ({
         toolCallId: `agent-${i}`,
-        toolName: 'callAgentV2',
+        toolName: 'callAgent',
         input: { agentId: 'coding', targets: [`src/file${i}.ts`] },
       }));
 
@@ -316,12 +312,12 @@ describe('AgentDependencyAnalyzer', () => {
       const toolCalls: ToolCallInfo[] = [
         {
           toolCallId: 'agent-1',
-          toolName: 'callAgentV2',
-          input: { agentId: 'context-gatherer', targets: ['src/a.ts'] },
+          toolName: 'callAgent',
+          input: { agentId: 'explore', targets: ['src/a.ts'] },
         },
         {
           toolCallId: 'agent-2',
-          toolName: 'callAgentV2',
+          toolName: 'callAgent',
           input: { agentId: 'coding', targets: ['src/b.ts'] },
         },
       ];
@@ -339,13 +335,13 @@ describe('AgentDependencyAnalyzer', () => {
       const toolCalls: ToolCallInfo[] = [
         {
           toolCallId: 'agent-1',
-          toolName: 'callAgentV2',
+          toolName: 'callAgent',
           input: { agentId: 'coding', targets: ['src/b.ts'] },
         },
         {
           toolCallId: 'agent-2',
-          toolName: 'callAgentV2',
-          input: { agentId: 'context-gatherer', targets: ['src/a.ts'] },
+          toolName: 'callAgent',
+          input: { agentId: 'explore', targets: ['src/a.ts'] },
         },
       ];
 
@@ -362,8 +358,8 @@ describe('AgentDependencyAnalyzer', () => {
       const toolCalls: ToolCallInfo[] = [
         {
           toolCallId: 'agent-1',
-          toolName: 'callAgentV2',
-          input: { agentId: 'context-gatherer' },
+          toolName: 'callAgent',
+          input: { agentId: 'explore' },
         },
       ];
 
@@ -377,22 +373,22 @@ describe('AgentDependencyAnalyzer', () => {
       const toolCalls: ToolCallInfo[] = [
         {
           toolCallId: 'agent-1',
-          toolName: 'callAgentV2',
+          toolName: 'callAgent',
           input: { agentId: 'general' }, // No explicit role, has webSearch tool
         },
       ];
 
       const plan = await analyzer.analyzeDependencies(toolCalls, mockTools);
 
-      // Should be treated as content-modification (default for unknown tools)
+      // Should be treated as write (default for unknown tools)
       expect(plan.summary.contentModificationAgents).toBe(1);
     });
 
-    it('treats agents with no tools as content-modification for safety', async () => {
+    it('treats agents with no tools as write for safety', async () => {
       const toolCalls: ToolCallInfo[] = [
         {
           toolCallId: 'agent-1',
-          toolName: 'callAgentV2',
+          toolName: 'callAgent',
           input: { agentId: 'no-tools' },
         },
       ];
@@ -402,11 +398,11 @@ describe('AgentDependencyAnalyzer', () => {
       expect(plan.summary.contentModificationAgents).toBe(1);
     });
 
-    it('treats agents without agentId as content-modification for safety', async () => {
+    it('treats agents without agentId as write for safety', async () => {
       const toolCalls: ToolCallInfo[] = [
         {
           toolCallId: 'agent-1',
-          toolName: 'callAgentV2',
+          toolName: 'callAgent',
           input: {}, // No agentId
         },
       ];
@@ -416,11 +412,11 @@ describe('AgentDependencyAnalyzer', () => {
       expect(plan.summary.contentModificationAgents).toBe(1);
     });
 
-    it('treats agents with undefined definition as content-modification for safety', async () => {
+    it('treats agents with undefined definition as write for safety', async () => {
       const toolCalls: ToolCallInfo[] = [
         {
           toolCallId: 'agent-1',
-          toolName: 'callAgentV2',
+          toolName: 'callAgent',
           input: { agentId: 'non-existent-agent' },
         },
       ];
@@ -436,7 +432,7 @@ describe('AgentDependencyAnalyzer', () => {
       const toolCalls: ToolCallInfo[] = [
         {
           toolCallId: 'agent-1',
-          toolName: 'callAgentV2',
+          toolName: 'callAgent',
           input: { agentId: 'coding', targets: ['src/a.ts', 'src/b.ts'] },
         },
       ];
@@ -450,7 +446,7 @@ describe('AgentDependencyAnalyzer', () => {
       const toolCalls: ToolCallInfo[] = [
         {
           toolCallId: 'agent-1',
-          toolName: 'callAgentV2',
+          toolName: 'callAgent',
           input: { agentId: 'coding', targets: 'src/a.ts' },
         },
       ];
@@ -464,7 +460,7 @@ describe('AgentDependencyAnalyzer', () => {
       const toolCalls: ToolCallInfo[] = [
         {
           toolCallId: 'agent-1',
-          toolName: 'callAgentV2',
+          toolName: 'callAgent',
           input: { agentId: 'coding', targets: ['src/a.ts', '', '  ', 'src/b.ts'] },
         },
       ];
@@ -481,7 +477,7 @@ describe('AgentDependencyAnalyzer', () => {
       const toolCalls: ToolCallInfo[] = [
         {
           toolCallId: 'agent-1',
-          toolName: 'callAgentV2',
+          toolName: 'callAgent',
           input: { agentId: 'coding', targets: ['src/a.ts', 'src/a.ts'] },
         },
       ];
@@ -497,17 +493,17 @@ describe('AgentDependencyAnalyzer', () => {
       const toolCalls: ToolCallInfo[] = [
         {
           toolCallId: 'agent-1',
-          toolName: 'callAgentV2',
-          input: { agentId: 'context-gatherer', targets: ['src/a.ts'] },
+          toolName: 'callAgent',
+          input: { agentId: 'explore', targets: ['src/a.ts'] },
         },
         {
           toolCallId: 'agent-2',
-          toolName: 'callAgentV2',
-          input: { agentId: 'context-gatherer', targets: ['src/b.ts'] },
+          toolName: 'callAgent',
+          input: { agentId: 'explore', targets: ['src/b.ts'] },
         },
         {
           toolCallId: 'agent-3',
-          toolName: 'callAgentV2',
+          toolName: 'callAgent',
           input: { agentId: 'coding', targets: ['src/c.ts'] },
         },
       ];
@@ -525,13 +521,13 @@ describe('AgentDependencyAnalyzer', () => {
       const toolCalls: ToolCallInfo[] = [
         {
           toolCallId: 'agent-1',
-          toolName: 'callAgentV2',
-          input: { agentId: 'context-gatherer', targets: ['src/a.ts'] },
+          toolName: 'callAgent',
+          input: { agentId: 'explore', targets: ['src/a.ts'] },
         },
         {
           toolCallId: 'agent-2',
-          toolName: 'callAgentV2',
-          input: { agentId: 'context-gatherer', targets: ['src/b.ts'] },
+          toolName: 'callAgent',
+          input: { agentId: 'explore', targets: ['src/b.ts'] },
         },
       ];
 
@@ -546,8 +542,8 @@ describe('AgentDependencyAnalyzer', () => {
       const toolCalls: ToolCallInfo[] = [
         {
           toolCallId: 'agent-1',
-          toolName: 'callAgentV2',
-          input: { agentId: 'context-gatherer', targets: ['src/a.ts'] },
+          toolName: 'callAgent',
+          input: { agentId: 'explore', targets: ['src/a.ts'] },
         },
       ];
 
@@ -560,12 +556,12 @@ describe('AgentDependencyAnalyzer', () => {
       const toolCalls: ToolCallInfo[] = [
         {
           toolCallId: 'agent-1',
-          toolName: 'callAgentV2',
+          toolName: 'callAgent',
           input: { agentId: 'coding', targets: ['src/shared.ts'] },
         },
         {
           toolCallId: 'agent-2',
-          toolName: 'callAgentV2',
+          toolName: 'callAgent',
           input: { agentId: 'coding', targets: ['src/shared.ts'] },
         },
       ];
@@ -580,7 +576,7 @@ describe('AgentDependencyAnalyzer', () => {
       const toolCalls: ToolCallInfo[] = [
         {
           toolCallId: 'agent-1',
-          toolName: 'callAgentV2',
+          toolName: 'callAgent',
           input: { agentId: 'coding' }, // No targets
         },
       ];
@@ -591,13 +587,13 @@ describe('AgentDependencyAnalyzer', () => {
     });
   });
 
-  describe('callAgent vs callAgentV2', () => {
+  describe('callAgent vs callAgent', () => {
     it('handles callAgent tool calls', async () => {
       const toolCalls: ToolCallInfo[] = [
         {
           toolCallId: 'agent-1',
           toolName: 'callAgent',
-          input: { agentId: 'context-gatherer' },
+          input: { agentId: 'explore' },
         },
       ];
 
@@ -606,16 +602,16 @@ describe('AgentDependencyAnalyzer', () => {
       expect(plan.summary.totalAgents).toBe(1);
     });
 
-    it('handles mixed callAgent and callAgentV2', async () => {
+    it('handles mixed callAgent and callAgent', async () => {
       const toolCalls: ToolCallInfo[] = [
         {
           toolCallId: 'agent-1',
           toolName: 'callAgent',
-          input: { agentId: 'context-gatherer' },
+          input: { agentId: 'explore' },
         },
         {
           toolCallId: 'agent-2',
-          toolName: 'callAgentV2',
+          toolName: 'callAgent',
           input: { agentId: 'coding', targets: ['src/a.ts'] },
         },
       ];
@@ -630,8 +626,8 @@ describe('AgentDependencyAnalyzer', () => {
     it('handles very large number of agents', async () => {
       const toolCalls: ToolCallInfo[] = Array.from({ length: 100 }, (_, i) => ({
         toolCallId: `agent-${i}`,
-        toolName: 'callAgentV2',
-        input: { agentId: 'context-gatherer', targets: [`src/file${i}.ts`] },
+        toolName: 'callAgent',
+        input: { agentId: 'explore', targets: [`src/file${i}.ts`] },
       }));
 
       const plan = await analyzer.analyzeDependencies(toolCalls, mockTools);
@@ -644,7 +640,7 @@ describe('AgentDependencyAnalyzer', () => {
       const toolCalls: ToolCallInfo[] = [
         {
           toolCallId: 'agent-1',
-          toolName: 'callAgentV2',
+          toolName: 'callAgent',
           input: {
             agentId: 'coding',
             targets: ['src/a.ts', 'src/b.ts', 'src/c.ts'],
@@ -661,12 +657,12 @@ describe('AgentDependencyAnalyzer', () => {
       const toolCalls: ToolCallInfo[] = [
         {
           toolCallId: 'agent-1',
-          toolName: 'callAgentV2',
+          toolName: 'callAgent',
           input: { agentId: 'coding', targets: ['src/a.ts', 'src/shared.ts'] },
         },
         {
           toolCallId: 'agent-2',
-          toolName: 'callAgentV2',
+          toolName: 'callAgent',
           input: { agentId: 'coding', targets: ['src/shared.ts', 'src/b.ts'] },
         },
       ];
@@ -681,12 +677,12 @@ describe('AgentDependencyAnalyzer', () => {
       const toolCalls: ToolCallInfo[] = [
         {
           toolCallId: 'agent-1',
-          toolName: 'callAgentV2',
+          toolName: 'callAgent',
           input: { agentId: 'coding', targets: ['src/'] },
         },
         {
           toolCallId: 'agent-2',
-          toolName: 'callAgentV2',
+          toolName: 'callAgent',
           input: { agentId: 'coding', targets: ['src/utils/helper.ts'] },
         },
       ];
@@ -701,12 +697,12 @@ describe('AgentDependencyAnalyzer', () => {
       const toolCalls: ToolCallInfo[] = [
         {
           toolCallId: 'agent-1',
-          toolName: 'callAgentV2',
+          toolName: 'callAgent',
           input: { agentId: 'coding', targets: ['src/components/Button.tsx'] },
         },
         {
           toolCallId: 'agent-2',
-          toolName: 'callAgentV2',
+          toolName: 'callAgent',
           input: { agentId: 'coding', targets: ['src/components/'] },
         },
       ];
@@ -721,12 +717,12 @@ describe('AgentDependencyAnalyzer', () => {
       const toolCalls: ToolCallInfo[] = [
         {
           toolCallId: 'agent-1',
-          toolName: 'callAgentV2',
+          toolName: 'callAgent',
           input: { agentId: 'coding', targets: ['src/components/'] },
         },
         {
           toolCallId: 'agent-2',
-          toolName: 'callAgentV2',
+          toolName: 'callAgent',
           input: { agentId: 'coding', targets: ['src/services/'] },
         },
       ];
@@ -743,12 +739,12 @@ describe('AgentDependencyAnalyzer', () => {
       const toolCalls: ToolCallInfo[] = [
         {
           toolCallId: 'agent-1',
-          toolName: 'callAgentV2',
+          toolName: 'callAgent',
           input: { agentId: 'coding', targets: ['src/utils'] }, // no trailing slash
         },
         {
           toolCallId: 'agent-2',
-          toolName: 'callAgentV2',
+          toolName: 'callAgent',
           input: { agentId: 'coding', targets: ['src/utils/'] }, // with trailing slash
         },
       ];
@@ -763,12 +759,12 @@ describe('AgentDependencyAnalyzer', () => {
       const toolCalls: ToolCallInfo[] = [
         {
           toolCallId: 'agent-1',
-          toolName: 'callAgentV2',
+          toolName: 'callAgent',
           input: { agentId: 'coding', targets: null },
         },
         {
           toolCallId: 'agent-2',
-          toolName: 'callAgentV2',
+          toolName: 'callAgent',
           input: { agentId: 'coding', targets: undefined },
         },
       ];
@@ -786,17 +782,17 @@ describe('AgentDependencyAnalyzer', () => {
       const toolCalls: ToolCallInfo[] = [
         {
           toolCallId: 'agent-1',
-          toolName: 'callAgentV2',
+          toolName: 'callAgent',
           input: { agentId: 'coding', targets: ['src/a.ts'] },
         },
         {
           toolCallId: 'agent-2',
-          toolName: 'callAgentV2',
+          toolName: 'callAgent',
           input: { agentId: 'coding', targets: ['src/b.ts'] },
         },
         {
           toolCallId: 'agent-3',
-          toolName: 'callAgentV2',
+          toolName: 'callAgent',
           input: { agentId: 'coding', targets: ['src/c.ts'] },
         },
       ];
@@ -812,8 +808,8 @@ describe('AgentDependencyAnalyzer', () => {
       const toolCalls: ToolCallInfo[] = [
         {
           toolCallId: 'agent-1',
-          toolName: 'callAgentV2',
-          input: { agentId: 'context-gatherer', targets: ['src/a.ts'] },
+          toolName: 'callAgent',
+          input: { agentId: 'explore', targets: ['src/a.ts'] },
         },
       ];
 
@@ -828,28 +824,28 @@ describe('AgentDependencyAnalyzer', () => {
       const toolCalls: ToolCallInfo[] = [
         {
           toolCallId: 'agent-1',
-          toolName: 'callAgentV2',
-          input: { agentId: 'context-gatherer', targets: ['src/a.ts'] },
+          toolName: 'callAgent',
+          input: { agentId: 'explore', targets: ['src/a.ts'] },
         },
       ];
 
       const plan = await analyzer.analyzeDependencies(toolCalls, mockTools);
 
-      expect(plan.stages[0].groups[0].agentRole).toBe('information-gathering');
+      expect(plan.stages[0].groups[0].agentRole).toBe('read');
     });
 
     it('assigns correct agentRole to write-edit-stage groups', async () => {
       const toolCalls: ToolCallInfo[] = [
         {
           toolCallId: 'agent-1',
-          toolName: 'callAgentV2',
+          toolName: 'callAgent',
           input: { agentId: 'coding', targets: ['src/a.ts'] },
         },
       ];
 
       const plan = await analyzer.analyzeDependencies(toolCalls, mockTools);
 
-      expect(plan.stages[0].groups[0].agentRole).toBe('content-modification');
+      expect(plan.stages[0].groups[0].agentRole).toBe('write');
     });
   });
 });

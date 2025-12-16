@@ -54,7 +54,8 @@ export class GeneralAgent {
       version: GeneralAgent.VERSION,
       systemPrompt: GeneralAssistantPromptTemplate,
       tools: selectedTools,
-      role: 'information-gathering',
+      role: 'read',
+      canBeSubagent: false, // Chat agent should not be called as a subagent
       dynamicPrompt: {
         enabled: true,
         providers: ['skills'],

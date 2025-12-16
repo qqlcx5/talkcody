@@ -299,7 +299,7 @@ describe('MessageFilter', () => {
   });
 
   describe('mixed content handling', () => {
-    it('should preserve text parts when filtering tool-calls from assistant message', () => {
+    it('should discard assistant message when only text parts remain after filtering', () => {
       const messages: ModelMessage[] = [
         // Assistant message with text + tool-call
         {
@@ -322,28 +322,103 @@ describe('MessageFilter', () => {
       const result = messageFilter.filterMessages(messages);
 
       // After filtering:
-      // - First assistant message loses tool-call (duplicate), keeps text
+      // - First assistant message loses tool-call (duplicate), only text remains -> DISCARDED
       // - First tool-result is removed (orphaned - no matching tool-call)
       // - Second assistant message with tool-call remains
       // - Second tool-result remains
-      // MessageFilter now delegates consecutive assistant merging to message-convert module,
-      // which is called separately by llm-service. So we get 3 messages here.
-      expect(result.length).toBe(3);
+      expect(result.length).toBe(2);
 
-      // First assistant should only have text (tool-call was filtered)
+      // First message should be the second assistant with tool-call
+      const firstMsg = result[0];
+      expect(firstMsg?.role).toBe('assistant');
+      if (firstMsg?.role === 'assistant' && Array.isArray(firstMsg.content)) {
+        expect(firstMsg.content[0]?.type).toBe('tool-call');
+        expect((firstMsg.content[0] as ToolCallPart).toolCallId).toBe('call-2');
+      }
+
+      // Second message should be the tool-result
+      const secondMsg = result[1];
+      expect(secondMsg?.role).toBe('tool');
+    });
+
+    it('should keep assistant message with mixed content when tool-calls remain after filtering', () => {
+      const messages: ModelMessage[] = [
+        // Assistant message with text + two tool-calls
+        {
+          role: 'assistant',
+          content: [
+            { type: 'text', text: 'Let me read both files.' },
+            {
+              type: 'tool-call',
+              toolCallId: 'call-1',
+              toolName: 'readFile',
+              input: { file_path: '/file1.ts' },
+            } as ToolCallPart,
+            {
+              type: 'tool-call',
+              toolCallId: 'call-2',
+              toolName: 'readFile',
+              input: { file_path: '/file2.ts' },
+            } as ToolCallPart,
+          ],
+        },
+        createToolResultMessage('call-1', 'readFile', 'content1'),
+        createToolResultMessage('call-2', 'readFile', 'content2'),
+        // Duplicate read of file1 only
+        ...createReadFilePair('call-3', '/file1.ts'),
+      ];
+
+      const result = messageFilter.filterMessages(messages);
+
+      // After filtering:
+      // - First assistant message loses call-1 (duplicate), keeps text + call-2
+      // - First tool-result (call-1) is removed
+      // - Second tool-result (call-2) remains
+      // - Third assistant (call-3) remains
+      // - Third tool-result (call-3) remains
+      expect(result.length).toBe(4);
+
+      // First assistant should have text + call-2
       const firstAssistant = result[0];
       expect(firstAssistant?.role).toBe('assistant');
       if (firstAssistant?.role === 'assistant' && Array.isArray(firstAssistant.content)) {
-        expect(firstAssistant.content.length).toBe(1);
+        expect(firstAssistant.content.length).toBe(2);
         expect(firstAssistant.content[0]?.type).toBe('text');
+        expect(firstAssistant.content[1]?.type).toBe('tool-call');
+        expect((firstAssistant.content[1] as ToolCallPart).toolCallId).toBe('call-2');
+      }
+    });
+
+    it('should discard text-only assistant message when all tool-calls are filtered', () => {
+      // Create 25+ messages to ensure glob is outside protection window
+      const messages: ModelMessage[] = [];
+
+      // Assistant message with text + exploratory tool
+      messages.push({
+        role: 'assistant',
+        content: [
+          { type: 'text', text: 'Let me search for files.' },
+          {
+            type: 'tool-call',
+            toolCallId: 'call-glob',
+            toolName: 'glob',
+            input: { pattern: '*.ts' },
+          } as ToolCallPart,
+        ],
+      });
+      messages.push(createToolResultMessage('call-glob', 'glob', 'file1.ts\nfile2.ts'));
+
+      // Add filler messages to push glob outside protection window
+      for (let i = 0; i < 25; i++) {
+        messages.push({ role: 'user', content: `Message ${i}` });
       }
 
-      // Second assistant should have tool-call
-      const secondAssistant = result[1];
-      expect(secondAssistant?.role).toBe('assistant');
-      if (secondAssistant?.role === 'assistant' && Array.isArray(secondAssistant.content)) {
-        expect(secondAssistant.content[0]?.type).toBe('tool-call');
-      }
+      const result = messageFilter.filterMessages(messages);
+
+      // The glob tool-call should be filtered, leaving only text in first assistant
+      // Since only text remains, the entire assistant message should be discarded
+      expect(result.length).toBe(25);
+      expect(result.every((m) => m.role === 'user')).toBe(true);
     });
   });
 
@@ -482,6 +557,114 @@ describe('MessageFilter', () => {
         const part = toolCall.content[0] as ToolCallPart;
         expect(part.toolCallId).toBe('call-3');
       }
+    });
+  });
+
+  describe('deduplicate tools (todoWrite, exitPlanMode)', () => {
+    it('should keep only the last todoWrite call when there are multiple', () => {
+      const messages: ModelMessage[] = [
+        createToolCallMessage('call-todo-1', 'todoWrite', { todos: [{ content: 'Task 1' }] }),
+        createToolResultMessage('call-todo-1', 'todoWrite', 'ok'),
+        { role: 'user', content: 'Continue' },
+        createToolCallMessage('call-todo-2', 'todoWrite', { todos: [{ content: 'Task 2' }] }),
+        createToolResultMessage('call-todo-2', 'todoWrite', 'ok'),
+        { role: 'user', content: 'More work' },
+        createToolCallMessage('call-todo-3', 'todoWrite', { todos: [{ content: 'Task 3' }] }),
+        createToolResultMessage('call-todo-3', 'todoWrite', 'ok'),
+      ];
+
+      const result = messageFilter.filterMessages(messages);
+
+      // Should keep: 2 user messages + last todoWrite pair (2 messages) = 4 messages
+      expect(result.length).toBe(4);
+
+      // Verify only the last todoWrite remains
+      const toolCalls = result.filter(
+        (m) => m.role === 'assistant' && Array.isArray(m.content)
+      );
+      expect(toolCalls.length).toBe(1);
+      const toolCall = toolCalls[0];
+      if (toolCall.role === 'assistant' && Array.isArray(toolCall.content)) {
+        const part = toolCall.content[0] as ToolCallPart;
+        expect(part.toolCallId).toBe('call-todo-3');
+      }
+    });
+
+    it('should keep only the last exitPlanMode call when there are multiple', () => {
+      const messages: ModelMessage[] = [
+        createToolCallMessage('call-exit-1', 'exitPlanMode', {}),
+        createToolResultMessage('call-exit-1', 'exitPlanMode', 'exited'),
+        { role: 'user', content: 'Re-enter plan mode' },
+        createToolCallMessage('call-exit-2', 'exitPlanMode', {}),
+        createToolResultMessage('call-exit-2', 'exitPlanMode', 'exited'),
+      ];
+
+      const result = messageFilter.filterMessages(messages);
+
+      // Should keep: 1 user message + last exitPlanMode pair (2 messages) = 3 messages
+      expect(result.length).toBe(3);
+
+      // Verify only the last exitPlanMode remains
+      const toolCalls = result.filter(
+        (m) => m.role === 'assistant' && Array.isArray(m.content)
+      );
+      expect(toolCalls.length).toBe(1);
+      const toolCall = toolCalls[0];
+      if (toolCall.role === 'assistant' && Array.isArray(toolCall.content)) {
+        const part = toolCall.content[0] as ToolCallPart;
+        expect(part.toolCallId).toBe('call-exit-2');
+      }
+    });
+
+    it('should deduplicate todoWrite and exitPlanMode independently', () => {
+      const messages: ModelMessage[] = [
+        createToolCallMessage('call-todo-1', 'todoWrite', { todos: [] }),
+        createToolResultMessage('call-todo-1', 'todoWrite', 'ok'),
+        createToolCallMessage('call-exit-1', 'exitPlanMode', {}),
+        createToolResultMessage('call-exit-1', 'exitPlanMode', 'exited'),
+        { role: 'user', content: 'Continue' },
+        createToolCallMessage('call-todo-2', 'todoWrite', { todos: [] }),
+        createToolResultMessage('call-todo-2', 'todoWrite', 'ok'),
+        createToolCallMessage('call-exit-2', 'exitPlanMode', {}),
+        createToolResultMessage('call-exit-2', 'exitPlanMode', 'exited'),
+      ];
+
+      const result = messageFilter.filterMessages(messages);
+
+      // Should keep: 1 user + last todoWrite pair + last exitPlanMode pair = 5 messages
+      expect(result.length).toBe(5);
+
+      // Verify correct tool calls remain
+      const toolCallIds = new Set<string>();
+      for (const msg of result) {
+        if (msg.role === 'assistant' && Array.isArray(msg.content)) {
+          for (const part of msg.content) {
+            if (part.type === 'tool-call') {
+              toolCallIds.add((part as ToolCallPart).toolCallId);
+            }
+          }
+        }
+      }
+
+      expect(toolCallIds.has('call-todo-2')).toBe(true);
+      expect(toolCallIds.has('call-exit-2')).toBe(true);
+      expect(toolCallIds.has('call-todo-1')).toBe(false);
+      expect(toolCallIds.has('call-exit-1')).toBe(false);
+    });
+
+    it('should not filter single todoWrite or exitPlanMode call', () => {
+      const messages: ModelMessage[] = [
+        { role: 'user', content: 'Hello' },
+        createToolCallMessage('call-todo', 'todoWrite', { todos: [] }),
+        createToolResultMessage('call-todo', 'todoWrite', 'ok'),
+        createToolCallMessage('call-exit', 'exitPlanMode', {}),
+        createToolResultMessage('call-exit', 'exitPlanMode', 'exited'),
+      ];
+
+      const result = messageFilter.filterMessages(messages);
+
+      // All messages should remain
+      expect(result.length).toBe(5);
     });
   });
 

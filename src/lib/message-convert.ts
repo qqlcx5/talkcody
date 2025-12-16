@@ -3,11 +3,7 @@
 
 import type { ModelMessage, TextPart, ToolCallPart, ToolResultPart } from 'ai';
 import { logger } from '@/lib/logger';
-import {
-  type ValidationResult,
-  validateAnthropicMessages,
-  validateToolPairing,
-} from './message-validate';
+import { type ValidationResult, validateAnthropicMessages } from './message-validate';
 
 /**
  * Options for message conversion

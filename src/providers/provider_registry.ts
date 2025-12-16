@@ -55,13 +55,11 @@ export class ProviderRegistry {
   private createProviderDefinitionFromCustomConfig(
     config: CustomProviderConfig
   ): ProviderDefinition {
-    const priority = 2; // Same priority as other custom providers
     const apiKeyName = `custom_${config.id}`;
 
     return {
       id: config.id,
       name: config.name,
-      priority,
       apiKeyName,
       baseUrl: config.baseUrl,
       required: true,

@@ -34,7 +34,7 @@ import { aiPricingService } from '../ai-pricing-service';
 
 /**
  * Callbacks for agent loop
- * NOTE: Persistence is now handled by ExecutionService, not LLMService
+ * NOTE: Persistence is now handled by ExecutionService
  */
 export interface AgentLoopCallbacks {
   /** Called when text streaming starts */
@@ -146,8 +146,9 @@ export class LLMService {
           model,
           systemPrompt = '',
           tools = {},
+          isThink = true,
           suppressReasoning = false,
-          maxIterations = 200,
+          maxIterations = 500,
           compression,
           agentId,
         } = options;
@@ -223,7 +224,7 @@ export class LLMService {
         });
 
         // Create a new StreamProcessor instance for each agent loop
-        // This ensures nested agent calls (e.g., callAgentV2) don't interfere with parent agent's state
+        // This ensures nested agent calls (e.g., callAgent) don't interfere with parent agent's state
         // Previously, using a shared instance caused tool call ID mismatches when nested agents reset the processor
         const streamProcessor = new StreamProcessor();
 
@@ -280,96 +281,42 @@ export class LLMService {
           // This is critical for multi-iteration scenarios (e.g., text -> tool call -> text)
           streamProcessor.resetState();
 
-          // Check if message compression is needed
-          if (
-            this.messageCompactor.shouldCompress(
+          // Check and perform message compression if needed
+          try {
+            const compressionResult = await this.messageCompactor.performCompressionIfNeeded(
               loopState.messages,
               compressionConfig,
               loopState.lastRequestTokens,
-              model
-            )
-          ) {
-            try {
-              onStatus?.(t.LLMService.status.compacting);
-              logger.info('Starting message compression', {
-                messageCount: loopState.messages.length,
-                iteration: loopState.currentIteration,
-                config: compressionConfig,
+              model,
+              systemPrompt,
+              abortController,
+              onStatus
+            );
+
+            if (compressionResult) {
+              // Apply Anthropic format conversion to compressed messages
+              loopState.messages = convertToAnthropicFormat(compressionResult.messages, {
+                autoFix: true,
+                trimAssistantWhitespace: true,
               });
-
-              const compressionResult = await this.messageCompactor.compactMessages(
-                {
-                  messages: loopState.messages,
-                  config: compressionConfig,
-                  systemPrompt,
-                },
-                abortController
-              );
-
-              // Create compressed messages
-              const compressedMessages =
-                this.messageCompactor.createCompressedMessages(compressionResult);
-
-              // Validate compressed messages to catch orphaned tool-calls/results
-              const validation =
-                this.messageCompactor.validateCompressedMessages(compressedMessages);
-
-              if (!validation.valid) {
-                logger.warn('Compressed messages validation failed', {
-                  errors: validation.errors,
-                });
-
-                if (validation.fixedMessages) {
-                  // Apply Anthropic format conversion to fixed messages
-                  loopState.messages = convertToAnthropicFormat(validation.fixedMessages, {
-                    autoFix: true,
-                    trimAssistantWhitespace: true,
-                  });
-                  logger.info('Applied auto-fix for compressed messages', {
-                    originalCount: compressedMessages.length,
-                    fixedCount: loopState.messages.length,
-                  });
-                } else {
-                  // Apply Anthropic format conversion to compressed messages
-                  loopState.messages = convertToAnthropicFormat(compressedMessages, {
-                    autoFix: true,
-                    trimAssistantWhitespace: true,
-                  });
-                  logger.warn('No auto-fix available, applied Anthropic format conversion');
-                }
-              } else {
-                // Apply Anthropic format conversion to validated compressed messages
-                loopState.messages = convertToAnthropicFormat(compressedMessages, {
-                  autoFix: true,
-                  trimAssistantWhitespace: true,
-                });
-              }
-
-              logger.info('Message compression completed', {
-                originalCount: compressionResult.originalMessageCount,
-                compressedCount: compressionResult.compressedMessageCount,
-                ratio: compressionResult.compressionRatio,
-                validationPassed: validation.valid,
-              });
-
               onStatus?.(
-                t.LLMService.status.compressed(compressionResult.compressionRatio.toFixed(2))
+                t.LLMService.status.compressed(compressionResult.result.compressionRatio.toFixed(2))
               );
-            } catch (error) {
-              // Extract and format error using utility
-              const errorContext = createErrorContext(model, {
-                iteration: loopState.currentIteration,
-                messageCount: loopState.messages.length,
-                phase: 'message-compression',
-              });
-              const { formattedError } = extractAndFormatError(error, errorContext);
-
-              logger.warn('Message compression failed, continuing without compression', {
-                formattedError,
-              });
-              onStatus?.(t.LLMService.status.compressionFailed);
-              // Continue with original messages if compression fails
             }
+          } catch (error) {
+            // Extract and format error using utility
+            const errorContext = createErrorContext(model, {
+              iteration: loopState.currentIteration,
+              messageCount: loopState.messages.length,
+              phase: 'message-compression',
+            });
+            const { formattedError } = extractAndFormatError(error, errorContext);
+
+            logger.warn('Message compression failed, continuing without compression', {
+              formattedError,
+            });
+            onStatus?.(t.LLMService.status.compressionFailed);
+            // Continue with original messages if compression fails
           }
 
           // Log request context before calling streamText
@@ -415,23 +362,24 @@ export class LLMService {
                 });
               }
 
-              // Disable thinking for image generation agents (image models don't support thinking)
-              const providerOptions = isImageGenerator
-                ? undefined
-                : {
-                    google: {
-                      thinkingConfig: {
-                        thinkingBudget: 8192,
-                        includeThoughts: true,
+              // Only enable thinking when isThink is true and not image generator
+              const providerOptions =
+                isImageGenerator || !isThink
+                  ? undefined
+                  : {
+                      google: {
+                        thinkingConfig: {
+                          thinkingBudget: 8192,
+                          includeThoughts: true,
+                        },
                       },
-                    },
-                    anthropic: {
-                      thinking: { type: 'enabled', budgetTokens: 12_000 },
-                    },
-                    openai: {
-                      reasoningEffort: 'medium',
-                    },
-                  };
+                      anthropic: {
+                        thinking: { type: 'enabled', budgetTokens: 12_000 },
+                      },
+                      openai: {
+                        reasoningEffort: 'medium',
+                      },
+                    };
 
               streamResult = streamText({
                 model: providerModel,

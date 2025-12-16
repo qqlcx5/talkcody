@@ -80,16 +80,16 @@ export interface AgentExecutionPlan {
 
 /**
  * AgentDependencyAnalyzer handles pure agent delegation scenarios
- * Optimized for callAgentV2 tools with role-based scheduling
+ * Optimized for callAgent tools with role-based scheduling
  */
 export class AgentDependencyAnalyzer {
   /**
    * Analyze agent calls and generate an optimized execution plan
    *
    * Strategy:
-   * 1. Analyze each agent's role classification (information-gathering vs content-modification vs mixed)
-   * 2. Discovery Phase: Information-gathering agents run in parallel (ignore targets)
-   * 3. Implementation Phase: Content-modification agents run with target-based conflict detection
+   * 1. Analyze each agent's role classification (read vs write vs mixed)
+   * 2. Discovery Phase: Read agents run in parallel (ignore targets)
+   * 3. Implementation Phase: Write agents run with target-based conflict detection
    * 4. Mixed Phase: Mixed-operation agents run with careful dependency analysis
    * 5. Apply MAX_PARALLEL_SUBAGENTS limit per group
    */
@@ -118,12 +118,8 @@ export class AgentDependencyAnalyzer {
     const agentAnalyses = await this.analyzeAgentRoles(agentCalls);
 
     // Separate agents by role
-    const informationGatheringAgents = agentAnalyses.filter(
-      (a) => a.role === 'information-gathering'
-    );
-    const contentModificationAgents = agentAnalyses.filter(
-      (a) => a.role === 'content-modification'
-    );
+    const informationGatheringAgents = agentAnalyses.filter((a) => a.role === 'read');
+    const contentModificationAgents = agentAnalyses.filter((a) => a.role === 'write');
 
     // Build execution stages
     const stages = this.buildExecutionStages(informationGatheringAgents, contentModificationAgents);
@@ -161,7 +157,7 @@ export class AgentDependencyAnalyzer {
       const targets = this.extractTargets(agentCall);
 
       let toolNames: string[] = [];
-      let role: AgentRole = 'content-modification'; // Default to most restrictive for safety
+      let role: AgentRole = 'write'; // Default to most restrictive for safety
 
       if (agentId) {
         try {
@@ -183,13 +179,13 @@ export class AgentDependencyAnalyzer {
           }
         } catch (error) {
           logger.warn(`Failed to analyze role for agent ${agentId}:`, error);
-          // Fallback: treat as content-modification for safety
-          role = 'content-modification';
+          // Fallback: treat as write for safety
+          role = 'write';
         }
       } else {
-        // No agent ID found, treat as content-modification for safety
-        logger.warn('Agent call without agentId, treating as content-modification');
-        role = 'content-modification';
+        // No agent ID found, treat as write for safety
+        logger.warn('Agent call without agentId, treating as write');
+        role = 'write';
       }
 
       analyses.push({
@@ -223,8 +219,8 @@ export class AgentDependencyAnalyzer {
     const toolNames = Object.keys(agentTools);
 
     // Special case for known agents
-    if (agentId === 'context-gatherer') {
-      return 'information-gathering';
+    if (agentId === 'explore') {
+      return 'read';
     }
 
     // Analyze tool categories to infer role
@@ -251,13 +247,13 @@ export class AgentDependencyAnalyzer {
 
     // Determine role based on tool analysis
     if (hasWriteTools) {
-      // Any write capability means content-modification (includes mixed operations)
-      return 'content-modification';
+      // Any write capability means write (includes mixed operations)
+      return 'write';
     } else if (hasReadTools) {
-      return 'information-gathering';
+      return 'read';
     } else {
-      // No clear categorization, default to content-modification for safety
-      return 'content-modification';
+      // No clear categorization, default to write for safety
+      return 'write';
     }
   }
 
@@ -278,12 +274,12 @@ export class AgentDependencyAnalyzer {
   ): AgentExecutionStage[] {
     const stages: AgentExecutionStage[] = [];
 
-    // Read Stage: Information-gathering agents (all parallel, ignore targets)
+    // Read Stage: Read agents (all parallel, ignore targets)
     if (informationGatheringAgents.length > 0) {
       stages.push(this.createReadStage(informationGatheringAgents));
     }
 
-    // Write-Edit Stage: Content-modification agents (target-based conflict detection)
+    // Write-Edit Stage: Write agents (target-based conflict detection)
     if (contentModificationAgents.length > 0) {
       stages.push(this.createWriteEditStage(contentModificationAgents));
     }
@@ -292,7 +288,7 @@ export class AgentDependencyAnalyzer {
   }
 
   /**
-   * Create read stage - information-gathering agents run in parallel
+   * Create read stage - read agents run in parallel
    */
   private createReadStage(informationGatheringAgents: AgentRoleAnalysis[]): AgentExecutionStage {
     const agentCalls = informationGatheringAgents.map((a) => a.agentCall);
@@ -310,19 +306,19 @@ export class AgentDependencyAnalyzer {
           agentCalls: agentCalls,
           targetFiles: allTargets.length > 0 ? allTargets : undefined,
           reason: 'All read operations can run in parallel',
-          agentRole: 'information-gathering',
+          agentRole: 'read',
         },
       ],
     };
   }
 
   /**
-   * Create write-edit stage - content-modification agents grouped by target conflicts
+   * Create write-edit stage - write agents grouped by target conflicts
    */
   private createWriteEditStage(
     contentModificationAgents: AgentRoleAnalysis[]
   ): AgentExecutionStage {
-    const groups = this.groupAgentsByTargets(contentModificationAgents, 'content-modification');
+    const groups = this.groupAgentsByTargets(contentModificationAgents, 'write');
 
     return {
       name: 'write-edit-stage',
@@ -348,16 +344,16 @@ export class AgentDependencyAnalyzer {
     for (const agentAnalysis of agents) {
       const { agentCall, targets } = agentAnalysis;
       const hasTargets = targets.length > 0;
-      const missingTargets = agentCall.toolName === 'callAgentV2' && !hasTargets;
+      const missingTargets = agentCall.toolName === 'callAgent' && !hasTargets;
 
       if (missingTargets) {
-        // callAgentV2 without targets - run sequentially for safety
+        // callAgent without targets - run sequentially for safety
         groups.push({
           id: `${rolePrefix}-group-${++groupCounter}`,
           concurrent: false,
           maxConcurrency: 1,
           agentCalls: [agentCall],
-          reason: 'callAgentV2 without declared targets; running sequentially for safety',
+          reason: 'callAgent without declared targets; running sequentially for safety',
           agentRole: role,
         });
         currentConcurrentGroup = null;
@@ -492,9 +488,7 @@ export class AgentDependencyAnalyzer {
    * Validate that all calls are agent calls
    */
   private validateAgentCalls(toolCalls: ToolCallInfo[]): void {
-    const nonAgentCalls = toolCalls.filter(
-      (call) => call.toolName !== 'callAgentV2' && call.toolName !== 'callAgent'
-    );
+    const nonAgentCalls = toolCalls.filter((call) => call.toolName !== 'callAgent');
 
     if (nonAgentCalls.length > 0) {
       throw new Error(

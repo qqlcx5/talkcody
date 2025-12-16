@@ -96,10 +96,14 @@ class ProjectIndexer {
       this.reportProgress({ phase: 'searching', current: 0, total: SUPPORTED_EXTENSIONS.length });
 
       // Search for all extensions in PARALLEL instead of sequentially
+      // Note: For indexing, we need ALL matching files, not just a limited sample.
+      // The glob search already respects .gitignore to exclude node_modules, etc.
+      // Default max_results is 100 which is too low for indexing - we need all files.
       const globPromises = SUPPORTED_EXTENSIONS.map((ext) =>
         invoke<GlobResult[]>('search_files_by_glob', {
           pattern: `**/*.${ext}`,
           path: rootPath,
+          maxResults: 999999, // Effectively unlimited - rely on .gitignore filtering
         }).catch((error) => {
           logger.error(`Failed to search for *.${ext} files:`, error);
           return [] as GlobResult[];
@@ -167,7 +171,25 @@ class ProjectIndexer {
 
           // Update store with loaded indexed files
           const indexedFiles = await getIndexedFiles();
-          this.getStore().setIndexedFiles(new Set(indexedFiles));
+          const indexedFilesSet = new Set(indexedFiles);
+          this.getStore().setIndexedFiles(indexedFilesSet);
+
+          // Also check for files that have timestamps but weren't actually indexed
+          // This can happen if indexing failed for some files
+          for (const filePath of allFiles) {
+            if (!indexedFilesSet.has(filePath)) {
+              // File exists but wasn't indexed - add to filesToIndex
+              if (!filesToIndex.includes(filePath)) {
+                filesToIndex.push(filePath);
+              }
+            }
+          }
+
+          if (filesToIndex.length > 0) {
+            logger.info(
+              `Found ${filesToIndex.length} files that need (re)indexing (including files with timestamps but not in index)`
+            );
+          }
 
           // Remove deleted files from index
           for (const filePath of filesToRemove) {
@@ -259,9 +281,17 @@ class ProjectIndexer {
         logger.info(`Indexed ${filesToIndex.length} files in ${indexTime}ms`);
       }
 
-      // Save the index with current timestamps
+      // Save the index with timestamps of ONLY indexed files
+      // This ensures files that failed to index will be retried next time
       this.reportProgress({ phase: 'saving', current: 0, total: 1 });
-      await saveIndex(rootPath, currentTimestamps);
+      const indexedFilesArray = Array.from(this.getStore().indexedFiles);
+      const indexedTimestamps: Record<string, number> = {};
+      for (const filePath of indexedFilesArray) {
+        if (currentTimestamps[filePath] !== undefined) {
+          indexedTimestamps[filePath] = currentTimestamps[filePath];
+        }
+      }
+      await saveIndex(rootPath, indexedTimestamps);
 
       const totalTime = Date.now() - startTime;
       const indexedCount = this.getStore().indexedFiles.size;

@@ -298,7 +298,7 @@ describe('AI SDK Tool Auto-Execution Prevention', () => {
             toolCallId: 'call-agent-1',
             toolName: 'callAgent',
             input: {
-              agentId: 'context-gatherer',
+              agentId: 'explore',
               task: 'Analyze the code',
             },
           },

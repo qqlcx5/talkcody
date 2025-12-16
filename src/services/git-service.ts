@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { FileStatusMap, GitStatus, LineChange } from '../types/git';
+import type { FileDiff, FileStatusMap, GitStatus, LineChange } from '../types/git';
 
 /**
  * Service layer for Git operations using Tauri commands
@@ -34,6 +34,21 @@ export class GitService {
       repoPath,
       filePath,
     });
+  }
+
+  /**
+   * Gets full diff for all changed files in the repository
+   */
+  async getAllFileDiffs(repoPath: string): Promise<FileDiff[]> {
+    return invoke<FileDiff[]>('git_get_all_file_diffs', { repoPath });
+  }
+
+  /**
+   * Gets raw diff text for all changed files (for AI commit message generation)
+   * Returns text similar to `git diff` output
+   */
+  async getRawDiffText(repoPath: string): Promise<string> {
+    return invoke<string>('git_get_raw_diff_text', { repoPath });
   }
 }
 

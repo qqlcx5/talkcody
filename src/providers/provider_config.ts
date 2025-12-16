@@ -12,7 +12,6 @@ export const PROVIDER_CONFIGS: ProviderRegistry = {
   MiniMax: {
     id: 'MiniMax',
     name: 'MiniMax',
-    priority: 2,
     apiKeyName: 'MINIMAX_API_KEY',
     required: false,
     type: 'openai-compatible',
@@ -28,7 +27,6 @@ export const PROVIDER_CONFIGS: ProviderRegistry = {
   zhipu: {
     id: 'zhipu',
     name: 'Zhipu AI',
-    priority: 2,
     apiKeyName: 'ZHIPU_API_KEY',
     baseUrl: 'https://open.bigmodel.cn/api/paas/v4/',
     required: false,
@@ -47,7 +45,6 @@ export const PROVIDER_CONFIGS: ProviderRegistry = {
   openRouter: {
     id: 'openRouter',
     name: 'OpenRouter',
-    priority: 1,
     apiKeyName: 'OPEN_ROUTER_API_KEY',
     required: false,
     type: 'custom',
@@ -70,7 +67,6 @@ export const PROVIDER_CONFIGS: ProviderRegistry = {
   aiGateway: {
     id: 'aiGateway',
     name: 'Vercel AI Gateway',
-    priority: 0,
     apiKeyName: 'AI_GATEWAY_API_KEY',
     required: false,
     type: 'custom',
@@ -88,7 +84,6 @@ export const PROVIDER_CONFIGS: ProviderRegistry = {
   openai: {
     id: 'openai',
     name: 'OpenAI',
-    priority: 2,
     apiKeyName: 'OPENAI_API_KEY',
     required: false,
     type: 'openai',
@@ -111,7 +106,6 @@ export const PROVIDER_CONFIGS: ProviderRegistry = {
   anthropic: {
     id: 'anthropic',
     name: 'Anthropic',
-    priority: 2,
     apiKeyName: 'ANTHROPIC_API_KEY',
     required: false,
     type: 'custom',
@@ -135,7 +129,6 @@ export const PROVIDER_CONFIGS: ProviderRegistry = {
   deepseek: {
     id: 'deepseek',
     name: 'Deepseek',
-    priority: 2,
     apiKeyName: 'DEEPSEEK_API_KEY',
     baseUrl: 'https://api.deepseek.com',
     required: false,
@@ -152,7 +145,6 @@ export const PROVIDER_CONFIGS: ProviderRegistry = {
   google: {
     id: 'google',
     name: 'Google AI',
-    priority: 2,
     apiKeyName: 'GOOGLE_API_KEY',
     required: false,
     type: 'custom',
@@ -166,7 +158,6 @@ export const PROVIDER_CONFIGS: ProviderRegistry = {
   ollama: {
     id: 'ollama',
     name: 'Ollama',
-    priority: 1,
     apiKeyName: 'OLLAMA_ENABLED',
     baseUrl: 'http://127.0.0.1:11434',
     required: false,
@@ -183,7 +174,6 @@ export const PROVIDER_CONFIGS: ProviderRegistry = {
   lmstudio: {
     id: 'lmstudio',
     name: 'LM Studio',
-    priority: 1,
     apiKeyName: 'LMSTUDIO_ENABLED',
     baseUrl: 'http://127.0.0.1:1234',
     required: false,
@@ -200,7 +190,6 @@ export const PROVIDER_CONFIGS: ProviderRegistry = {
   moonshot: {
     id: 'moonshot',
     name: 'Moonshot',
-    priority: 2,
     apiKeyName: 'MOONSHOT_API_KEY',
     required: false,
     type: 'openai-compatible',
@@ -218,7 +207,6 @@ export const PROVIDER_CONFIGS: ProviderRegistry = {
   tavily: {
     id: 'tavily',
     name: 'Tavily Web Search',
-    priority: 3,
     apiKeyName: 'TAVILY_API_KEY',
     baseUrl: 'https://api.tavily.com',
     required: false,
@@ -229,7 +217,6 @@ export const PROVIDER_CONFIGS: ProviderRegistry = {
   serper: {
     id: 'serper',
     name: 'Serper Web Search',
-    priority: 3,
     apiKeyName: 'SERPER_API_KEY',
     baseUrl: 'https://google.serper.dev',
     required: false,
@@ -240,7 +227,6 @@ export const PROVIDER_CONFIGS: ProviderRegistry = {
   elevenlabs: {
     id: 'elevenlabs',
     name: 'Eleven Labs Text-to-Speech',
-    priority: 3,
     apiKeyName: 'ELEVENLABS_API_KEY',
     baseUrl: 'https://api.elevenlabs.io',
     required: false,

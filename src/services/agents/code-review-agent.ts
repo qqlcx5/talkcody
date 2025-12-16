@@ -347,7 +347,7 @@ export class CodeReviewAgent {
       version: CodeReviewAgent.VERSION,
       systemPrompt: CodeReviewPrompt,
       tools: selectedTools,
-      role: 'information-gathering',
+      role: 'read',
       dynamicPrompt: {
         enabled: true,
         providers: ['env', 'agents_md', 'skills'],

@@ -188,6 +188,103 @@ pub fn get_line_changes(
     Ok(changes)
 }
 
+/// Generates raw diff text for all changed files (working directory vs HEAD)
+/// Returns a string similar to `git diff` output, suitable for AI processing
+pub fn get_raw_diff_text(repo: &Repository) -> Result<String, GitError> {
+    let mut opts = DiffOptions::new();
+
+    // Get HEAD tree
+    let head = repo.head()?;
+    let head_tree = head.peel_to_tree()?;
+
+    // Create diff between HEAD and working directory (includes staged and unstaged)
+    let diff = repo.diff_tree_to_workdir_with_index(Some(&head_tree), Some(&mut opts))?;
+
+    format_diff_as_text(diff)
+}
+
+/// Formats a git2::Diff as human-readable text similar to `git diff` output
+fn format_diff_as_text(diff: Diff) -> Result<String, GitError> {
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    let output = Rc::new(RefCell::new(String::new()));
+    let output_file = output.clone();
+    let output_hunk = output.clone();
+    let output_line = output.clone();
+
+    diff.foreach(
+        &mut |delta, _progress| {
+            let mut out = output_file.borrow_mut();
+
+            // File header
+            let status = match delta.status() {
+                git2::Delta::Added => "new file",
+                git2::Delta::Deleted => "deleted",
+                git2::Delta::Modified => "modified",
+                git2::Delta::Renamed => "renamed",
+                _ => "changed",
+            };
+
+            let new_path = delta
+                .new_file()
+                .path()
+                .and_then(|p| p.to_str())
+                .unwrap_or("unknown");
+            let old_path = delta
+                .old_file()
+                .path()
+                .and_then(|p| p.to_str())
+                .unwrap_or("unknown");
+
+            out.push_str(&format!(
+                "diff --git a/{} b/{} ({})\n",
+                old_path, new_path, status
+            ));
+
+            if delta.status() == git2::Delta::Renamed {
+                out.push_str(&format!("rename from {}\n", old_path));
+                out.push_str(&format!("rename to {}\n", new_path));
+            }
+
+            out.push_str(&format!("--- a/{}\n", old_path));
+            out.push_str(&format!("+++ b/{}\n", new_path));
+
+            true
+        },
+        None,
+        Some(&mut |_delta, hunk| {
+            let mut out = output_hunk.borrow_mut();
+            out.push_str(&String::from_utf8_lossy(hunk.header()));
+            true
+        }),
+        Some(&mut |_delta, _hunk, line| {
+            let mut out = output_line.borrow_mut();
+
+            let prefix = match line.origin() {
+                '+' => '+',
+                '-' => '-',
+                ' ' => ' ',
+                _ => ' ',
+            };
+
+            let content = String::from_utf8_lossy(line.content());
+            out.push(prefix);
+            out.push_str(&content);
+
+            // Ensure line ends with newline
+            if !content.ends_with('\n') {
+                out.push('\n');
+            }
+
+            true
+        }),
+    )?;
+
+    let result = output.borrow().clone();
+    Ok(result)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -402,5 +499,76 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn test_get_raw_diff_text() {
+        let temp_dir = create_temp_git_repo_with_commit();
+
+        // Modify README.md
+        let readme = temp_dir.path().join("README.md");
+        std::fs::write(&readme, "# Modified\nLine 2\nLine 3\nLine 4\n").unwrap();
+
+        let repo = Repository::open(temp_dir.path()).unwrap();
+        let diff_text = get_raw_diff_text(&repo).unwrap();
+
+        // Should contain git diff header
+        assert!(
+            diff_text.contains("diff --git"),
+            "Should contain git diff header"
+        );
+        assert!(diff_text.contains("README.md"), "Should contain file name");
+
+        // Should contain additions and deletions
+        assert!(diff_text.contains('+'), "Should contain additions");
+        assert!(diff_text.contains('-'), "Should contain deletions");
+    }
+
+    #[test]
+    fn test_get_raw_diff_text_empty_when_no_changes() {
+        let temp_dir = create_temp_git_repo_with_commit();
+
+        // No changes made
+        let repo = Repository::open(temp_dir.path()).unwrap();
+        let diff_text = get_raw_diff_text(&repo).unwrap();
+
+        // Should be empty when no changes
+        assert!(diff_text.is_empty(), "Should be empty when no changes");
+    }
+
+    #[test]
+    fn test_get_raw_diff_text_multiple_files() {
+        let temp_dir = create_temp_git_repo_with_commit();
+
+        // Modify README.md
+        let readme = temp_dir.path().join("README.md");
+        std::fs::write(&readme, "# Modified\n").unwrap();
+
+        // Create and commit a new file first, then modify it
+        let code_file = temp_dir.path().join("code.rs");
+        std::fs::write(&code_file, "fn main() {}\n").unwrap();
+
+        Command::new("git")
+            .args(["add", "code.rs"])
+            .current_dir(temp_dir.path())
+            .output()
+            .unwrap();
+
+        Command::new("git")
+            .args(["commit", "-m", "Add code.rs"])
+            .current_dir(temp_dir.path())
+            .output()
+            .unwrap();
+
+        // Now modify both files
+        std::fs::write(&readme, "# Modified Again\n").unwrap();
+        std::fs::write(&code_file, "fn main() { println!(\"hello\"); }\n").unwrap();
+
+        let repo = Repository::open(temp_dir.path()).unwrap();
+        let diff_text = get_raw_diff_text(&repo).unwrap();
+
+        // Should contain both files
+        assert!(diff_text.contains("README.md"), "Should contain README.md");
+        assert!(diff_text.contains("code.rs"), "Should contain code.rs");
     }
 }

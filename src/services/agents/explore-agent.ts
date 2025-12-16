@@ -3,7 +3,7 @@ import type { AgentDefinition } from '@/types/agent';
 import { ModelType } from '@/types/model-types';
 
 const ContextGatheringPromptTemplate = `
-You are a 'Context Gatherer' agent. Your role is to efficiently collect specific information to answer a focused question. You are optimized for concise, targeted information gathering.
+You are an 'Explore' agent. Your role is to efficiently collect specific information to answer a focused question. You are optimized for concise, targeted information gathering.
 
 You gather context for coding tasks, with access to the developer's codebase.
 
@@ -100,7 +100,7 @@ Immediately make all necessary tool calls:
 **Read Tools (Always batch these):**
 - readFile: Read file contents
 - globTool: Find files by pattern
-- codeSearch (GrepTool): Search code for patterns
+- grepSearch (GrepTool): Search code for patterns
 - listFiles: List directory contents
 - webSearchTool: Web search
 - webFetchTool: Fetch web pages
@@ -109,7 +109,7 @@ All read tools execute in parallel automatically!
 
 Remember: Your goal is to efficiently answer the specific question with the least response time while maintaining accuracy and usefulness. Batch your tool calls!`;
 
-export class ContextGathererAgent {
+export class ExploreAgent {
   private constructor() {}
 
   static readonly VERSION = '1.0.0';
@@ -126,16 +126,16 @@ export class ContextGathererAgent {
     };
 
     return {
-      id: 'context-gatherer',
-      name: 'Context Gatherer',
+      id: 'explore',
+      name: 'Explore',
       description: 'Efficient single-task information gathering',
       modelType: ModelType.MAIN,
-      version: ContextGathererAgent.VERSION,
+      version: ExploreAgent.VERSION,
       systemPrompt: ContextGatheringPromptTemplate,
       tools: selectedTools,
       hidden: true,
       isDefault: true,
-      role: 'information-gathering',
+      role: 'read',
       dynamicPrompt: {
         enabled: true,
         providers: ['env', 'agents_md', 'skills'],

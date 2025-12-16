@@ -97,7 +97,7 @@ function MessageItemComponent({
         );
       }
 
-      const isCallAgent = item.toolName === 'callAgent' || item.toolName === 'callAgentV2';
+      const isCallAgent = item.toolName === 'callAgent';
       const toolRenderers = getToolUIRenderers(item.toolName);
       // Generate unique key using toolCallId and type
       const uniqueKey = `${item.toolCallId}-${item.type}`;
@@ -272,7 +272,10 @@ function MessageItemComponent({
         <div className="relative w-full min-w-0 break-words">
           {message.role === 'user' && typeof message.content === 'string' && (
             <div className="relative my-2 flex w-full items-start rounded-xl border border-border bg-muted/50 p-4 transition-colors hover:bg-muted/80">
-              <h2 className={'whitespace-pre-wrap font-normal text-foreground text-sm'} dir="auto">
+              <h2
+                className={'whitespace-pre-wrap break-words font-normal text-foreground text-sm'}
+                dir="auto"
+              >
                 {message.content}
               </h2>
             </div>

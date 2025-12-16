@@ -3,6 +3,7 @@ import type { PromptContextProvider } from '@/types/prompt';
 import { AgentsMdProvider } from './providers/agents-md-provider';
 import { EnvProvider } from './providers/env-provider';
 import { SkillsProvider } from './providers/skills-provider';
+import { SubagentsProvider } from './providers/subagents-provider';
 
 export class ProviderRegistry {
   private providers: Map<string, PromptContextProvider> = new Map();
@@ -11,6 +12,7 @@ export class ProviderRegistry {
     this.register(EnvProvider);
     this.register(AgentsMdProvider());
     this.register(SkillsProvider);
+    this.register(SubagentsProvider);
   }
 
   register(provider: PromptContextProvider) {
@@ -33,6 +35,7 @@ export class ProviderRegistry {
     if (idSet.has('env')) result.push(EnvProvider);
     if (idSet.has('agents_md')) result.push(AgentsMdProvider(providerSettings?.agents_md));
     if (idSet.has('skills')) result.push(SkillsProvider);
+    if (idSet.has('subagents')) result.push(SubagentsProvider);
     return result;
   }
 }

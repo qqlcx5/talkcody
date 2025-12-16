@@ -87,7 +87,7 @@ export class DocumentWriterAgent {
       tools: selectedTools,
       hidden: false,
       isDefault: true,
-      role: 'content-modification',
+      role: 'write',
       dynamicPrompt: {
         enabled: true,
         providers: ['env', 'agents_md', 'skills'],

@@ -29,7 +29,7 @@ export interface AgentExecutionConfig {
   nestedAgentTimeoutMs: number;
 
   /**
-   * Whether to enable parallel execution for information-gathering agents.
+   * Whether to enable parallel execution for read agents.
    * When false, all agents will execute sequentially.
    * Default: true
    */

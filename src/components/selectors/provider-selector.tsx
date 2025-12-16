@@ -31,13 +31,10 @@ export function ProviderSelector({
       .map((m) => ({
         value: m.provider,
         label: m.providerName,
-        priority: m.priority,
       }));
 
-    // Remove duplicates and sort by priority
-    const uniqueProviders = Array.from(
-      new Map(modelProviders.map((p) => [p.value, p])).values()
-    ).sort((a, b) => a.priority - b.priority);
+    // Remove duplicates
+    const uniqueProviders = Array.from(new Map(modelProviders.map((p) => [p.value, p])).values());
 
     return uniqueProviders;
   }, [modelKey, availableModels]);

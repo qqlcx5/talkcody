@@ -7,12 +7,6 @@ describe('tool UI registration', () => {
     await loadAllTools();
   });
 
-  it('registers UI renderers for callAgentV2', () => {
-    const renderers = getToolUIRenderers('callAgentV2');
-    expect(renderers?.renderToolDoing).toBeDefined();
-    expect(renderers?.renderToolResult).toBeDefined();
-  });
-
   it('registers UI renderers for callAgent', () => {
     const renderers = getToolUIRenderers('callAgent');
     expect(renderers?.renderToolDoing).toBeDefined();

@@ -59,7 +59,7 @@ export async function generateMetadata(props: {
     title: page.data.title,
     description: page.data.description,
     openGraph: {
-      images: getPageImage(page).url,
+      images: "https://cdn.talkcody.com/images/talkcody_og.jpg",
     },
   };
 }

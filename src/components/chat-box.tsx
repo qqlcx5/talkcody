@@ -175,7 +175,6 @@ export const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(
     const processMessage = async (
       userMessage: string,
       attachments: MessageAttachment[] | undefined,
-      conversationId: string | undefined,
       skipUserMessage = false,
       baseHistory?: UIMessage[],
       overrideAgentId?: string
@@ -403,7 +402,6 @@ export const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(
           ? userMessage.content
           : JSON.stringify(userMessage.content),
         userMessage.attachments,
-        currentTaskId,
         true,
         baseHistory
       );
@@ -435,8 +433,18 @@ export const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(
       const userMessage = input.trim();
       setInput('');
 
-      await processMessage(userMessage, attachments, currentTaskId);
+      await processMessage(userMessage, attachments);
     };
+
+    // Handle sending a message programmatically (e.g., from code review button)
+    // biome-ignore lint/correctness/useExhaustiveDependencies: processMessage is intentionally omitted - it changes on every render but we want stable closure behavior
+    const handleSendMessage = useCallback(
+      async (message: string) => {
+        if (!message.trim() || isLoading) return;
+        await processMessage(message, undefined);
+      },
+      [isLoading, currentTaskId]
+    );
 
     const stopGeneration = () => {
       // Use taskId prop to stop the currently displayed task
@@ -459,7 +467,7 @@ export const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(
           selectedFile: selectedFile || undefined,
           fileContent: fileContent || undefined,
           sendMessage: async (message: string) => {
-            await processMessage(message, undefined, currentTaskId);
+            await processMessage(message, undefined);
           },
           createNewTask: async () => {
             if (onTaskStart) {
@@ -489,7 +497,6 @@ export const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(
             await processMessage(
               result.aiMessage,
               undefined,
-              currentTaskId,
               false,
               undefined,
               command.preferredAgentId
@@ -551,7 +558,9 @@ export const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(
           </div>
         )}
 
-        {currentTaskId && <FileChangesSummary taskId={currentTaskId} />}
+        {currentTaskId && (
+          <FileChangesSummary taskId={currentTaskId} onSendMessage={handleSendMessage} />
+        )}
 
         <ChatInput
           ref={chatInputRef}

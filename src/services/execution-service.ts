@@ -19,10 +19,9 @@ import { createLLMService, type LLMService } from '@/services/agents/llm-service
 import { messageService } from '@/services/message-service';
 import { notificationService } from '@/services/notification-service';
 import { TaskManager } from '@/services/task-manager';
-import { taskService } from '@/services/task-service';
 import { useExecutionStore } from '@/stores/execution-store';
 import { useTaskStore } from '@/stores/task-store';
-import type { ToolMessageContent, UIMessage } from '@/types/agent';
+import type { UIMessage } from '@/types/agent';
 
 /**
  * Configuration for starting an execution

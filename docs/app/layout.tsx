@@ -1,7 +1,12 @@
 import type { ReactNode } from "react";
+import type { Metadata } from "next";
 import Script from "next/script";
 import "./[lang]/global.css";
 import { Inter, Space_Grotesk } from "next/font/google";
+
+export const metadata: Metadata = {
+  metadataBase: new URL("https://www.talkcody.com"),
+};
 
 const inter = Inter({
   subsets: ["latin"],

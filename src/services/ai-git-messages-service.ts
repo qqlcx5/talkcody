@@ -4,14 +4,9 @@ import { logger } from '@/lib/logger';
 import { GEMINI_25_FLASH_LITE } from '@/lib/models';
 import { aiProviderService } from './ai-provider-service';
 
-export interface GitFileDiff {
-  filename: string;
-  action: 'create' | 'update' | 'update_full' | 'delete';
-}
-
 export interface GitMessageContext {
   userInput?: string;
-  fileDiffs: GitFileDiff[];
+  diffText: string;
 }
 
 export interface GitMessageResult {
@@ -22,49 +17,30 @@ export interface GitMessageResult {
 class AIGitMessagesService {
   async generateCommitMessage(context: GitMessageContext): Promise<GitMessageResult | null> {
     try {
-      logger.info('generateCommitMessage context', context);
+      logger.info('generateCommitMessage diffText length', context.diffText?.length ?? 0);
       const startTime = performance.now();
       let firstDeltaTime: number | null = null;
       let isFirstDelta = true;
       let deltaCount = 0;
 
-      const { userInput, fileDiffs } = context;
+      const { userInput, diffText } = context;
 
-      if (!fileDiffs || fileDiffs.length === 0) {
-        logger.error('No file diffs provided for commit message generation');
+      if (!diffText || diffText.trim().length === 0) {
+        logger.error('No diff text provided for commit message generation');
         return null;
-      }
-
-      // Categorize files by action
-      const createFiles = fileDiffs.filter((f) => f.action === 'create');
-      const updateFiles = fileDiffs.filter(
-        (f) => f.action === 'update' || f.action === 'update_full'
-      );
-      const deleteFiles = fileDiffs.filter((f) => f.action === 'delete');
-
-      // Build file summary
-      let fileSummary = '';
-      if (createFiles.length > 0) {
-        fileSummary += `Created files (${createFiles.length}): ${createFiles.map((f) => f.filename).join(', ')}\n`;
-      }
-      if (updateFiles.length > 0) {
-        fileSummary += `Modified files (${updateFiles.length}): ${updateFiles.map((f) => f.filename).join(', ')}\n`;
-      }
-      if (deleteFiles.length > 0) {
-        fileSummary += `Deleted files (${deleteFiles.length}): ${deleteFiles.map((f) => f.filename).join(', ')}\n`;
       }
 
       const prompt = `You are an AI assistant that generates concise and meaningful git commit messages following conventional commit format.
 
-${userInput ? `User description: "${userInput}"\n` : ''}
-File changes:
-${fileSummary}
+${userInput ? `User task description: "${userInput}"\n` : ''}
+File changes (git diff):
+${diffText}
 
 Generate a concise git commit message that follows these guidelines:
 1. Use conventional commit format: type(scope): description
 2. Types: feat, fix, docs, style, refactor, test, chore
 3. Keep the message under 72 characters for the subject line
-4. Be specific about what was changed
+4. Be specific about what was changed based on the actual diff content
 5. Use imperative mood (e.g., "add", "fix", "update")
 
 Examples:

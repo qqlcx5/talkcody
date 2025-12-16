@@ -18,10 +18,10 @@ vi.mock('@/services/agents/agent-registry', () => ({
   agentRegistry: {
     getWithResolvedTools: vi.fn(async (agentId: string) => {
       // Mock different agent types for testing
-      if (agentId === 'context-gatherer') {
+      if (agentId === 'explore') {
         return {
-          id: 'context-gatherer',
-          role: 'information-gathering',
+          id: 'explore',
+          role: 'read',
           tools: {
             readFile: { execute: vi.fn() },
             codeSearch: { execute: vi.fn() },
@@ -32,7 +32,7 @@ vi.mock('@/services/agents/agent-registry', () => ({
       if (agentId === 'coding') {
         return {
           id: 'coding',
-          role: 'content-modification',
+          role: 'write',
           tools: {
             readFile: { execute: vi.fn() },
             writeFile: { execute: vi.fn() },
@@ -43,7 +43,7 @@ vi.mock('@/services/agents/agent-registry', () => ({
       if (agentId === 'general') {
         return {
           id: 'general',
-          role: 'content-modification',
+          role: 'write',
           tools: {
             webSearch: { execute: vi.fn() },
           },
@@ -62,7 +62,6 @@ vi.mock('@/lib/tools', () => ({
     'codeSearch',
     'listFiles',
     'callAgent',
-    'callAgentV2',
     'grepSearch',
     'webSearch',
   ]),
@@ -92,14 +91,14 @@ import type { ToolCallInfo } from './tool-executor';
 const dependencyAnalyzer = new DependencyAnalyzer();
 
 const concurrentCallAgentTool = {
-  callAgentV2: { canConcurrent: true },
+  callAgent: { canConcurrent: true },
 } as const;
 
 describe('DependencyAnalyzer - Context Isolation Validation', () => {
-  it('throws error when callAgentV2 is mixed with other tools', async () => {
+  it('throws error when callAgent is mixed with other tools', async () => {
     const toolCalls: ToolCallInfo[] = [
       { toolCallId: 'read-1', toolName: 'readFile', input: { path: 'src/a.ts' } },
-      { toolCallId: 'agent-1', toolName: 'callAgentV2', input: { targets: ['src/b.ts'] } },
+      { toolCallId: 'agent-1', toolName: 'callAgent', input: { targets: ['src/b.ts'] } },
     ];
 
     await expect(async () => {
@@ -107,10 +106,10 @@ describe('DependencyAnalyzer - Context Isolation Validation', () => {
     }).rejects.toThrow(/Context isolation violation/);
   });
 
-  it('throws error when a callAgentV2 variant is mixed with other tools', async () => {
+  it('throws error when a callAgent variant is mixed with other tools', async () => {
     const toolCalls: ToolCallInfo[] = [
       { toolCallId: 'read-1', toolName: 'readFile', input: { path: 'src/a.ts' } },
-      { toolCallId: 'agent-1', toolName: 'callAgentV2 Tool', input: { targets: ['src/b.ts'] } },
+      { toolCallId: 'agent-1', toolName: 'callAgent Tool', input: { targets: ['src/b.ts'] } },
     ];
 
     await expect(async () => {
@@ -140,10 +139,10 @@ describe('DependencyAnalyzer - Context Isolation Validation', () => {
     }).rejects.toThrow(/Context isolation violation/);
   });
 
-  it('allows only callAgentV2 calls without other tools', async () => {
+  it('allows only callAgent calls without other tools', async () => {
     const toolCalls: ToolCallInfo[] = [
-      { toolCallId: 'agent-1', toolName: 'callAgentV2', input: { agentId: 'context-gatherer', targets: ['src/a.ts'] } },
-      { toolCallId: 'agent-2', toolName: 'callAgentV2', input: { agentId: 'coding', targets: ['src/b.ts'] } },
+      { toolCallId: 'agent-1', toolName: 'callAgent', input: { agentId: 'explore', targets: ['src/a.ts'] } },
+      { toolCallId: 'agent-2', toolName: 'callAgent', input: { agentId: 'coding', targets: ['src/b.ts'] } },
     ];
 
     const plan = await dependencyAnalyzer.analyzeDependencies(toolCalls, concurrentCallAgentTool as any);
@@ -152,8 +151,8 @@ describe('DependencyAnalyzer - Context Isolation Validation', () => {
 
   it('allows callAgent tool variants without other tools', async () => {
     const toolCalls: ToolCallInfo[] = [
-      { toolCallId: 'agent-1', toolName: 'CallAgentV2', input: { agentId: 'context-gatherer', targets: ['src/a.ts'] } },
-      { toolCallId: 'agent-2', toolName: 'call agent v2', input: { agentId: 'coding', targets: ['src/b.ts'] } },
+      { toolCallId: 'agent-1', toolName: 'CallAgent', input: { agentId: 'explore', targets: ['src/a.ts'] } },
+      { toolCallId: 'agent-2', toolName: 'call agent', input: { agentId: 'coding', targets: ['src/b.ts'] } },
     ];
 
     const plan = await dependencyAnalyzer.analyzeDependencies(toolCalls, concurrentCallAgentTool as any);
@@ -174,8 +173,8 @@ describe('DependencyAnalyzer - Context Isolation Validation', () => {
 describe('DependencyAnalyzer - Agent Tool Analysis', () => {
   it('creates read-only stage for agents with only read tools', async () => {
     const toolCalls: ToolCallInfo[] = [
-      { toolCallId: 'agent-1', toolName: 'callAgentV2', input: { agentId: 'context-gatherer', targets: ['src/a.ts'] } },
-      { toolCallId: 'agent-2', toolName: 'callAgentV2', input: { agentId: 'context-gatherer', targets: ['src/b.ts'] } },
+      { toolCallId: 'agent-1', toolName: 'callAgent', input: { agentId: 'explore', targets: ['src/a.ts'] } },
+      { toolCallId: 'agent-2', toolName: 'callAgent', input: { agentId: 'explore', targets: ['src/b.ts'] } },
     ];
 
     const plan = await dependencyAnalyzer.analyzeDependencies(toolCalls, concurrentCallAgentTool as any);
@@ -193,8 +192,8 @@ describe('DependencyAnalyzer - Agent Tool Analysis', () => {
 
   it('creates write-operations stage for agents with write tools', async () => {
     const toolCalls: ToolCallInfo[] = [
-      { toolCallId: 'agent-1', toolName: 'callAgentV2', input: { agentId: 'coding', targets: ['src/a.ts'] } },
-      { toolCallId: 'agent-2', toolName: 'callAgentV2', input: { agentId: 'coding', targets: ['src/b.ts'] } },
+      { toolCallId: 'agent-1', toolName: 'callAgent', input: { agentId: 'coding', targets: ['src/a.ts'] } },
+      { toolCallId: 'agent-2', toolName: 'callAgent', input: { agentId: 'coding', targets: ['src/b.ts'] } },
     ];
 
     const plan = await dependencyAnalyzer.analyzeDependencies(toolCalls, concurrentCallAgentTool as any);
@@ -211,8 +210,8 @@ describe('DependencyAnalyzer - Agent Tool Analysis', () => {
 
   it('creates both stages for mixed agent types', async () => {
     const toolCalls: ToolCallInfo[] = [
-      { toolCallId: 'agent-1', toolName: 'callAgentV2', input: { agentId: 'context-gatherer', targets: ['src/a.ts'] } },
-      { toolCallId: 'agent-2', toolName: 'callAgentV2', input: { agentId: 'coding', targets: ['src/b.ts'] } },
+      { toolCallId: 'agent-1', toolName: 'callAgent', input: { agentId: 'explore', targets: ['src/a.ts'] } },
+      { toolCallId: 'agent-2', toolName: 'callAgent', input: { agentId: 'coding', targets: ['src/b.ts'] } },
     ];
 
     const plan = await dependencyAnalyzer.analyzeDependencies(toolCalls, concurrentCallAgentTool as any);
@@ -230,8 +229,8 @@ describe('DependencyAnalyzer - Agent Tool Analysis', () => {
 
   it('handles target conflicts in write-capable agents', async () => {
     const toolCalls: ToolCallInfo[] = [
-      { toolCallId: 'agent-1', toolName: 'callAgentV2', input: { agentId: 'coding', targets: ['src/shared.ts'] } },
-      { toolCallId: 'agent-2', toolName: 'callAgentV2', input: { agentId: 'coding', targets: ['src/shared.ts'] } },
+      { toolCallId: 'agent-1', toolName: 'callAgent', input: { agentId: 'coding', targets: ['src/shared.ts'] } },
+      { toolCallId: 'agent-2', toolName: 'callAgent', input: { agentId: 'coding', targets: ['src/shared.ts'] } },
     ];
 
     const plan = await dependencyAnalyzer.analyzeDependencies(toolCalls, concurrentCallAgentTool as any);
@@ -248,7 +247,7 @@ describe('DependencyAnalyzer - Agent Tool Analysis', () => {
 
   it('classifies agents with only "other" tools as write-capable to avoid dropping them', async () => {
     const toolCalls: ToolCallInfo[] = [
-      { toolCallId: 'agent-1', toolName: 'callAgentV2', input: { agentId: 'general' } },
+      { toolCallId: 'agent-1', toolName: 'callAgent', input: { agentId: 'general' } },
     ];
 
     const plan = await dependencyAnalyzer.analyzeDependencies(toolCalls, concurrentCallAgentTool as any);

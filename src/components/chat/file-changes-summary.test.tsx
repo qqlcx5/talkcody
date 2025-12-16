@@ -19,6 +19,20 @@ vi.mock('@/stores/repository-store', () => ({
   },
 }));
 
+vi.mock('@/stores/settings-store', () => ({
+  useSettingsStore: (selector: (state: { language: string }) => string) => {
+    return selector({ language: 'en' });
+  },
+}));
+
+vi.mock('@/locales', () => ({
+  getLocale: () => ({
+    FileChanges: {
+      codeReviewMessage: 'Please use the code review agent to review the current code changes.',
+    },
+  }),
+}));
+
 vi.mock('./file-change-item', () => ({
   FileChangeItem: ({
     filePath,

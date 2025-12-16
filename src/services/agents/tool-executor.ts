@@ -326,8 +326,7 @@ export class ToolExecutor {
               ? { value: parsedInput }
               : {};
 
-        const isCallAgentTool =
-          toolCall.toolName === 'callAgent' || toolCall.toolName === 'callAgentV2';
+        const isCallAgentTool = toolCall.toolName === 'callAgent';
 
         // Pass special parameters to callAgent tools
         if (isCallAgentTool) {

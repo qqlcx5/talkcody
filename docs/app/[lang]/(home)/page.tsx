@@ -41,7 +41,7 @@ export async function generateMetadata({
       type: "website",
       images: [
         {
-          url: "https://www.talkcody.com/og-image.png",
+          url: "https://cdn.talkcody.com/images/talkcody_og.jpg",
           width: 1200,
           height: 630,
           alt: "TalkCody - AI Coding Agent",
@@ -52,7 +52,7 @@ export async function generateMetadata({
       card: "summary_large_image",
       title: t.title,
       description: t.description,
-      images: ["https://www.talkcody.com/og-image.png"],
+      images: ["https://cdn.talkcody.com/images/talkcody_og.jpg"],
     },
     alternates: {
       canonical: `https://www.talkcody.com${isDefaultLang ? "" : `/${lang}`}`,

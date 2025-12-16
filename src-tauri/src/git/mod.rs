@@ -3,7 +3,7 @@ pub mod repository;
 pub mod status;
 pub mod types;
 
-use types::{GitStatus, GitFileStatus, DiffLineType};
+use types::{GitStatus, GitFileStatus, DiffLineType, FileDiff};
 
 /// Gets the Git status for a repository at the given path
 #[tauri::command]
@@ -54,4 +54,35 @@ pub async fn git_get_line_changes(
 
     diff::get_line_changes(&repo, relative_path)
         .map_err(|e| format!("Failed to get line changes: {}", e))
+}
+
+/// Gets full diff for all changed files in the repository
+#[tauri::command]
+pub async fn git_get_all_file_diffs(repo_path: String) -> Result<Vec<FileDiff>, String> {
+    let repo = repository::discover_repository(&repo_path)
+        .map_err(|e| format!("Failed to open repository: {}", e))?;
+
+    let git_status = status::get_repository_status(&repo)
+        .map_err(|e| format!("Failed to get repository status: {}", e))?;
+
+    let mut diffs = Vec::new();
+
+    // Collect all file paths from modified and staged files
+    for file in git_status.modified.iter().chain(git_status.staged.iter()) {
+        if let Ok(file_diff) = diff::get_file_diff(&repo, &file.path) {
+            diffs.push(file_diff);
+        }
+    }
+
+    Ok(diffs)
+}
+
+/// Gets raw diff text for all changed files (for AI commit message generation)
+/// Returns text similar to `git diff` output
+#[tauri::command]
+pub async fn git_get_raw_diff_text(repo_path: String) -> Result<String, String> {
+    let repo = repository::discover_repository(&repo_path)
+        .map_err(|e| format!("Failed to open repository: {}", e))?;
+
+    diff::get_raw_diff_text(&repo).map_err(|e| format!("Failed to get raw diff text: {}", e))
 }

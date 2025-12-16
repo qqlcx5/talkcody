@@ -15,7 +15,6 @@ export type ProviderType =
 export interface ProviderDefinition {
   id: string;
   name: string;
-  priority: number;
   apiKeyName: string;
   baseUrl?: string;
   required?: boolean;
