@@ -59,8 +59,18 @@ The file path should be an absolute path.`,
 
       logger.info('Writing file:', file_path);
 
+      // Handle case where LLM incorrectly returns content as object instead of string
+      let contentToWrite = content;
+      if (typeof content === 'object' && content !== null) {
+        logger.warn('[writeFile] content is object, stringifying it', {
+          contentType: typeof content,
+          isArray: Array.isArray(content),
+        });
+        contentToWrite = JSON.stringify(content, null, 2);
+      }
+
       // Normalize the new content
-      const normalizedContent = normalizeString(content);
+      const normalizedContent = normalizeString(contentToWrite);
 
       // Check if file exists to determine if this is a create or overwrite operation
       let originalContent = '';
