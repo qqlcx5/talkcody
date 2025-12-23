@@ -18,6 +18,7 @@ mod analytics;
 mod lint;
 mod background_tasks;
 mod lsp;
+mod oauth_callback_server;
 
 use file_watcher::FileWatcher;
 use window_manager::{WindowRegistry, WindowState, create_window};
@@ -986,6 +987,8 @@ pub fn run() {
             lsp::lsp_get_server_config,
             lsp::lsp_get_server_status,
             lsp::lsp_download_server,
+            // OAuth callback server
+            oauth_callback_server::start_oauth_callback_server,
         ])
         .on_window_event(|window, event| {
             // Clean up resources when main window is destroyed

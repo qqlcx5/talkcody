@@ -247,6 +247,26 @@ export interface LocaleDefinition {
       connectionFailed: string;
       tokenRefreshFailed: string;
     };
+    openaiOAuth: {
+      title: string;
+      description: string;
+      signIn: string;
+      step1: string;
+      step1Hint: string;
+      step2: string;
+      step2Hint: string;
+      codePlaceholder: string;
+      connect: string;
+      connected: string;
+      connectedWithPlan: string;
+      disconnect: string;
+      disconnected: string;
+      pasteCode: string;
+      connectionFailed: string;
+      tokenRefreshFailed: string;
+      redirectUriNote: string;
+      redirectUriHint: string;
+    };
     models: {
       title: string;
       description: string;

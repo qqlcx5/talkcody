@@ -13,12 +13,12 @@ import { logger } from '@/lib/logger';
 import { convertToAnthropicFormat } from '@/lib/message-convert';
 import { MessageTransform } from '@/lib/message-transform';
 import { validateAnthropicMessages } from '@/lib/message-validate';
-import { getContextLength } from '@/lib/models';
-import { parseModelIdentifier } from '@/lib/provider-utils';
 import { getToolSync } from '@/lib/tools';
 import { generateId } from '@/lib/utils';
 import { getLocale, type SupportedLocale } from '@/locales';
-import { modelTypeService } from '@/services/model-type-service';
+import { getContextLength } from '@/providers/config/model-config';
+import { parseModelIdentifier } from '@/providers/core/provider-utils';
+import { modelTypeService } from '@/providers/models/model-type-service';
 import { getEffectiveWorkspaceRoot } from '@/services/workspace-root-service';
 import { usePlanModeStore } from '@/stores/plan-mode-store';
 import { useSettingsStore } from '@/stores/settings-store';
@@ -32,6 +32,7 @@ import type {
   UIMessage,
 } from '../../types/agent';
 import { aiPricingService } from '../ai-pricing-service';
+import { buildOpenAIProviderOptions } from './openai-provider-options';
 
 /**
  * Callbacks for agent loop
@@ -358,24 +359,31 @@ export class LLMService {
                 });
               }
 
-              // Only enable thinking when isThink is true and not image generator
-              const providerOptions =
-                isImageGenerator || !isThink
-                  ? undefined
-                  : {
-                      google: {
-                        thinkingConfig: {
-                          thinkingBudget: 8192,
-                          includeThoughts: true,
-                        },
-                      },
-                      anthropic: {
-                        thinking: { type: 'enabled', budgetTokens: 12_000 },
-                      },
-                      openai: {
-                        reasoningEffort: 'medium',
-                      },
-                    };
+              const enableReasoningOptions = !isImageGenerator && isThink;
+              const providerOptionsMap: Record<string, unknown> = {};
+
+              if (enableReasoningOptions) {
+                providerOptionsMap.google = {
+                  thinkingConfig: {
+                    thinkingBudget: 8192,
+                    includeThoughts: true,
+                  },
+                };
+                providerOptionsMap.anthropic = {
+                  thinking: { type: 'enabled', budgetTokens: 12_000 },
+                };
+              }
+
+              if (!isImageGenerator) {
+                providerOptionsMap.openai = buildOpenAIProviderOptions({
+                  enableReasoning: enableReasoningOptions,
+                  systemPrompt,
+                });
+              }
+
+              // biome-ignore lint/suspicious/noExplicitAny: providerOptions type varies by provider
+              const providerOptions: any =
+                Object.keys(providerOptionsMap).length > 0 ? providerOptionsMap : undefined;
 
               streamResult = streamText({
                 model: providerModel,

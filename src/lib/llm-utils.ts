@@ -2,7 +2,7 @@ import { safeValidateTypes } from '@ai-sdk/provider-utils';
 import type { ModelMessage } from 'ai';
 import { z } from 'zod';
 import { logger } from '@/lib/logger';
-import { parseModelIdentifier } from '@/lib/provider-utils';
+import { parseModelIdentifier } from '@/providers/core/provider-utils';
 import type { ConvertMessagesOptions, ToolMessageContent, UIMessage } from '@/types/agent';
 
 const MAX_LINES = 2000;

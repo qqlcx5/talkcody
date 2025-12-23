@@ -972,7 +972,10 @@ mod tests {
 
     #[test]
     fn test_validate_root_path_nonexistent() {
-        let result = validate_root_path("/nonexistent/path/that/should/not/exist/12345");
+        // Use temp_dir as base to ensure the path is absolute on all platforms (Windows uses C:\, Unix uses /)
+        let temp_dir = std::env::temp_dir();
+        let nonexistent = temp_dir.join("nonexistent_path_that_should_not_exist_12345");
+        let result = validate_root_path(nonexistent.to_str().unwrap());
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("does not exist"));
     }

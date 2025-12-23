@@ -123,14 +123,14 @@ vi.mock('@/providers', () => ({
 }));
 
 // Mock ai-provider-service
-vi.mock('@/services/ai-provider-service', () => ({
+vi.mock('@/providers/core/provider-factory', () => ({
   aiProviderService: {
     refreshProviders: vi.fn().mockResolvedValue(undefined),
   },
 }));
 
 // Mock custom-model-service
-vi.mock('@/services/custom-model-service', () => ({
+vi.mock('@/providers/custom/custom-model-service', () => ({
   customModelService: {
     supportsModelsFetch: vi.fn().mockReturnValue(true),
     fetchProviderModels: vi.fn(),
@@ -150,7 +150,7 @@ vi.mock('@/stores/settings-store', () => ({
 }));
 
 // Mock claude-oauth-store
-vi.mock('@/stores/claude-oauth-store', () => ({
+vi.mock('@/providers/oauth/claude-oauth-store', () => ({
   useClaudeOAuthStore: vi.fn(() => ({ isConnected: false })),
 }));
 
@@ -177,7 +177,7 @@ vi.mock('@/components/settings/claude-oauth-login', () => ({
 
 // Import after mocks
 import { ApiKeysSettings } from './api-keys-settings';
-import { customModelService } from '@/services/custom-model-service';
+import { customModelService } from '@/providers/custom/custom-model-service';
 import { settingsManager } from '@/stores/settings-store';
 
 describe('ApiKeysSettings - Connection Test Error Messages', () => {

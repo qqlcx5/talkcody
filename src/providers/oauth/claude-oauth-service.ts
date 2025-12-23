@@ -1,4 +1,4 @@
-// src/services/claude-oauth-service.ts
+// src/providers/oauth/claude-oauth-service.ts
 // Core OAuth service for Claude Pro/Max authentication
 
 import { logger } from '@/lib/logger';

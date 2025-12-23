@@ -1,19 +1,20 @@
-// src/services/model-service.ts
+// src/providers/models/model-service.ts
 import { logger } from '@/lib/logger';
-import { getProvidersForModel, MODEL_CONFIGS } from '@/lib/models';
 import { PROVIDER_CONFIGS, providerRegistry } from '@/providers';
+import { getProvidersForModel, MODEL_CONFIGS } from '@/providers/config/model-config';
+import { customModelService } from '@/providers/custom/custom-model-service';
+import { customProviderService } from '@/providers/custom/custom-provider-service';
+import { modelSyncService } from '@/providers/models/model-sync-service';
+import { modelTypeService } from '@/providers/models/model-type-service';
+import { agentRegistry } from '@/services/agents/agent-registry';
 import { settingsManager } from '@/stores/settings-store';
 import type { AgentDefinition } from '@/types/agent';
 import type { ApiKeySettings, AvailableModel } from '@/types/api-keys';
 import { MODEL_TYPE_SETTINGS_KEYS } from '@/types/model-types';
-import { agentRegistry } from './agents/agent-registry';
-import { customModelService } from './custom-model-service';
-import { customProviderService } from './custom-provider-service';
-import { modelSyncService } from './model-sync-service';
-import { modelTypeService } from './model-type-service';
 
 interface OAuthConfig {
   anthropicAccessToken?: string | null;
+  openaiAccessToken?: string | null;
 }
 
 export class ModelService {
@@ -300,9 +301,13 @@ export class ModelService {
    */
   private async getOAuthConfig(): Promise<OAuthConfig> {
     try {
-      const { getClaudeOAuthAccessToken } = await import('@/stores/claude-oauth-store');
-      const accessToken = await getClaudeOAuthAccessToken();
-      return { anthropicAccessToken: accessToken };
+      const { getClaudeOAuthAccessToken } = await import('@/providers/oauth/claude-oauth-store');
+      const anthropicAccessToken = await getClaudeOAuthAccessToken();
+
+      const { getOpenAIOAuthAccessToken } = await import('@/providers/oauth/openai-oauth-store');
+      const openaiAccessToken = await getOpenAIOAuthAccessToken();
+
+      return { anthropicAccessToken, openaiAccessToken };
     } catch {
       return {};
     }
@@ -313,9 +318,21 @@ export class ModelService {
    */
   private getOAuthConfigSync(): OAuthConfig {
     try {
-      const { useClaudeOAuthStore } = require('@/stores/claude-oauth-store');
-      const state = useClaudeOAuthStore.getState();
-      return { anthropicAccessToken: state.accessToken };
+      const { useClaudeOAuthStore } = require('@/providers/oauth/claude-oauth-store');
+      const anthropicState = useClaudeOAuthStore.getState();
+      const anthropicAccessToken = anthropicState.accessToken;
+
+      // Try to get OpenAI OAuth state synchronously
+      let openaiAccessToken = null;
+      try {
+        const { useOpenAIOAuthStore } = require('@/providers/oauth/openai-oauth-store');
+        const openaiState = useOpenAIOAuthStore.getState();
+        openaiAccessToken = openaiState.accessToken;
+      } catch {
+        // OpenAI OAuth store not loaded yet
+      }
+
+      return { anthropicAccessToken, openaiAccessToken };
     } catch {
       return {};
     }

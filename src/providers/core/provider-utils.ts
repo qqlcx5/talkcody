@@ -1,19 +1,25 @@
-// src/lib/provider-utils.ts
+// src/providers/core/provider-utils.ts
 // Pure utility functions for provider/model operations - no state management
 
 import { logger } from '@/lib/logger';
-import { getProvidersForModel, MODEL_CONFIGS } from '@/lib/models';
-import { createCustomProvider } from '@/providers/custom-provider-factory';
-import { createAnthropicOAuthProvider, PROVIDER_CONFIGS } from '@/providers/provider_config';
-import { isLocalProvider } from '@/services/custom-model-service';
+import { getProvidersForModel, MODEL_CONFIGS } from '@/providers/config/model-config';
+import { isLocalProvider } from '@/providers/custom/custom-model-service';
+import { createCustomProvider } from '@/providers/custom/custom-provider-factory';
 import type { ProviderDefinition } from '@/types';
 import type { AvailableModel } from '@/types/api-keys';
 import type { CustomProviderConfig } from '@/types/custom-provider';
 import type { ModelConfig } from '@/types/models';
+import {
+  createAnthropicOAuthProvider,
+  createOpenAIOAuthProvider,
+  PROVIDER_CONFIGS,
+} from '../config/provider-config';
 
 // OAuth configuration for provider creation
 export interface OAuthConfig {
   anthropicAccessToken?: string | null;
+  openaiAccessToken?: string | null;
+  openaiAccountId?: string | null;
 }
 
 // Type for provider factory function (returns a function that creates model instances)
@@ -66,6 +72,11 @@ export function hasApiKeyForProvider(
 
   // Check OAuth for Anthropic
   if (providerId === 'anthropic' && oauthConfig?.anthropicAccessToken) {
+    return true;
+  }
+
+  // Check OAuth for OpenAI
+  if (providerId === 'openai' && oauthConfig?.openaiAccessToken) {
     return true;
   }
 
@@ -146,12 +157,17 @@ export function createProviders(
     // TalkCody Free uses JWT auth, not API key - always create it
     const isTalkCody = providerId === 'talkcody';
 
-    // Check if this provider uses OAuth (e.g., Anthropic with Claude Pro/Max)
-    const useOAuth =
+    // Check if this provider uses OAuth (e.g., Anthropic with Claude Pro/Max, OpenAI with ChatGPT Plus/Pro)
+    const useAnthropicOAuth =
       providerId === 'anthropic' &&
       providerDef.supportsOAuth &&
       oauthConfig?.anthropicAccessToken &&
       !baseUrls.has(providerId); // Don't use OAuth if custom base URL is set
+
+    const useOpenAIOAuth =
+      providerId === 'openai' && oauthConfig?.openaiAccessToken && !baseUrls.has(providerId); // Don't use OAuth if custom base URL is set
+
+    const useOAuth = useAnthropicOAuth || useOpenAIOAuth;
 
     // Skip if no API key and no OAuth (except for special providers)
     if (!apiKey && !isTalkCody && !useOAuth) {
@@ -166,10 +182,21 @@ export function createProviders(
 
     // Create provider using OAuth or API key
     try {
-      if (useOAuth && oauthConfig?.anthropicAccessToken) {
+      if (useAnthropicOAuth && oauthConfig?.anthropicAccessToken) {
         // Use OAuth provider for Anthropic
         logger.info(`Creating Anthropic provider with OAuth`);
         const createdProvider = createAnthropicOAuthProvider(oauthConfig.anthropicAccessToken);
+        providers.set(providerId, createdProvider);
+        continue;
+      }
+
+      if (useOpenAIOAuth && oauthConfig?.openaiAccessToken) {
+        // Use OAuth provider for OpenAI
+        logger.info(`Creating OpenAI provider with OAuth`);
+        const createdProvider = createOpenAIOAuthProvider(
+          oauthConfig.openaiAccessToken,
+          oauthConfig.openaiAccountId
+        );
         providers.set(providerId, createdProvider);
         continue;
       }

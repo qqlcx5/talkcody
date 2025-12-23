@@ -1,4 +1,4 @@
-// src/stores/claude-oauth-store.ts
+// src/providers/oauth/claude-oauth-store.ts
 // Zustand store for Claude OAuth state management
 
 import { create } from 'zustand';
@@ -8,7 +8,7 @@ import {
   isTokenExpired,
   refreshAccessToken,
   startOAuthFlow,
-} from '@/services/claude-oauth-service';
+} from './claude-oauth-service';
 
 // Storage keys for OAuth tokens in settings database
 const STORAGE_KEYS = {

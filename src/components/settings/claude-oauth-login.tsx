@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useLocale } from '@/hooks/use-locale';
 import { logger } from '@/lib/logger';
-import { useClaudeOAuthStore } from '@/stores/claude-oauth-store';
+import { useClaudeOAuthStore } from '@/providers/oauth/claude-oauth-store';
 import { useProviderStore } from '@/stores/provider-store';
 
 type FlowState = 'idle' | 'waiting-for-code' | 'exchanging' | 'connected';

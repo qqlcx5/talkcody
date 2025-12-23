@@ -66,6 +66,8 @@ dirs = "5.0"
 rand = "0.8"
 which = "7.0"
 zip = "2.2"
+# OAuth callback server
+tiny_http = "0.12"
 
 [target."cfg(any(target_os = \"macos\", windows, target_os = \"linux\"))".dependencies]
 tauri-plugin-single-instance = { version = "2.0.0", features = ["deep-link"] }

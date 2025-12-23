@@ -256,6 +256,29 @@ const en: LocaleDefinition = {
       connectionFailed: 'Connection failed. Please try again.',
       tokenRefreshFailed: 'Session expired. Please reconnect.',
     },
+    openaiOAuth: {
+      title: 'ChatGPT Plus/Pro',
+      description: 'Sign in with your ChatGPT Plus or Pro subscription to use OpenAI models',
+      signIn: 'Sign in with ChatGPT',
+      step1: 'Step 1: Open authorization link',
+      step1Hint: 'Click the link above to open OpenAI authorization page in your browser',
+      step2: 'Step 2: Paste the callback URL',
+      step2Hint:
+        'After authorization, copy the full URL from browser address bar (it will show "connection failed" but that\'s OK)',
+      codePlaceholder:
+        'Paste the full URL here (e.g., http://localhost:1455/auth/callback?code=...)',
+      connect: 'Connect',
+      connected: 'Connected to ChatGPT',
+      connectedWithPlan: 'Connected with ChatGPT Plus/Pro',
+      disconnect: 'Disconnect',
+      disconnected: 'Disconnected from ChatGPT',
+      pasteCode: 'Please paste the callback URL',
+      connectionFailed: 'Connection failed. Please try again.',
+      tokenRefreshFailed: 'Session expired. Please reconnect.',
+      redirectUriNote: 'Note: The redirect URI is',
+      redirectUriHint:
+        'The browser will show "connection failed" after authorization - this is normal. Just copy the full URL from the address bar.',
+    },
     models: {
       title: 'Model Configuration',
       description: 'Configure models for different purposes',
