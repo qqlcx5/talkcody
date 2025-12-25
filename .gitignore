@@ -78,6 +78,8 @@ coverage/
 scripts/*
 !scripts/build-and-notarize.sh
 !scripts/release.sh
+!scripts/lib/
+!scripts/lib/common.sh
 # Design documents (ignore most, keep specific files)
 design/*
 !design/multi-agent-parallel-execution.md
