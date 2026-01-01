@@ -28,13 +28,14 @@ import { databaseService } from '@/services/database-service';
 import type { LintDiagnostic } from '@/services/lint-service';
 import { getRelativePath } from '@/services/repository-utils';
 import { terminalService } from '@/services/terminal-service';
+import { WindowManagerService } from '@/services/window-manager-service';
 import { useExecutionStore } from '@/stores/execution-store';
 import { useGitStore } from '@/stores/git-store';
 import { useLintStore } from '@/stores/lint-store';
 import { useProjectStore } from '@/stores/project-store';
-import { useRepositoryStore } from '@/stores/repository-store';
-import { settingsManager } from '@/stores/settings-store';
+import { settingsManager, useSettingsStore } from '@/stores/settings-store';
 import { useTerminalStore } from '@/stores/terminal-store';
+import { useRepositoryStore } from '@/stores/window-scoped-repository-store';
 import { useWorktreeStore } from '@/stores/worktree-store';
 import { SidebarView } from '@/types/navigation';
 import { ChatBox, type ChatBoxRef } from './chat-box';
@@ -68,7 +69,8 @@ export function RepositoryLayout() {
   const [isContentSearchVisible, setIsContentSearchVisible] = useState(false);
   const contentSearchInputRef = useRef<HTMLInputElement>(null);
 
-  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
+  // Get current project ID from settings store (reactive to changes)
+  const currentProjectId = useSettingsStore((state) => state.project);
 
   // Circuit breaker: track paths that failed to open to prevent infinite retry loops
   const [failedPaths] = useState(() => new Set<string>());
@@ -247,45 +249,53 @@ export function RepositoryLayout() {
     }
   }, [sidebarView, currentProjectId, loadTasks]);
 
-  // Load current project ID from settings
-  useEffect(() => {
-    const loadCurrentSettings = async () => {
-      try {
-        const projectId = await settingsManager.getProject();
-        setCurrentProjectId(projectId);
-      } catch (error) {
-        logger.error('Failed to load current settings:', error);
-      }
-    };
-    loadCurrentSettings();
-  }, []);
-
   // Load saved repository on component mount
   useEffect(() => {
+    let isMounted = true;
+
     const loadSavedRepository = async () => {
+      // Only execute if app.tsx hasn't loaded a project yet
+      if (!isMounted || rootPath) return;
+
+      // Check if this is a new window
+      const isNewWindow = await WindowManagerService.checkNewWindowFlag();
+      if (isNewWindow) {
+        logger.info('[repository-layout] New window detected - skipping auto-load');
+        await WindowManagerService.clearNewWindowFlag();
+        return;
+      }
+
+      // Check if window has associated project
+      const windowInfo = await WindowManagerService.getWindowInfo();
+      if (windowInfo?.rootPath) {
+        logger.info('[repository-layout] Window has associated project, skip global load');
+        return;
+      }
+
+      // Load global saved project
       const savedPath = settingsManager.getCurrentRootPath();
       const projectId = await settingsManager.getProject();
 
-      // Skip if no saved path, already have rootPath, or path previously failed
-      // The failedPaths check prevents infinite retry loops when directory is renamed/deleted
-      if (!savedPath || rootPath || failedPaths.has(savedPath)) {
+      if (!savedPath || failedPaths.has(savedPath)) {
         return;
       }
 
       try {
         await openRepository(savedPath, projectId);
-        logger.info('Restored saved repository:', savedPath);
+        logger.info('[repository-layout] Restored saved repository:', savedPath);
       } catch (error) {
-        logger.error('Failed to restore saved repository:', error);
-        // Mark this path as failed to prevent infinite retries
+        logger.error('[repository-layout] Failed to restore saved repository:', error);
         failedPaths.add(savedPath);
-        // Clear invalid saved path
         settingsManager.setCurrentRootPath('');
       }
     };
 
     loadSavedRepository();
-  }, [openRepository, rootPath, failedPaths]); // Include failedPaths in dependencies
+
+    return () => {
+      isMounted = false;
+    };
+  }, [openRepository, rootPath, failedPaths]);
 
   // Initialize Git when repository changes
   useEffect(() => {
@@ -382,8 +392,7 @@ export function RepositoryLayout() {
       // Get the project from database
       const project = await databaseService.getProject(projectId);
       if (project) {
-        // Update current project ID and save to settings
-        setCurrentProjectId(projectId);
+        // Save project ID to settings (will trigger reactive update)
         await settingsManager.setProject(projectId);
 
         // If project has root_path, open the repository
@@ -525,7 +534,7 @@ export function RepositoryLayout() {
                         onImportRepository={async () => {
                           const newProject = await selectRepository();
                           if (newProject) {
-                            setCurrentProjectId(newProject.id);
+                            // Project ID will be updated via settings store reactivity
                             await refreshProjects();
                           }
                         }}
@@ -654,13 +663,13 @@ export function RepositoryLayout() {
                       onSelectRepository={async () => {
                         const newProject = await selectRepository();
                         if (newProject) {
-                          setCurrentProjectId(newProject.id);
+                          // Project ID will be updated via settings store reactivity
                           await refreshProjects();
                         }
                       }}
                       onOpenRepository={async (path, projectId) => {
                         await openRepository(path, projectId);
-                        setCurrentProjectId(projectId);
+                        // Project ID will be updated via settings store reactivity
                         await refreshProjects();
                       }}
                     />

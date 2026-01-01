@@ -10,7 +10,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { logger } from '@/lib/logger';
-import type { Project } from '@/services/database-service';
 import { useProjectStore } from '@/stores/project-store';
 
 interface ProjectSelectorProps {

@@ -1,15 +1,14 @@
+use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::net::{IpAddr, ToSocketAddrs};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
-use tokio::time::timeout;
-use futures_util::StreamExt;
 use tauri::Emitter;
+use tokio::time::timeout;
 use url::Url;
 
 static REQUEST_COUNTER: AtomicU32 = AtomicU32::new(0);
-
 
 /// Validate URL to prevent SSRF attacks
 /// Returns an error if the URL points to a private/internal IP address
@@ -31,7 +30,7 @@ fn validate_url(url_str: &str) -> Result<(), String> {
     let is_localhost = host_lower == "localhost"
         || host_lower == "127.0.0.1"
         || host_lower == "::1"
-        || host_lower == "[::1]";  // IPv6 bracket notation
+        || host_lower == "[::1]"; // IPv6 bracket notation
 
     if is_localhost {
         // Allow all localhost access for local development and MCP servers
@@ -40,7 +39,9 @@ fn validate_url(url_str: &str) -> Result<(), String> {
     }
 
     // Try to resolve the host to IP addresses
-    let port = url.port().unwrap_or(if url.scheme() == "https" { 443 } else { 80 });
+    let port = url
+        .port()
+        .unwrap_or(if url.scheme() == "https" { 443 } else { 80 });
     let socket_addr = format!("{}:{}", host, port);
 
     if let Ok(addrs) = socket_addr.to_socket_addrs() {
@@ -179,13 +180,10 @@ pub async fn proxy_fetch(request: ProxyRequest) -> Result<ProxyResponse, String>
     }
 
     // Send request
-    let response = req_builder
-        .send()
-        .await
-        .map_err(|e| {
-            log::error!("Proxy fetch error: {}", e);
-            format!("Request failed: {}", e)
-        })?;
+    let response = req_builder.send().await.map_err(|e| {
+        log::error!("Proxy fetch error: {}", e);
+        format!("Request failed: {}", e)
+    })?;
 
     let status = response.status().as_u16();
 
@@ -206,13 +204,19 @@ pub async fn proxy_fetch(request: ProxyRequest) -> Result<ProxyResponse, String>
     }
 
     // Log critical response headers for debugging
-    let _content_type = response.headers().get("content-type")
+    let _content_type = response
+        .headers()
+        .get("content-type")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("none");
-    let _transfer_encoding = response.headers().get("transfer-encoding")
+    let _transfer_encoding = response
+        .headers()
+        .get("transfer-encoding")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("none");
-    let _content_length = response.headers().get("content-length")
+    let _content_length = response
+        .headers()
+        .get("content-length")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("none");
 
@@ -221,8 +225,14 @@ pub async fn proxy_fetch(request: ProxyRequest) -> Result<ProxyResponse, String>
     let body = timeout(read_timeout, response.text())
         .await
         .map_err(|_| {
-            log::error!("Timeout reading response body after {} seconds", read_timeout.as_secs());
-            format!("Timeout reading response body after {} seconds", read_timeout.as_secs())
+            log::error!(
+                "Timeout reading response body after {} seconds",
+                read_timeout.as_secs()
+            );
+            format!(
+                "Timeout reading response body after {} seconds",
+                read_timeout.as_secs()
+            )
         })?
         .map_err(|e| {
             log::error!("Failed to read response body: {}", e);
@@ -240,7 +250,11 @@ pub async fn proxy_fetch(request: ProxyRequest) -> Result<ProxyResponse, String>
 /// This is more suitable for streaming responses like SSE
 #[tauri::command]
 pub async fn proxy_fetch_stream(request: ProxyRequest) -> Result<ProxyResponse, String> {
-    log::info!("Proxy fetch (streaming) request to: {} {}", request.method, request.url);
+    log::info!(
+        "Proxy fetch (streaming) request to: {} {}",
+        request.method,
+        request.url
+    );
 
     // Validate URL to prevent SSRF attacks
     validate_url(&request.url)?;
@@ -268,13 +282,10 @@ pub async fn proxy_fetch_stream(request: ProxyRequest) -> Result<ProxyResponse, 
     }
 
     // Send request
-    let response = req_builder
-        .send()
-        .await
-        .map_err(|e| {
-            log::error!("Proxy fetch (streaming) error: {}", e);
-            format!("Request failed: {}", e)
-        })?;
+    let response = req_builder.send().await.map_err(|e| {
+        log::error!("Proxy fetch (streaming) error: {}", e);
+        format!("Request failed: {}", e)
+    })?;
 
     let status = response.status().as_u16();
     log::info!("Proxy fetch (streaming) response status: {}", status);
@@ -288,19 +299,27 @@ pub async fn proxy_fetch_stream(request: ProxyRequest) -> Result<ProxyResponse, 
     }
 
     // Log critical response headers for debugging
-    let content_type = response.headers().get("content-type")
+    let content_type = response
+        .headers()
+        .get("content-type")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("none");
-    let transfer_encoding = response.headers().get("transfer-encoding")
+    let transfer_encoding = response
+        .headers()
+        .get("transfer-encoding")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("none");
-    let content_length = response.headers().get("content-length")
+    let content_length = response
+        .headers()
+        .get("content-length")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("none");
 
     log::info!(
         "Streaming response headers - Content-Type: {}, Transfer-Encoding: {}, Content-Length: {}",
-        content_type, transfer_encoding, content_length
+        content_type,
+        transfer_encoding,
+        content_length
     );
 
     // Get response body using bytes_stream for better streaming support
@@ -352,8 +371,11 @@ pub async fn proxy_fetch_stream(request: ProxyRequest) -> Result<ProxyResponse, 
     let body = String::from_utf8(body_chunks)
         .map_err(|e| format!("Failed to convert response to UTF-8: {}", e))?;
 
-    log::info!("Streaming response complete - Total chunks: {}, Total size: {} bytes",
-        chunk_count, body.len());
+    log::info!(
+        "Streaming response complete - Total chunks: {}, Total size: {} bytes",
+        chunk_count,
+        body.len()
+    );
 
     Ok(ProxyResponse {
         status,
@@ -369,7 +391,9 @@ pub async fn stream_fetch(
     window: tauri::Window,
     request: ProxyRequest,
 ) -> Result<StreamResponse, String> {
-    let request_id = request.request_id.unwrap_or_else(|| REQUEST_COUNTER.fetch_add(1, Ordering::SeqCst));
+    let request_id = request
+        .request_id
+        .unwrap_or_else(|| REQUEST_COUNTER.fetch_add(1, Ordering::SeqCst));
     // Use request-specific event name to avoid global event broadcasting
     let event_name = format!("stream-response-{}", request_id);
 
@@ -504,7 +528,11 @@ pub async fn stream_fetch(
                 status: 0,
             },
         ) {
-            log::error!("Failed to emit end payload (request_id: {}): {:?}", request_id, e);
+            log::error!(
+                "Failed to emit end payload (request_id: {}): {:?}",
+                request_id,
+                e
+            );
         }
     });
 
@@ -545,8 +573,8 @@ mod tests {
         assert!(validate_url("http://[::1]:9999").is_ok());
         // Common development ports
         assert!(validate_url("http://localhost:11434").is_ok()); // Ollama
-        assert!(validate_url("http://localhost:1234").is_ok());  // LM Studio
-        assert!(validate_url("http://localhost:3845").is_ok());  // MCP Server
+        assert!(validate_url("http://localhost:1234").is_ok()); // LM Studio
+        assert!(validate_url("http://localhost:3845").is_ok()); // MCP Server
         assert!(validate_url("http://127.0.0.1:11434/v1/models").is_ok());
         assert!(validate_url("http://127.0.0.1:1234/v1/chat/completions").is_ok());
         assert!(validate_url("http://127.0.0.1:3845/mcp").is_ok());
@@ -569,7 +597,9 @@ mod tests {
     fn test_is_private_ip_loopback_v4() {
         // 127.0.0.0/8
         assert!(is_private_ip(&IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))));
-        assert!(is_private_ip(&IpAddr::V4(Ipv4Addr::new(127, 255, 255, 255))));
+        assert!(is_private_ip(&IpAddr::V4(Ipv4Addr::new(
+            127, 255, 255, 255
+        ))));
     }
 
     #[test]
@@ -596,7 +626,9 @@ mod tests {
     fn test_is_private_ip_class_c() {
         // 192.168.0.0/16
         assert!(is_private_ip(&IpAddr::V4(Ipv4Addr::new(192, 168, 0, 0))));
-        assert!(is_private_ip(&IpAddr::V4(Ipv4Addr::new(192, 168, 255, 255))));
+        assert!(is_private_ip(&IpAddr::V4(Ipv4Addr::new(
+            192, 168, 255, 255
+        ))));
         assert!(is_private_ip(&IpAddr::V4(Ipv4Addr::new(192, 168, 1, 1))));
     }
 
@@ -604,12 +636,16 @@ mod tests {
     fn test_is_private_ip_link_local() {
         // 169.254.0.0/16
         assert!(is_private_ip(&IpAddr::V4(Ipv4Addr::new(169, 254, 0, 0))));
-        assert!(is_private_ip(&IpAddr::V4(Ipv4Addr::new(169, 254, 255, 255))));
+        assert!(is_private_ip(&IpAddr::V4(Ipv4Addr::new(
+            169, 254, 255, 255
+        ))));
     }
 
     #[test]
     fn test_is_private_ip_broadcast() {
-        assert!(is_private_ip(&IpAddr::V4(Ipv4Addr::new(255, 255, 255, 255))));
+        assert!(is_private_ip(&IpAddr::V4(Ipv4Addr::new(
+            255, 255, 255, 255
+        ))));
     }
 
     #[test]
@@ -642,33 +678,49 @@ mod tests {
 
     #[test]
     fn test_is_private_ip_loopback_v6() {
-        assert!(is_private_ip(&IpAddr::V6(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1))));
+        assert!(is_private_ip(&IpAddr::V6(Ipv6Addr::new(
+            0, 0, 0, 0, 0, 0, 0, 1
+        ))));
     }
 
     #[test]
     fn test_is_private_ip_unspecified_v6() {
-        assert!(is_private_ip(&IpAddr::V6(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0))));
+        assert!(is_private_ip(&IpAddr::V6(Ipv6Addr::new(
+            0, 0, 0, 0, 0, 0, 0, 0
+        ))));
     }
 
     #[test]
     fn test_is_private_ip_unique_local_v6() {
         // fc00::/7
-        assert!(is_private_ip(&IpAddr::V6(Ipv6Addr::new(0xfc00, 0, 0, 0, 0, 0, 0, 1))));
-        assert!(is_private_ip(&IpAddr::V6(Ipv6Addr::new(0xfd00, 0, 0, 0, 0, 0, 0, 1))));
+        assert!(is_private_ip(&IpAddr::V6(Ipv6Addr::new(
+            0xfc00, 0, 0, 0, 0, 0, 0, 1
+        ))));
+        assert!(is_private_ip(&IpAddr::V6(Ipv6Addr::new(
+            0xfd00, 0, 0, 0, 0, 0, 0, 1
+        ))));
     }
 
     #[test]
     fn test_is_private_ip_link_local_v6() {
         // fe80::/10
-        assert!(is_private_ip(&IpAddr::V6(Ipv6Addr::new(0xfe80, 0, 0, 0, 0, 0, 0, 1))));
-        assert!(is_private_ip(&IpAddr::V6(Ipv6Addr::new(0xfebf, 0, 0, 0, 0, 0, 0, 1))));
+        assert!(is_private_ip(&IpAddr::V6(Ipv6Addr::new(
+            0xfe80, 0, 0, 0, 0, 0, 0, 1
+        ))));
+        assert!(is_private_ip(&IpAddr::V6(Ipv6Addr::new(
+            0xfebf, 0, 0, 0, 0, 0, 0, 1
+        ))));
     }
 
     #[test]
     fn test_is_private_ip_public_v6() {
         // Public IPv6 addresses should return false
-        assert!(!is_private_ip(&IpAddr::V6(Ipv6Addr::new(0x2001, 0x4860, 0x4860, 0, 0, 0, 0, 0x8888)))); // Google
-        assert!(!is_private_ip(&IpAddr::V6(Ipv6Addr::new(0x2606, 0x4700, 0x4700, 0, 0, 0, 0, 0x1111)))); // Cloudflare
+        assert!(!is_private_ip(&IpAddr::V6(Ipv6Addr::new(
+            0x2001, 0x4860, 0x4860, 0, 0, 0, 0, 0x8888
+        )))); // Google
+        assert!(!is_private_ip(&IpAddr::V6(Ipv6Addr::new(
+            0x2606, 0x4700, 0x4700, 0, 0, 0, 0, 0x1111
+        )))); // Cloudflare
     }
 
     #[test]
@@ -683,7 +735,10 @@ mod tests {
         let request: ProxyRequest = serde_json::from_str(json).unwrap();
         assert_eq!(request.url, "https://api.example.com/data");
         assert_eq!(request.method, "POST");
-        assert_eq!(request.headers.get("Content-Type"), Some(&"application/json".to_string()));
+        assert_eq!(
+            request.headers.get("Content-Type"),
+            Some(&"application/json".to_string())
+        );
         assert_eq!(request.body, Some("{\"key\": \"value\"}".to_string()));
     }
 

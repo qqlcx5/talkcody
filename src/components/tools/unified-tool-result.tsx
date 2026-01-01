@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { getRelativePath } from '@/services/repository-utils';
 import { useFileChangesStore } from '@/stores/file-changes-store';
-import { useRepositoryStore } from '@/stores/repository-store';
+import { useRepositoryStore } from '@/stores/window-scoped-repository-store';
 import { EditFileResult } from './edit-file-result';
 import { WriteFileResult } from './write-file-result';
 

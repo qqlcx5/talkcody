@@ -94,7 +94,11 @@ fn get_os_version() -> String {
 }
 
 /// Start analytics session - called on app startup
-pub async fn start_session(state: &AnalyticsState, app_data_dir: &std::path::Path, app_version: &str) {
+pub async fn start_session(
+    state: &AnalyticsState,
+    app_data_dir: &std::path::Path,
+    app_version: &str,
+) {
     let device_id = get_or_create_device_id(app_data_dir);
     let session_id = uuid::Uuid::new_v4().to_string();
 

@@ -157,6 +157,26 @@ export const LSP_SERVERS: Record<string, LspServerConfig> = {
       'Makefile',
     ],
   },
+  vue: {
+    name: 'Vue Language Server',
+    displayName: 'Vue',
+    languageId: 'vue',
+    extensions: ['.vue'],
+    command: 'vue-language-server',
+    args: ['--stdio'],
+    rootPatterns: [
+      'package.json',
+      'vite.config.ts',
+      'vite.config.js',
+      'vue.config.js',
+      'nuxt.config.ts',
+      'package-lock.json',
+      'bun.lockb',
+      'bun.lock',
+      'pnpm-lock.yaml',
+      'yarn.lock',
+    ],
+  },
 } as const;
 
 // ============================================================================

@@ -10,7 +10,11 @@ import {
 import { registerImportLinkProviders } from '@/services/monaco-link-provider';
 import { settingsManager } from '@/stores/settings-store';
 import type { AICompletionState } from '@/types/file-editor';
-import { setupMonacoDiagnostics, shouldTriggerAICompletion } from '@/utils/monaco-utils';
+import {
+  setupMonacoDiagnostics,
+  setupVueLanguage,
+  shouldTriggerAICompletion,
+} from '@/utils/monaco-utils';
 
 interface UseMonacoEditorProps {
   filePath: string | null;
@@ -219,6 +223,9 @@ export function useMonacoEditor({
 
         // Setup Monaco configuration
         setupMonacoDiagnostics(model, monaco);
+
+        // Setup Vue language syntax highlighting (global one-time initialization)
+        setupVueLanguage(monaco);
         // Note: setupMonacoTheme() is now handled in file-editor-content.tsx
 
         // Register Tree-sitter definition providers for all supported languages

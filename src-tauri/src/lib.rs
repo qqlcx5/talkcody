@@ -1,43 +1,82 @@
-mod file_watcher;
-mod search;
-mod list_files;
-mod directory_tree;
-mod file_search;
-mod glob;
-mod constants;
-mod window_manager;
-mod database;
-mod http_proxy;
-mod git;
-mod websocket;
-mod terminal;
-mod script_executor;
-mod archive;
-mod code_navigation;
 mod analytics;
-mod lint;
+mod archive;
 mod background_tasks;
+mod code_navigation;
+mod constants;
+mod database;
+mod directory_tree;
+mod dock_menu;
+mod file_search;
+mod file_watcher;
+mod git;
+mod glob;
+mod http_proxy;
+mod lint;
+mod list_files;
 mod lsp;
 mod oauth_callback_server;
+mod script_executor;
+mod search;
+mod terminal;
+mod websocket;
+mod window_manager;
 
-use file_watcher::FileWatcher;
-use window_manager::{WindowRegistry, WindowState, create_window};
-use database::Database;
-use websocket::WebSocketState;
-use script_executor::{ScriptExecutor, ScriptExecutionRequest, ScriptExecutionResult};
-use archive::{CreateTarballRequest, CreateTarballResult, ExtractTarballRequest, ExtractTarballResult};
-use code_navigation::{CodeNavigationService, CodeNavState};
 use analytics::AnalyticsState;
-use std::sync::{Arc, Mutex, RwLock};
-use std::time::{Instant, SystemTime, Duration};
+use archive::{
+    CreateTarballRequest, CreateTarballResult, ExtractTarballRequest, ExtractTarballResult,
+};
+use code_navigation::{CodeNavState, CodeNavigationService};
+use database::Database;
+use file_watcher::FileWatcher;
+use script_executor::{ScriptExecutionRequest, ScriptExecutionResult, ScriptExecutor};
+use serde::{Deserialize, Serialize};
 use std::process::Stdio;
-use tauri::{AppHandle, State, Emitter, Manager, WindowEvent};
-use tauri_plugin_deep_link::DeepLinkExt;
-use serde::{Serialize, Deserialize};
-use tokio::sync::Mutex as TokioMutex;
-use tokio::process::Command as TokioCommand;
+use std::sync::OnceLock;
+use std::sync::{Arc, Mutex, RwLock};
+use std::time::{Duration, Instant, SystemTime};
+use tauri::{AppHandle, Emitter, Manager, State, WindowEvent};
 use tokio::io::BufReader;
+use tokio::process::Command as TokioCommand;
+use tokio::sync::Mutex as TokioMutex;
 use tokio::time::Duration as TokioDuration;
+use websocket::WebSocketState;
+use window_manager::{create_window, WindowRegistry, WindowState};
+
+// Global app handle for dock menu and other cross-module access
+// This is initialized once during app setup and provides safe static access to the AppHandle
+//
+// SAFETY: This uses OnceLock which guarantees:
+// - Thread-safe initialization (only the first call to set() succeeds)
+// - No data races (immutable after initialization)
+// - Static lifetime (lives for entire program duration)
+//
+// IMPORTANT: set_app_handle() must be called exactly once during app.setup()
+// before any code calls get_app_handle()
+static APP_HANDLE: OnceLock<tauri::AppHandle> = OnceLock::new();
+
+/// Initialize the global app handle
+///
+/// # Panics
+///
+/// Panics if called more than once. This should only be called once during app.setup().
+/// Multiple calls indicate a programming error in the initialization sequence.
+pub fn set_app_handle(app: tauri::AppHandle) {
+    APP_HANDLE.set(app).expect(
+        "FATAL: set_app_handle() called more than once. This is a bug in app initialization.",
+    );
+}
+
+/// Get the global app handle
+///
+/// # Panics
+///
+/// Panics if called before set_app_handle(). All calls to this function must happen
+/// after the app is fully initialized in app.setup().
+pub fn get_app_handle() -> &'static tauri::AppHandle {
+    APP_HANDLE
+        .get()
+        .expect("FATAL: get_app_handle() called before set_app_handle(). This is a bug in initialization order.")
+}
 
 #[derive(Clone, Serialize, Deserialize)]
 struct Payload {
@@ -51,22 +90,27 @@ struct AppState {
     window_registry: WindowRegistry,
 }
 
-/// Legacy start_file_watching command - broadcasts to all windows
-/// Prefer using start_window_file_watching for multi-window support
 #[tauri::command]
-fn start_file_watching(path: String, app_handle: AppHandle, state: State<AppState>) -> Result<(), String> {
-    log::info!("Starting file watching for path: {} (legacy broadcast mode)", path);
+fn start_file_watching(
+    path: String,
+    app_handle: AppHandle,
+    state: State<AppState>,
+) -> Result<(), String> {
+    log::info!(
+        "Starting file watching for path: {} (legacy broadcast mode)",
+        path
+    );
     let mut watcher_guard = state.file_watcher.lock().map_err(|e| e.to_string())?;
 
-    // Stop any existing watcher properly
     if let Some(mut watcher) = watcher_guard.take() {
         log::info!("Stopping existing file watcher");
         watcher.stop();
     }
 
-    // Create new watcher - no window_label means broadcast to all windows
     let mut watcher = FileWatcher::new().map_err(|e| e.to_string())?;
-    watcher.watch_directory(&path, app_handle, None).map_err(|e| e.to_string())?;
+    watcher
+        .watch_directory(&path, app_handle, None)
+        .map_err(|e| e.to_string())?;
 
     *watcher_guard = Some(watcher);
     log::info!("File watching started successfully for: {}", path);
@@ -78,7 +122,6 @@ fn stop_file_watching(state: State<AppState>) -> Result<(), String> {
     log::info!("Stopping file watching");
     let mut watcher_guard = state.file_watcher.lock().map_err(|e| e.to_string())?;
 
-    // Properly stop the existing watcher
     if let Some(mut watcher) = watcher_guard.take() {
         log::info!("File watcher stopped");
         watcher.stop();
@@ -92,10 +135,14 @@ fn search_file_content(
     query: String,
     root_path: String,
     file_types: Option<Vec<String>>,
-    exclude_dirs: Option<Vec<String>>
+    exclude_dirs: Option<Vec<String>>,
 ) -> Result<Vec<search::SearchResult>, String> {
     let start_time = Instant::now();
-    log::info!("Starting search for query: '{}' in path: {}", query, root_path);
+    log::info!(
+        "Starting search for query: '{}' in path: {}",
+        query,
+        root_path
+    );
 
     let searcher = search::RipgrepSearch::new()
         .with_max_results(50)
@@ -103,15 +150,18 @@ fn search_file_content(
         .with_file_types(file_types)
         .with_exclude_dirs(exclude_dirs);
 
-    let result = searcher.search_content(&query, &root_path)
-        .map_err(|e| {
-            log::error!("Search error: {}", e);
-            format!("Search failed: {}", e)
-        });
+    let result = searcher.search_content(&query, &root_path).map_err(|e| {
+        log::error!("Search error: {}", e);
+        format!("Search failed: {}", e)
+    });
 
     let duration = start_time.elapsed();
     if let Ok(ref results) = result {
-        log::info!("Search completed successfully with {} results in {}ms", results.len(), duration.as_millis());
+        log::info!(
+            "Search completed successfully with {} results in {}ms",
+            results.len(),
+            duration.as_millis()
+        );
     } else {
         log::error!("Search failed after {}ms", duration.as_millis());
     }
@@ -126,20 +176,27 @@ fn search_files_fast(
     max_results: Option<usize>,
 ) -> Result<Vec<file_search::FileSearchResult>, String> {
     let start_time = Instant::now();
-    log::info!("Starting fast file search for query: '{}' in path: {}", query, root_path);
+    log::info!(
+        "Starting fast file search for query: '{}' in path: {}",
+        query,
+        root_path
+    );
 
-    let searcher = file_search::HighPerformanceFileSearch::new()
-        .with_max_results(max_results.unwrap_or(200));
+    let searcher =
+        file_search::HighPerformanceFileSearch::new().with_max_results(max_results.unwrap_or(200));
 
-    let result = searcher.search_files(&root_path, &query)
-        .map_err(|e| {
-            log::error!("File search error: {}", e);
-            format!("File search failed: {}", e)
-        });
+    let result = searcher.search_files(&root_path, &query).map_err(|e| {
+        log::error!("File search error: {}", e);
+        format!("File search failed: {}", e)
+    });
 
     let duration = start_time.elapsed();
     if let Ok(ref results) = result {
-        log::info!("File search completed successfully with {} results in {}ms", results.len(), duration.as_millis());
+        log::info!(
+            "File search completed successfully with {} results in {}ms",
+            results.len(),
+            duration.as_millis()
+        );
     } else {
         log::error!("File search failed after {}ms", duration.as_millis());
     }
@@ -147,21 +204,32 @@ fn search_files_fast(
     result
 }
 
-// Window management commands
-
 #[tauri::command]
 fn create_project_window(
     app_handle: AppHandle,
     state: State<AppState>,
     project_id: Option<String>,
     root_path: Option<String>,
+    is_new_window: bool,
 ) -> Result<String, String> {
-    log::info!("Creating project window for project_id: {:?}, root_path: {:?}", project_id, root_path);
-    create_window(&app_handle, &state.window_registry, project_id, root_path)
+    log::info!("Creating project window for project_id: {:?}, root_path: {:?}, is_new_window: {}. Triggering dock menu update.", project_id, root_path, is_new_window);
+    let result = create_window(
+        &app_handle,
+        &state.window_registry,
+        project_id,
+        root_path,
+        is_new_window,
+    );
+    if result.is_ok() {
+        // System tray is now used for dock menu (handled in setup)
+    }
+    result
 }
 
 #[tauri::command]
-fn get_all_project_windows(state: State<AppState>) -> Result<Vec<window_manager::WindowInfo>, String> {
+fn get_all_project_windows(
+    state: State<AppState>,
+) -> Result<Vec<window_manager::WindowInfo>, String> {
     log::info!("Getting all project windows");
     state.window_registry.get_all_windows()
 }
@@ -172,7 +240,42 @@ fn get_current_window_label(window: tauri::Window) -> Result<String, String> {
 }
 
 #[tauri::command]
-fn check_project_window_exists(state: State<AppState>, root_path: String) -> Result<Option<String>, String> {
+fn get_window_info(
+    window: tauri::Window,
+    state: State<AppState>,
+) -> Result<Option<(String, String)>, String> {
+    let label = window.label();
+    let windows = state.window_registry.get_all_windows()?;
+
+    let window_info = windows.iter().find(|w| w.label == label);
+
+    match window_info {
+        Some(info) => {
+            if let (Some(project_id), Some(root_path)) = (&info.project_id, &info.root_path) {
+                log::info!(
+                    "Window info found for {}: project_id={}, root_path={}",
+                    label,
+                    project_id,
+                    root_path
+                );
+                Ok(Some((project_id.clone(), root_path.clone())))
+            } else {
+                log::info!("Window {} has no associated project (New Window)", label);
+                Ok(None)
+            }
+        }
+        None => {
+            log::info!("Window {} not found in registry", label);
+            Ok(None)
+        }
+    }
+}
+
+#[tauri::command]
+fn check_project_window_exists(
+    state: State<AppState>,
+    root_path: String,
+) -> Result<Option<String>, String> {
     log::info!("Checking if project window exists for: {}", root_path);
     state.window_registry.find_window_by_project(&root_path)
 }
@@ -198,17 +301,16 @@ fn focus_project_window(app_handle: AppHandle, label: String) -> Result<(), Stri
 }
 
 #[tauri::command]
-fn close_project_window(app_handle: AppHandle, state: State<AppState>, label: String) -> Result<(), String> {
+fn close_project_window(
+    app_handle: AppHandle,
+    state: State<AppState>,
+    label: String,
+) -> Result<(), String> {
     log::info!("Closing window: {}", label);
-
-    // Unregister from state
     state.window_registry.unregister_window(&label)?;
-
-    // Close the window
     if let Some(window) = app_handle.get_webview_window(&label) {
         window.close().map_err(|e| e.to_string())?;
     }
-
     Ok(())
 }
 
@@ -219,8 +321,15 @@ fn update_window_project(
     project_id: Option<String>,
     root_path: Option<String>,
 ) -> Result<(), String> {
-    log::info!("Updating window {} with project_id: {:?}, root_path: {:?}", label, project_id, root_path);
-    state.window_registry.update_window_project(&label, project_id, root_path)
+    log::info!(
+        "Updating window {} with project_id: {:?}, root_path: {:?}",
+        label,
+        project_id,
+        root_path
+    );
+    state
+        .window_registry
+        .update_window_project(&label, project_id, root_path)
 }
 
 #[tauri::command]
@@ -230,31 +339,37 @@ fn start_window_file_watching(
     app_handle: AppHandle,
     state: State<AppState>,
 ) -> Result<(), String> {
-    log::info!("Starting file watching for window {} at path: {}", window_label, path);
-
-    // Create new watcher
+    log::info!(
+        "Starting file watching for window {} at path: {}",
+        window_label,
+        path
+    );
     let mut watcher = FileWatcher::new().map_err(|e| e.to_string())?;
-    // Pass window_label so events are emitted only to this specific window
-    watcher.watch_directory(&path, app_handle, Some(window_label.clone())).map_err(|e| e.to_string())?;
-
-    // Set watcher for this window
-    state.window_registry.set_window_file_watcher(&window_label, Some(watcher))?;
-
-    log::info!("File watching started successfully for window: {}", window_label);
+    watcher
+        .watch_directory(&path, app_handle, Some(window_label.clone()))
+        .map_err(|e| e.to_string())?;
+    state
+        .window_registry
+        .set_window_file_watcher(&window_label, Some(watcher))?;
+    log::info!(
+        "File watching started successfully for window: {}",
+        window_label
+    );
     Ok(())
 }
 
 #[tauri::command]
 fn stop_window_file_watching(window_label: String, state: State<AppState>) -> Result<(), String> {
     log::info!("Stopping file watching for window: {}", window_label);
-    state.window_registry.set_window_file_watcher(&window_label, None)?;
+    state
+        .window_registry
+        .set_window_file_watcher(&window_label, None)?;
     Ok(())
 }
 
 #[tauri::command]
 fn activate_app(app_handle: tauri::AppHandle) -> Result<(), String> {
     log::info!("Activating app to bring to foreground");
-
     #[cfg(target_os = "macos")]
     {
         let _ = &app_handle;
@@ -265,10 +380,8 @@ fn activate_app(app_handle: tauri::AppHandle) -> Result<(), String> {
         }
         log::info!("App activated successfully on macOS");
     }
-
     #[cfg(not(target_os = "macos"))]
     {
-        // On Linux and Windows, use Tauri's window management to bring window to front
         if let Some(window) = app_handle.get_webview_window("main") {
             if let Err(e) = window.unminimize() {
                 log::warn!("Failed to unminimize window: {}", e);
@@ -281,11 +394,9 @@ fn activate_app(app_handle: tauri::AppHandle) -> Result<(), String> {
             }
             log::info!("App window activated successfully on Linux/Windows");
         } else {
-            log::error!("Failed to get main window for activation");
             return Err("Failed to get main window".to_string());
         }
     }
-
     Ok(())
 }
 
@@ -299,9 +410,7 @@ struct ShellResult {
     pid: Option<u32>,
 }
 
-/// Default maximum timeout in milliseconds (2 minutes)
 const DEFAULT_TIMEOUT_MS: u64 = 120_000;
-/// Default idle timeout in milliseconds (5 seconds)
 const DEFAULT_IDLE_TIMEOUT_MS: u64 = 5_000;
 
 #[tauri::command]
@@ -312,43 +421,27 @@ async fn execute_user_shell(
     idle_timeout_ms: Option<u64>,
 ) -> Result<ShellResult, String> {
     log::info!("Executing user shell command: {}", command);
-
     let max_timeout = TokioDuration::from_millis(timeout_ms.unwrap_or(DEFAULT_TIMEOUT_MS));
-    let idle_timeout = TokioDuration::from_millis(idle_timeout_ms.unwrap_or(DEFAULT_IDLE_TIMEOUT_MS));
+    let idle_timeout =
+        TokioDuration::from_millis(idle_timeout_ms.unwrap_or(DEFAULT_IDLE_TIMEOUT_MS));
 
     #[cfg(unix)]
     {
-        // Get user's default shell from environment
         let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
-        log::info!("Using shell: {}", shell);
-
         let mut cmd = TokioCommand::new(&shell);
-
-        // Use -l for login shell and -i for interactive shell to load user's profile
-        // This ensures .zshrc/.bashrc are loaded, making nvm/pyenv/rbenv available
-        // Use -c to execute the command
         cmd.arg("-l").arg("-i").arg("-c").arg(&command);
-
         if let Some(ref dir) = cwd {
             cmd.current_dir(dir);
-            log::info!("Working directory: {}", dir);
         }
-
         cmd.stdout(Stdio::piped());
         cmd.stderr(Stdio::piped());
-
-        let mut child = cmd.spawn().map_err(|e| {
-            log::error!("Failed to spawn shell process: {}", e);
-            format!("Failed to spawn shell: {}", e)
-        })?;
-
+        let mut child = cmd
+            .spawn()
+            .map_err(|e| format!("Failed to spawn shell: {}", e))?;
         let child_pid = child.id();
-        log::info!("Spawned process with PID: {:?}", child_pid);
-
         let stdout = child.stdout.take();
         let stderr = child.stderr.take();
-
-        let result = execute_with_idle_timeout(
+        execute_with_idle_timeout(
             &mut child,
             stdout,
             stderr,
@@ -356,46 +449,29 @@ async fn execute_user_shell(
             idle_timeout,
             child_pid,
         )
-        .await;
-
-        result
+        .await
     }
-
     #[cfg(windows)]
     {
-        // On Windows, use PowerShell or cmd
         let shell = std::env::var("COMSPEC").unwrap_or_else(|_| "cmd.exe".to_string());
-        log::info!("Using shell: {}", shell);
-
         let mut cmd = TokioCommand::new(&shell);
-
         if shell.to_lowercase().contains("powershell") {
             cmd.arg("-Command").arg(&command);
         } else {
-            // cmd.exe
             cmd.arg("/C").arg(&command);
         }
-
         if let Some(ref dir) = cwd {
             cmd.current_dir(dir);
-            log::info!("Working directory: {}", dir);
         }
-
         cmd.stdout(Stdio::piped());
         cmd.stderr(Stdio::piped());
-
-        let mut child = cmd.spawn().map_err(|e| {
-            log::error!("Failed to spawn shell process: {}", e);
-            format!("Failed to spawn shell: {}", e)
-        })?;
-
+        let mut child = cmd
+            .spawn()
+            .map_err(|e| format!("Failed to spawn shell: {}", e))?;
         let child_pid = child.id();
-        log::info!("Spawned process with PID: {:?}", child_pid);
-
         let stdout = child.stdout.take();
         let stderr = child.stderr.take();
-
-        let result = execute_with_idle_timeout(
+        execute_with_idle_timeout(
             &mut child,
             stdout,
             stderr,
@@ -403,17 +479,10 @@ async fn execute_user_shell(
             idle_timeout,
             child_pid,
         )
-        .await;
-
-        result
+        .await
     }
 }
 
-/// Execute command with idle timeout detection
-/// Returns when:
-/// 1. Process exits normally
-/// 2. No output received for idle_timeout duration
-/// 3. Total execution exceeds max_timeout
 async fn execute_with_idle_timeout(
     child: &mut tokio::process::Child,
     stdout: Option<tokio::process::ChildStdout>,
@@ -423,219 +492,89 @@ async fn execute_with_idle_timeout(
     child_pid: Option<u32>,
 ) -> Result<ShellResult, String> {
     use tokio::io::AsyncBufReadExt;
-
     let start_time = Instant::now();
     let mut stdout_lines: Vec<String> = Vec::new();
     let mut stderr_lines: Vec<String> = Vec::new();
     let mut last_output_time = Instant::now();
     let mut timed_out = false;
     let mut idle_timed_out = false;
-
-    // Create buffered readers for stdout and stderr
     let mut stdout_reader = stdout.map(|s| BufReader::new(s).lines());
     let mut stderr_reader = stderr.map(|s| BufReader::new(s).lines());
 
     loop {
-        // Check if we've exceeded max timeout
         if start_time.elapsed() >= max_timeout {
-            log::info!("Max timeout reached, returning collected output");
             timed_out = true;
             break;
         }
-
-        // Check if we've been idle for too long
         if last_output_time.elapsed() >= idle_timeout {
-            log::info!("Idle timeout reached ({:?} since last output), returning collected output", idle_timeout);
             idle_timed_out = true;
             break;
         }
-
-        // Calculate remaining time for this iteration
         let remaining_idle = idle_timeout.saturating_sub(last_output_time.elapsed());
         let remaining_max = max_timeout.saturating_sub(start_time.elapsed());
         let wait_duration = std::cmp::min(remaining_idle, remaining_max);
 
-        // Try to read from stdout, stderr, or check if process exited
         tokio::select! {
-            // Check if process has exited
             status = child.wait() => {
                 match status {
                     Ok(exit_status) => {
-                        let exit_code = exit_status.code().unwrap_or(-1);
-                        log::info!("Process exited with code: {}", exit_code);
-
-                        // Read any remaining output
-                        if let Some(ref mut reader) = stdout_reader {
-                            while let Ok(Some(line)) = reader.next_line().await {
-                                stdout_lines.push(line);
-                            }
-                        }
-                        if let Some(ref mut reader) = stderr_reader {
-                            while let Ok(Some(line)) = reader.next_line().await {
-                                stderr_lines.push(line);
-                            }
-                        }
-
+                        if let Some(ref mut reader) = stdout_reader { while let Ok(Some(line)) = reader.next_line().await { stdout_lines.push(line); } }
+                        if let Some(ref mut reader) = stderr_reader { while let Ok(Some(line)) = reader.next_line().await { stderr_lines.push(line); } }
                         return Ok(ShellResult {
                             stdout: stdout_lines.join("\n"),
                             stderr: stderr_lines.join("\n"),
-                            code: exit_code,
+                            code: exit_status.code().unwrap_or(-1),
                             timed_out: false,
                             idle_timed_out: false,
                             pid: child_pid,
                         });
                     }
-                    Err(e) => {
-                        log::error!("Failed to wait for process: {}", e);
-                        return Err(format!("Failed to wait for process: {}", e));
-                    }
+                    Err(e) => return Err(format!("Failed to wait for process: {}", e)),
                 }
             }
-
-            // Try to read from stdout
-            result = async {
-                if let Some(ref mut reader) = stdout_reader {
-                    reader.next_line().await
-                } else {
-                    // No stdout, wait forever (will be cancelled by other branches)
-                    std::future::pending().await
-                }
-            } => {
-                match result {
-                    Ok(Some(line)) => {
-                        stdout_lines.push(line);
-                        last_output_time = Instant::now();
-                    }
-                    Ok(None) => {
-                        // stdout closed
-                        stdout_reader = None;
-                    }
-                    Err(e) => {
-                        log::warn!("Error reading stdout: {}", e);
-                        stdout_reader = None;
-                    }
-                }
+            result = async { if let Some(ref mut reader) = stdout_reader { reader.next_line().await } else { std::future::pending().await } } => {
+                match result { Ok(Some(line)) => { stdout_lines.push(line); last_output_time = Instant::now(); } _ => stdout_reader = None }
             }
-
-            // Try to read from stderr
-            result = async {
-                if let Some(ref mut reader) = stderr_reader {
-                    reader.next_line().await
-                } else {
-                    // No stderr, wait forever (will be cancelled by other branches)
-                    std::future::pending().await
-                }
-            } => {
-                match result {
-                    Ok(Some(line)) => {
-                        stderr_lines.push(line);
-                        last_output_time = Instant::now();
-                    }
-                    Ok(None) => {
-                        // stderr closed
-                        stderr_reader = None;
-                    }
-                    Err(e) => {
-                        log::warn!("Error reading stderr: {}", e);
-                        stderr_reader = None;
-                    }
-                }
+            result = async { if let Some(ref mut reader) = stderr_reader { reader.next_line().await } else { std::future::pending().await } } => {
+                match result { Ok(Some(line)) => { stderr_lines.push(line); last_output_time = Instant::now(); } _ => stderr_reader = None }
             }
-
-            // Timeout for idle detection
-            _ = tokio::time::sleep(wait_duration) => {
-                // Will be handled in the next loop iteration
-            }
+            _ = tokio::time::sleep(wait_duration) => {}
         }
-
-        // If both stdout and stderr are closed, wait a bit for process to exit
         if stdout_reader.is_none() && stderr_reader.is_none() {
-            log::info!("Both stdout and stderr closed, waiting for process to exit");
-            match tokio::time::timeout(TokioDuration::from_millis(500), child.wait()).await {
-                Ok(Ok(status)) => {
-                    let exit_code = status.code().unwrap_or(-1);
-                    log::info!("Process exited with code: {}", exit_code);
-                    return Ok(ShellResult {
-                        stdout: stdout_lines.join("\n"),
-                        stderr: stderr_lines.join("\n"),
-                        code: exit_code,
-                        timed_out: false,
-                        idle_timed_out: false,
-                        pid: child_pid,
-                    });
-                }
-                Ok(Err(e)) => {
-                    log::error!("Failed to wait for process: {}", e);
-                    return Err(format!("Failed to wait for process: {}", e));
-                }
-                Err(_) => {
-                    // Process hasn't exited yet, but streams are closed
-                    // This can happen with long-running processes
-                    log::info!("Process still running after streams closed");
-                    break;
-                }
-            }
+            break;
         }
     }
-
-    // Return with timeout flag
     Ok(ShellResult {
         stdout: stdout_lines.join("\n"),
         stderr: stderr_lines.join("\n"),
-        code: -1, // Process still running
+        code: -1,
         timed_out,
         idle_timed_out,
         pid: child_pid,
     })
 }
 
-/// Execute a skill script (Python, Bash, or Node.js)
 #[tauri::command]
-async fn execute_skill_script(request: ScriptExecutionRequest) -> Result<ScriptExecutionResult, String> {
-    log::info!(
-        "Executing skill script: {} (type: {})",
-        request.script_path,
-        request.script_type
-    );
+async fn execute_skill_script(
+    request: ScriptExecutionRequest,
+) -> Result<ScriptExecutionResult, String> {
     ScriptExecutor::execute(request).await
 }
 
-/// Create a tar.gz archive from a directory
 #[tauri::command]
 fn create_skill_tarball(request: CreateTarballRequest) -> Result<CreateTarballResult, String> {
-    log::info!(
-        "Creating tarball from {} to {}",
-        request.source_dir,
-        request.output_path
-    );
     archive::create_tarball(request)
 }
 
-/// Extract a tar.gz archive to a directory
 #[tauri::command]
 fn extract_skill_tarball(request: ExtractTarballRequest) -> Result<ExtractTarballResult, String> {
-    log::info!(
-        "Extracting tarball from {} to {}",
-        request.tarball_path,
-        request.dest_dir
-    );
     archive::extract_tarball(request)
 }
 
-// ============================================================================
-// Token Estimation for Message Compaction
-// ============================================================================
-
-/// Estimate token count using character-based heuristics.
-/// - CJK characters: 1 char ≈ 1 token
-/// - Other characters: 4 chars ≈ 1 token
-/// This is used to quickly check if tree-sitter compression has reduced
-/// tokens enough to skip AI-based compression.
 #[tauri::command]
 fn estimate_tokens(text: String) -> usize {
     let mut cjk_count = 0;
     let mut other_count = 0;
-
     for c in text.chars() {
         if is_cjk_char(c) {
             cjk_count += 1;
@@ -643,110 +582,31 @@ fn estimate_tokens(text: String) -> usize {
             other_count += 1;
         }
     }
-
     let other_tokens = if other_count > 0 {
         (other_count / 4).max(1)
     } else {
         0
     };
-
-    (cjk_count + other_tokens).max(1) // Ensure at least 1 token
+    (cjk_count + other_tokens).max(1)
 }
 
-/// Check if a character is CJK (Chinese, Japanese, Korean)
 #[inline]
 fn is_cjk_char(c: char) -> bool {
-    matches!(c,
-        '\u{4E00}'..='\u{9FFF}' |   // CJK Unified Ideographs
-        '\u{3400}'..='\u{4DBF}' |   // CJK Extension A
-        '\u{F900}'..='\u{FAFF}' |   // CJK Compatibility Ideographs
-        '\u{3040}'..='\u{309F}' |   // Hiragana
-        '\u{30A0}'..='\u{30FF}' |   // Katakana
-        '\u{AC00}'..='\u{D7AF}'     // Korean Hangul
-    )
+    matches!(c, '\u{4E00}'..='\u{9FFF}' | '\u{3400}'..='\u{4DBF}' | '\u{F900}'..='\u{FAFF}' | '\u{3040}'..='\u{309F}' | '\u{30A0}'..='\u{30FF}' | '\u{AC00}'..='\u{D7AF}')
 }
 
-#[cfg(test)]
-mod estimate_tokens_tests {
-    use super::*;
-
-    #[test]
-    fn test_english_text() {
-        // "Hello World" = 11 chars, ~3 tokens (11/4 = 2.75, rounded to 2, min 1)
-        let result = estimate_tokens("Hello World".to_string());
-        assert!(result > 0 && result < 11);
-    }
-
-    #[test]
-    fn test_cjk_text() {
-        // 5 Chinese characters = 5 tokens
-        let result = estimate_tokens("你好世界啊".to_string());
-        assert_eq!(result, 5);
-    }
-
-    #[test]
-    fn test_mixed_text() {
-        // "Hello 世界" = 6 English chars + 2 CJK chars
-        // Expected: 6/4 + 2 = 1 + 2 = 3 (with max(1))
-        let result = estimate_tokens("Hello 世界".to_string());
-        assert!(result >= 3 && result <= 5);
-    }
-
-    #[test]
-    fn test_empty_string() {
-        // Empty string should return min 1
-        let result = estimate_tokens("".to_string());
-        assert_eq!(result, 1);
-    }
-
-    #[test]
-    fn test_japanese_hiragana() {
-        // 3 hiragana characters = 3 tokens
-        let result = estimate_tokens("あいう".to_string());
-        assert_eq!(result, 3);
-    }
-
-    #[test]
-    fn test_korean_hangul() {
-        // 4 Korean characters = 4 tokens
-        let result = estimate_tokens("안녕하세".to_string());
-        assert_eq!(result, 4);
-    }
-
-    #[test]
-    fn test_long_english_text() {
-        // Long English text should estimate roughly 1 token per 4 chars
-        let text = "This is a long English text that should be tokenized properly for estimation purposes.";
-        let result = estimate_tokens(text.to_string());
-        let expected = text.len() / 4;
-        // Allow some margin
-        assert!(result >= expected - 5 && result <= expected + 5);
-    }
-}
-
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
-/// Clean up old log files, keeping only logs from the last N days
 fn cleanup_old_logs(log_dir: &std::path::Path, days_to_keep: u64) {
     let cutoff = SystemTime::now() - Duration::from_secs(days_to_keep * 24 * 60 * 60);
-
     if let Ok(entries) = std::fs::read_dir(log_dir) {
         for entry in entries.flatten() {
             let path = entry.path();
-
-            // Only process .log files
             if path.extension().and_then(|s| s.to_str()) != Some("log") {
                 continue;
             }
-
-            // Check file modification time
             if let Ok(metadata) = entry.metadata() {
                 if let Ok(modified) = metadata.modified() {
                     if modified < cutoff {
-                        if let Err(e) = std::fs::remove_file(&path) {
-                            log::warn!("Failed to remove old log file {:?}: {}", path, e);
-                        } else {
-                            log::info!("Removed old log file: {:?}", path);
-                        }
+                        let _ = std::fs::remove_file(&path);
                     }
                 }
             }
@@ -768,33 +628,21 @@ pub fn run() {
             }
         }))
         .setup(|app| {
-            // Clean up old log files (keep only last 3 days)
+            // Set global app handle first (used by dock menu and other modules)
+            set_app_handle(app.handle().clone());
+
             if let Ok(log_dir) = app.path().app_log_dir() {
-                log::info!("Cleaning up old log files in: {:?}", log_dir);
                 cleanup_old_logs(&log_dir, 3);
             }
-
-            // Initialize database
             let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
             let db_path = app_data_dir.join("talkcody.db");
             let db_path_str = db_path.to_string_lossy().to_string();
-
-            log::info!("Initializing database at: {}", db_path_str);
             let database = Arc::new(Database::new(db_path_str));
             app.manage(database);
-
-            // Initialize WebSocket state
-            log::info!("Initializing WebSocket state");
             let ws_state = Arc::new(TokioMutex::new(WebSocketState::new()));
             app.manage(ws_state);
-
-            // Initialize Code Navigation state
-            log::info!("Initializing Code Navigation state");
             let code_nav_state = CodeNavState(RwLock::new(CodeNavigationService::new()));
             app.manage(code_nav_state);
-
-            // Initialize LSP state
-            log::info!("Initializing LSP state");
             let lsp_state = lsp::LspState(tokio::sync::Mutex::new(lsp::LspRegistry::new()));
             app.manage(lsp_state);
 
@@ -808,57 +656,27 @@ pub fn run() {
                 });
             }
 
-            // Platform-specific deep link registration
-            #[cfg(target_os = "macos")]
-            {
-                // Deep link is automatically registered via Info.plist on macOS
-                log::info!("Deep link handler configured for URL scheme: talkcody:// (via Info.plist)");
-            }
-
-            #[cfg(target_os = "linux")]
-            {
-                // Linux requires runtime registration to create .desktop file and configure xdg-mime
-                log::info!("Registering deep link handler for URL scheme: talkcody://");
-                match app.deep_link().register_all() {
-                    Ok(_) => log::info!("Deep link handler registered successfully on Linux"),
-                    Err(e) => log::error!("Failed to register deep link handler on Linux: {}", e),
-                }
-            }
-
-            #[cfg(windows)]
-            {
-                // Windows deep link registration
-                log::info!("Deep link handler configured for URL scheme: talkcody://");
-            }
-
-            // Check if there are any initial deep link URLs (works on all platforms)
-            if let Ok(Some(urls)) = app.deep_link().get_current() {
-                log::info!("Initial deep link URLs found: {:?}", urls);
-                for url in &urls {
-                    log::info!("Initial deep link URL: {}", url);
-                }
-            } else {
-                log::info!("No initial deep link URLs");
-            }
-
-            // Initialize updater plugin for desktop platforms
             #[cfg(any(target_os = "macos", windows, target_os = "linux"))]
             {
-                log::info!("Initializing updater plugin");
-                app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
+                app.handle()
+                    .plugin(tauri_plugin_updater::Builder::new().build())?;
             }
 
-            // Register the main window
-            let main_window_label = "main";
             if let Some(app_state) = app.try_state::<AppState>() {
                 let state = WindowState {
                     project_id: None,
                     root_path: None,
                     file_watcher: None,
                 };
-                if let Err(e) = app_state.window_registry.register_window(main_window_label.to_string(), state) {
-                    log::error!("Failed to register main window: {}", e);
-                }
+                let _ = app_state
+                    .window_registry
+                    .register_window("main".to_string(), state);
+            }
+
+            // Initialize dock menu on macOS
+            #[cfg(target_os = "macos")]
+            {
+                dock_menu::setup_dock_menu();
             }
 
             log::info!("Setup complete");
@@ -876,14 +694,19 @@ pub fn run() {
             tauri_plugin_log::Builder::new()
                 .targets([
                     tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout),
-                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir { file_name: None }),
+                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir {
+                        file_name: None,
+                    }),
                 ])
                 .level(log::LevelFilter::Info)
-                .max_file_size(100_000_000) // 10MB per log file
+                .max_file_size(100_000_000)
                 .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepAll)
                 .timezone_strategy(tauri_plugin_log::TimezoneStrategy::UseLocal)
-                .build()
+                .build(),
         )
+        .on_menu_event(|app, event| {
+            dock_menu::handle_dock_menu_event(app, event);
+        })
         .invoke_handler(tauri::generate_handler![
             start_file_watching,
             stop_file_watching,
@@ -895,10 +718,10 @@ pub fn run() {
             directory_tree::clear_directory_cache,
             directory_tree::invalidate_directory_path,
             glob::search_files_by_glob,
-            // Window management commands
             create_project_window,
             get_all_project_windows,
             get_current_window_label,
+            get_window_info,
             check_project_window_exists,
             focus_project_window,
             close_project_window,
@@ -906,23 +729,19 @@ pub fn run() {
             start_window_file_watching,
             stop_window_file_watching,
             activate_app,
-            // Database commands
             database::db_connect,
             database::db_execute,
             database::db_query,
             database::db_batch,
-            // HTTP proxy
             http_proxy::proxy_fetch,
             http_proxy::proxy_fetch_stream,
             http_proxy::stream_fetch,
-            // Git commands
             git::git_get_status,
             git::git_is_repository,
             git::git_get_all_file_statuses,
             git::git_get_line_changes,
             git::git_get_all_file_diffs,
             git::git_get_raw_diff_text,
-            // Git worktree commands
             git::git_get_default_worktree_root,
             git::git_acquire_worktree,
             git::git_release_worktree,
@@ -936,49 +755,38 @@ pub fn run() {
             git::git_cleanup_worktrees,
             git::git_sync_worktree_from_main,
             git::git_abort_rebase,
-            // WebSocket commands
             websocket::ws_connect,
             websocket::ws_send,
             websocket::ws_disconnect,
-            // Shell execution
             execute_user_shell,
             execute_skill_script,
-            // Archive operations
             create_skill_tarball,
             extract_skill_tarball,
-            // Terminal (PTY) commands
             terminal::pty_spawn,
             terminal::pty_write,
             terminal::pty_resize,
             terminal::pty_kill,
-            // Code navigation commands
             code_navigation::code_nav_index_file,
             code_navigation::code_nav_index_files_batch,
             code_navigation::code_nav_find_definition,
             code_navigation::code_nav_find_references_hybrid,
             code_navigation::code_nav_clear_file,
             code_navigation::code_nav_clear_all,
-            // Code navigation persistence commands
             code_navigation::code_nav_save_index,
             code_navigation::code_nav_load_index,
             code_navigation::code_nav_get_index_metadata,
             code_navigation::code_nav_delete_index,
             code_navigation::code_nav_get_indexed_files,
-            // Code summarization for message compaction
             code_navigation::summarize_code_content,
-            // Token estimation for message compaction
             estimate_tokens,
-            // Lint commands
             lint::run_lint,
             lint::check_lint_runtime,
-            // Background task commands
             background_tasks::spawn_background_task,
             background_tasks::get_background_task_status,
             background_tasks::get_background_task_output,
             background_tasks::kill_background_task,
             background_tasks::list_background_tasks,
             background_tasks::cleanup_background_tasks,
-            // LSP commands
             lsp::lsp_start_server,
             lsp::lsp_send_message,
             lsp::lsp_stop_server,
@@ -987,7 +795,6 @@ pub fn run() {
             lsp::lsp_get_server_config,
             lsp::lsp_get_server_status,
             lsp::lsp_download_server,
-            // OAuth callback server
             oauth_callback_server::start_oauth_callback_server,
         ])
         .on_window_event(|window, event| {

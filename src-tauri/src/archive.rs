@@ -1,9 +1,9 @@
 // Archive operations for skill package management
 // Provides tar.gz creation and extraction functionality
 
+use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
-use flate2::read::GzDecoder;
 use serde::{Deserialize, Serialize};
 use std::fs::{self, File};
 use std::io::Write;
@@ -49,7 +49,10 @@ pub fn create_tarball(request: CreateTarballRequest) -> Result<CreateTarballResu
             success: false,
             output_path: request.output_path,
             size_bytes: 0,
-            error: Some(format!("Source directory does not exist: {}", request.source_dir)),
+            error: Some(format!(
+                "Source directory does not exist: {}",
+                request.source_dir
+            )),
         });
     }
 
@@ -58,18 +61,22 @@ pub fn create_tarball(request: CreateTarballRequest) -> Result<CreateTarballResu
             success: false,
             output_path: request.output_path,
             size_bytes: 0,
-            error: Some(format!("Source path is not a directory: {}", request.source_dir)),
+            error: Some(format!(
+                "Source path is not a directory: {}",
+                request.source_dir
+            )),
         });
     }
 
     // Create parent directory if it doesn't exist
     if let Some(parent) = output_path.parent() {
-        fs::create_dir_all(parent).map_err(|e| format!("Failed to create output directory: {}", e))?;
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create output directory: {}", e))?;
     }
 
     // Create gzip encoder
-    let tar_gz = File::create(output_path)
-        .map_err(|e| format!("Failed to create output file: {}", e))?;
+    let tar_gz =
+        File::create(output_path).map_err(|e| format!("Failed to create output file: {}", e))?;
     let enc = GzEncoder::new(tar_gz, Compression::default());
     let mut tar = Builder::new(enc);
 
@@ -78,15 +85,18 @@ pub fn create_tarball(request: CreateTarballRequest) -> Result<CreateTarballResu
         .map_err(|e| format!("Failed to add directory to archive: {}", e))?;
 
     // Finish writing
-    let mut gz = tar.into_inner()
+    let mut gz = tar
+        .into_inner()
         .map_err(|e| format!("Failed to finalize tar archive: {}", e))?;
     gz.flush()
         .map_err(|e| format!("Failed to flush gzip stream: {}", e))?;
-    let file = gz.finish()
+    let file = gz
+        .finish()
         .map_err(|e| format!("Failed to finish gzip compression: {}", e))?;
 
     // Get file size
-    let metadata = file.metadata()
+    let metadata = file
+        .metadata()
         .map_err(|e| format!("Failed to get file metadata: {}", e))?;
     let size_bytes = metadata.len();
 
@@ -118,25 +128,26 @@ pub fn extract_tarball(request: ExtractTarballRequest) -> Result<ExtractTarballR
         .map_err(|e| format!("Failed to create destination directory: {}", e))?;
 
     // Open and decompress the tarball
-    let tar_gz = File::open(tarball_path)
-        .map_err(|e| format!("Failed to open tarball: {}", e))?;
+    let tar_gz = File::open(tarball_path).map_err(|e| format!("Failed to open tarball: {}", e))?;
     let tar = GzDecoder::new(tar_gz);
     let mut archive = Archive::new(tar);
 
     // Canonicalize destination directory to prevent path traversal
-    let canonical_dest = dest_dir.canonicalize()
+    let canonical_dest = dest_dir
+        .canonicalize()
         .map_err(|e| format!("Failed to canonicalize destination directory: {}", e))?;
 
     // Extract all entries
     let mut files_extracted = 0;
-    for entry in archive.entries()
-        .map_err(|e| format!("Failed to read archive entries: {}", e))? {
-
-        let mut entry = entry
-            .map_err(|e| format!("Failed to read entry: {}", e))?;
+    for entry in archive
+        .entries()
+        .map_err(|e| format!("Failed to read archive entries: {}", e))?
+    {
+        let mut entry = entry.map_err(|e| format!("Failed to read entry: {}", e))?;
 
         // Get the entry path and convert to owned PathBuf
-        let entry_path = entry.path()
+        let entry_path = entry
+            .path()
             .map_err(|e| format!("Failed to get entry path: {}", e))?
             .to_path_buf();
 
@@ -145,23 +156,23 @@ pub fn extract_tarball(request: ExtractTarballRequest) -> Result<ExtractTarballR
 
         // Security: Validate that the destination path doesn't escape the target directory
         // This prevents path traversal attacks using ../ sequences
-        let canonical_dest_path = dest_path.canonicalize()
-            .or_else(|_| {
-                // If file doesn't exist yet, canonicalize the parent and join the filename
-                if let Some(parent) = dest_path.parent() {
-                    if let Some(filename) = dest_path.file_name() {
-                        fs::create_dir_all(parent)
-                            .map_err(|e| format!("Failed to create parent directory: {}", e))?;
-                        parent.canonicalize()
-                            .map(|p| p.join(filename))
-                            .map_err(|e| format!("Failed to canonicalize parent path: {}", e))
-                    } else {
-                        Err(format!("Invalid destination path: {}", dest_path.display()))
-                    }
+        let canonical_dest_path = dest_path.canonicalize().or_else(|_| {
+            // If file doesn't exist yet, canonicalize the parent and join the filename
+            if let Some(parent) = dest_path.parent() {
+                if let Some(filename) = dest_path.file_name() {
+                    fs::create_dir_all(parent)
+                        .map_err(|e| format!("Failed to create parent directory: {}", e))?;
+                    parent
+                        .canonicalize()
+                        .map(|p| p.join(filename))
+                        .map_err(|e| format!("Failed to canonicalize parent path: {}", e))
                 } else {
                     Err(format!("Invalid destination path: {}", dest_path.display()))
                 }
-            })?;
+            } else {
+                Err(format!("Invalid destination path: {}", dest_path.display()))
+            }
+        })?;
 
         // Ensure the canonical destination path is within the canonical destination directory
         if !canonical_dest_path.starts_with(&canonical_dest) {
@@ -177,7 +188,8 @@ pub fn extract_tarball(request: ExtractTarballRequest) -> Result<ExtractTarballR
         }
 
         // Extract the entry
-        entry.unpack(&dest_path)
+        entry
+            .unpack(&dest_path)
             .map_err(|e| format!("Failed to extract {}: {}", entry_path.display(), e))?;
 
         files_extracted += 1;
@@ -232,7 +244,10 @@ mod tests {
         let extract_result = extract_tarball(extract_request).unwrap();
         assert!(extract_result.success);
         // Note: The archive includes the parent directory entry plus 3 files and 1 subdirectory
-        assert!(extract_result.files_extracted >= 3, "Expected at least 3 files to be extracted");
+        assert!(
+            extract_result.files_extracted >= 3,
+            "Expected at least 3 files to be extracted"
+        );
 
         // Verify extracted files
         assert!(dest_dir.join("file1.txt").exists());
@@ -294,15 +309,19 @@ mod tests {
         let safe_path = dest_dir.join("normal_file.txt");
         fs::write(&safe_path, b"safe content").unwrap();
         let canonical_safe = safe_path.canonicalize().unwrap();
-        assert!(canonical_safe.starts_with(&canonical_dest),
-            "Safe path should be within destination");
+        assert!(
+            canonical_safe.starts_with(&canonical_dest),
+            "Safe path should be within destination"
+        );
 
         // Create a file outside the destination directory
         let outside_path = temp_dir.path().join("outside.txt");
         fs::write(&outside_path, b"outside content").unwrap();
         let canonical_outside = outside_path.canonicalize().unwrap();
-        assert!(!canonical_outside.starts_with(&canonical_dest),
-            "Outside path should NOT be within destination");
+        assert!(
+            !canonical_outside.starts_with(&canonical_dest),
+            "Outside path should NOT be within destination"
+        );
 
         // This demonstrates that our starts_with check correctly identifies
         // paths that escape the destination directory

@@ -1,6 +1,6 @@
-use git2::{Repository, Status, StatusOptions, Error as GitError};
-use super::types::{GitStatus, FileStatus, GitFileStatus};
 use super::repository::get_current_branch;
+use super::types::{FileStatus, GitFileStatus, GitStatus};
+use git2::{Error as GitError, Repository, Status, StatusOptions};
 
 /// Gets the Git status of the repository
 pub fn get_repository_status(repo: &Repository) -> Result<GitStatus, GitError> {
@@ -132,8 +132,7 @@ pub fn get_all_file_statuses(
         ) {
             let git_status = status_to_git_file_status(status, true);
             result.insert(path.clone(), (git_status, true));
-        } else if status.intersects(Status::WT_MODIFIED | Status::WT_DELETED | Status::WT_RENAMED)
-        {
+        } else if status.intersects(Status::WT_MODIFIED | Status::WT_DELETED | Status::WT_RENAMED) {
             let git_status = status_to_git_file_status(status, false);
             result.insert(path.clone(), (git_status, false));
         } else if status.is_wt_new() {
@@ -147,8 +146,8 @@ pub fn get_all_file_statuses(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
     use std::process::Command;
+    use tempfile::TempDir;
 
     /// Helper to create a temporary git repository with initial commit
     fn create_temp_git_repo_with_commit() -> TempDir {

@@ -37,7 +37,12 @@ impl HighPerformanceGlob {
     /// * `pattern` - Glob pattern to match files against
     /// * `root_path` - Root directory to search from
     /// * `max_results` - Maximum number of results to return (to prevent excessive output)
-    pub fn search_files_by_glob(&self, pattern: &str, root_path: &str, max_results: usize) -> Result<Vec<GlobResult>, String> {
+    pub fn search_files_by_glob(
+        &self,
+        pattern: &str,
+        root_path: &str,
+        max_results: usize,
+    ) -> Result<Vec<GlobResult>, String> {
         if pattern.trim().is_empty() {
             return Ok(vec![]);
         }
@@ -84,7 +89,8 @@ impl HighPerformanceGlob {
                 if self.matches_glob_pattern(&path_str, pattern, root_path) {
                     // Get canonical path (resolves symlinks) for security validation
                     // If canonicalize fails (e.g., broken symlink), use the original path
-                    let canonical_path = path.canonicalize()
+                    let canonical_path = path
+                        .canonicalize()
                         .map(|p| p.to_string_lossy().to_string())
                         .unwrap_or_else(|_| path_str.clone());
 
@@ -114,9 +120,7 @@ impl HighPerformanceGlob {
         }
 
         // Sort by modification time (descending - most recent first)
-        results.par_sort_unstable_by(|a, b| {
-            b.modified_time.cmp(&a.modified_time)
-        });
+        results.par_sort_unstable_by(|a, b| b.modified_time.cmp(&a.modified_time));
 
         // Ensure we don't exceed limit after sorting
         results.truncate(max_results);
@@ -157,7 +161,7 @@ impl HighPerformanceGlob {
     /// Handle ** recursive patterns
     fn glob_match_with_recursive(&self, path: &str, pattern: &str) -> bool {
         let parts: Vec<&str> = pattern.split("**").collect();
-        
+
         if parts.len() == 1 {
             return self.simple_glob_match(path, pattern);
         }
@@ -175,7 +179,10 @@ impl HighPerformanceGlob {
         let after_prefix = if prefix.is_empty() {
             path
         } else if let Some(pos) = path.find(prefix) {
-            if pos == 0 || path.chars().nth(pos - 1) == Some('/') || path.chars().nth(pos - 1) == Some('\\') {
+            if pos == 0
+                || path.chars().nth(pos - 1) == Some('/')
+                || path.chars().nth(pos - 1) == Some('\\')
+            {
                 &path[pos + prefix.len()..]
             } else {
                 return false;
@@ -190,8 +197,10 @@ impl HighPerformanceGlob {
         }
 
         // Check if any part of the remaining path matches the suffix
-        let after_prefix = after_prefix.trim_start_matches('/').trim_start_matches('\\');
-        
+        let after_prefix = after_prefix
+            .trim_start_matches('/')
+            .trim_start_matches('\\');
+
         // Try matching suffix against the file name
         if let Some(file_name) = after_prefix.split('/').last() {
             if self.simple_glob_match(file_name, suffix) {
@@ -203,16 +212,22 @@ impl HighPerformanceGlob {
         self.simple_glob_match(after_prefix, suffix)
     }
 
-    /// Simple glob matching without ** 
+    /// Simple glob matching without **
     fn simple_glob_match(&self, text: &str, pattern: &str) -> bool {
         let text_chars: Vec<char> = text.chars().collect();
         let pattern_chars: Vec<char> = pattern.chars().collect();
-        
+
         self.glob_match_recursive(&text_chars, &pattern_chars, 0, 0)
     }
 
     /// Recursive glob matching implementation
-    fn glob_match_recursive(&self, text: &[char], pattern: &[char], text_idx: usize, pattern_idx: usize) -> bool {
+    fn glob_match_recursive(
+        &self,
+        text: &[char],
+        pattern: &[char],
+        text_idx: usize,
+        pattern_idx: usize,
+    ) -> bool {
         // End of pattern
         if pattern_idx >= pattern.len() {
             return text_idx >= text.len();
@@ -246,20 +261,25 @@ impl HighPerformanceGlob {
                     let class_content = &pattern[pattern_idx + 1..pattern_idx + 1 + end_idx];
                     let matches = self.matches_char_class(text_char, class_content);
                     if matches {
-                        self.glob_match_recursive(text, pattern, text_idx + 1, pattern_idx + 2 + end_idx)
+                        self.glob_match_recursive(
+                            text,
+                            pattern,
+                            text_idx + 1,
+                            pattern_idx + 2 + end_idx,
+                        )
                     } else {
                         false
                     }
                 } else {
                     // Invalid character class, treat as literal
-                    pattern_char == text_char && 
-                        self.glob_match_recursive(text, pattern, text_idx + 1, pattern_idx + 1)
+                    pattern_char == text_char
+                        && self.glob_match_recursive(text, pattern, text_idx + 1, pattern_idx + 1)
                 }
             }
             _ => {
                 // Literal character match
-                pattern_char == text_char && 
-                    self.glob_match_recursive(text, pattern, text_idx + 1, pattern_idx + 1)
+                pattern_char == text_char
+                    && self.glob_match_recursive(text, pattern, text_idx + 1, pattern_idx + 1)
             }
         }
     }
@@ -304,8 +324,8 @@ pub fn search_files_by_glob(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
     use std::fs;
+    use tempfile::TempDir;
 
     fn create_test_directory() -> TempDir {
         let temp_dir = TempDir::new().unwrap();
@@ -398,10 +418,14 @@ mod tests {
         let temp_dir = create_test_directory();
         let glob = HighPerformanceGlob::new();
 
-        let results = glob.search_files_by_glob("", temp_dir.path().to_str().unwrap(), 1000).unwrap();
+        let results = glob
+            .search_files_by_glob("", temp_dir.path().to_str().unwrap(), 1000)
+            .unwrap();
         assert!(results.is_empty());
 
-        let results = glob.search_files_by_glob("   ", temp_dir.path().to_str().unwrap(), 1000).unwrap();
+        let results = glob
+            .search_files_by_glob("   ", temp_dir.path().to_str().unwrap(), 1000)
+            .unwrap();
         assert!(results.is_empty());
     }
 
@@ -411,12 +435,23 @@ mod tests {
         let glob = HighPerformanceGlob::new();
 
         // Search all files but limit to 2 results
-        let results = glob.search_files_by_glob("**/*", temp_dir.path().to_str().unwrap(), 2).unwrap();
-        assert!(results.len() <= 2, "Results should be limited to 2, got {}", results.len());
+        let results = glob
+            .search_files_by_glob("**/*", temp_dir.path().to_str().unwrap(), 2)
+            .unwrap();
+        assert!(
+            results.len() <= 2,
+            "Results should be limited to 2, got {}",
+            results.len()
+        );
 
         // Search with higher limit should return more
-        let all_results = glob.search_files_by_glob("**/*", temp_dir.path().to_str().unwrap(), 1000).unwrap();
-        assert!(all_results.len() > 2, "Should find more than 2 files without limit");
+        let all_results = glob
+            .search_files_by_glob("**/*", temp_dir.path().to_str().unwrap(), 1000)
+            .unwrap();
+        assert!(
+            all_results.len() > 2,
+            "Should find more than 2 files without limit"
+        );
     }
 
     #[test]

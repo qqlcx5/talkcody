@@ -3,8 +3,8 @@ import { Button } from '@/components/ui/button';
 import { logger } from '@/lib/logger';
 import { cn } from '@/lib/utils';
 import { terminalService } from '@/services/terminal-service';
-import { useRepositoryStore } from '@/stores/repository-store';
 import { useTerminalStore } from '@/stores/terminal-store';
+import { useRepositoryStore } from '@/stores/window-scoped-repository-store';
 
 export function TerminalTabs() {
   const sessions = useTerminalStore((state) => state.sessions);

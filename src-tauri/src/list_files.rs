@@ -82,7 +82,10 @@ pub fn list_project_files(
                     }
 
                     let path = entry.path().to_path_buf();
-                    let file_type = match entry.file_type() { Some(ft) => ft, None => return WalkState::Continue };
+                    let file_type = match entry.file_type() {
+                        Some(ft) => ft,
+                        None => return WalkState::Continue,
+                    };
                     let is_dir = file_type.is_dir();
 
                     // Filter binary files
@@ -95,7 +98,10 @@ pub fn list_project_files(
                     }
 
                     // Compute group key (parent relative path)
-                    let rel = match path.strip_prefix(&root_clone) { Ok(p) => p, Err(_) => path.as_path() };
+                    let rel = match path.strip_prefix(&root_clone) {
+                        Ok(p) => p,
+                        Err(_) => path.as_path(),
+                    };
                     let parent = rel.parent().unwrap_or(Path::new(""));
                     let group_key = normalize_seps(parent);
                     let name = entry.file_name().to_string_lossy().to_string();
@@ -115,7 +121,9 @@ pub fn list_project_files(
     // Collector aggregates results into groups
     let mut groups: BTreeMap<String, (Vec<String>, Vec<String>)> = BTreeMap::new();
     while let Ok((group_key, name, is_dir)) = rx.recv() {
-        let entry = groups.entry(group_key).or_insert_with(|| (Vec::new(), Vec::new()));
+        let entry = groups
+            .entry(group_key)
+            .or_insert_with(|| (Vec::new(), Vec::new()));
         if is_dir {
             entry.0.push(name);
         } else {
@@ -134,7 +142,11 @@ pub fn list_project_files(
         let mut all = Vec::with_capacity(dirs.len() + files.len());
         all.extend(dirs);
         all.extend(files);
-        let label = if key.is_empty() { "dirs".to_string() } else { format!("{} dirs", key) };
+        let label = if key.is_empty() {
+            "dirs".to_string()
+        } else {
+            format!("{} dirs", key)
+        };
         lines.push(format!("{}: {}", label, all.join("; ")));
     }
 

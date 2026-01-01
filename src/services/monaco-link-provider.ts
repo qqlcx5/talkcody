@@ -47,6 +47,14 @@ const LANGUAGE_IMPORT_PATTERNS: Record<string, RegExp[]> = {
     // import ( "package/path" )
     /["']([^"']+)["']/g,
   ],
+  vue: [
+    // import { xxx } from 'path'
+    /(?:import\s+\{[^}]*\}\s+from\s+['"])([^'"]+)(?:['"])/g,
+    // import 'path' or import "path"
+    /(?:import\s+['"])([^'"]+)(?:['"])/g,
+    // import path from 'path'
+    /(?:import\s+\w+\s+from\s+['"])([^'"]+)(?:['"])/g,
+  ],
 };
 
 // File extension mappings for languages without explicit extensions

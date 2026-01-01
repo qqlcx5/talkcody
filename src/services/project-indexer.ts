@@ -1,7 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { readTextFile } from '@tauri-apps/plugin-fs';
 import { logger } from '@/lib/logger';
-import { useRepositoryStore } from '@/stores/repository-store';
 import type { IndexingProgress } from '@/types/file-system';
 import {
   clearAllIndex,
@@ -42,10 +41,53 @@ interface GlobResult {
 class ProjectIndexer {
   private indexingInProgress = false;
   private progressCallback?: (progress: IndexingProgress) => void;
+  // Internal state for indexed files (per project path)
+  private indexedFilesMap = new Map<string, Set<string>>();
+  private currentProjectPath: string | null = null;
 
-  // Helper to get store methods (avoid calling hooks directly)
-  private getStore() {
-    return useRepositoryStore.getState();
+  // Get indexed files for current project
+  private getIndexedFiles(): Set<string> {
+    if (!this.currentProjectPath) return new Set();
+    if (!this.indexedFilesMap.has(this.currentProjectPath)) {
+      this.indexedFilesMap.set(this.currentProjectPath, new Set());
+    }
+    return this.indexedFilesMap.get(this.currentProjectPath)!;
+  }
+
+  // Set indexed files for current project
+  private setIndexedFiles(files: Set<string>): void {
+    if (!this.currentProjectPath) return;
+    this.indexedFilesMap.set(this.currentProjectPath, files);
+  }
+
+  // Add indexed file for current project
+  private addIndexedFile(path: string): void {
+    this.getIndexedFiles().add(path);
+  }
+
+  // Add indexed files for current project
+  private addIndexedFiles(paths: string[]): void {
+    const files = this.getIndexedFiles();
+    for (const path of paths) {
+      files.add(path);
+    }
+  }
+
+  // Remove indexed file for current project
+  private removeIndexedFile(path: string): void {
+    this.getIndexedFiles().delete(path);
+  }
+
+  // Clear indexed files for current project
+  private clearIndexedFiles(): void {
+    if (this.currentProjectPath) {
+      this.indexedFilesMap.set(this.currentProjectPath, new Set());
+    }
+  }
+
+  // Check if file is indexed for current project
+  private isFileIndexed(path: string): boolean {
+    return this.getIndexedFiles().has(path);
   }
 
   /**
@@ -88,6 +130,7 @@ class ProjectIndexer {
     }
 
     this.indexingInProgress = true;
+    this.currentProjectPath = rootPath;
     const startTime = Date.now();
     logger.info(`Starting project indexing for: ${rootPath}`);
 
@@ -172,7 +215,7 @@ class ProjectIndexer {
           // Update store with loaded indexed files
           const indexedFiles = await getIndexedFiles();
           const indexedFilesSet = new Set(indexedFiles);
-          this.getStore().setIndexedFiles(indexedFilesSet);
+          this.setIndexedFiles(indexedFilesSet);
 
           // Also check for files that have timestamps but weren't actually indexed
           // This can happen if indexing failed for some files
@@ -194,7 +237,7 @@ class ProjectIndexer {
           // Remove deleted files from index
           for (const filePath of filesToRemove) {
             await clearFileIndex(filePath);
-            this.getStore().removeIndexedFile(filePath);
+            this.removeIndexedFile(filePath);
           }
         } else {
           // Index load failed, fall back to full index
@@ -225,9 +268,9 @@ class ProjectIndexer {
 
           // Clear existing index for files being re-indexed
           for (const filePath of batch) {
-            if (this.getStore().isFileIndexed(filePath)) {
+            if (this.isFileIndexed(filePath)) {
               await clearFileIndex(filePath);
-              this.getStore().removeIndexedFile(filePath);
+              this.removeIndexedFile(filePath);
             }
           }
 
@@ -259,14 +302,14 @@ class ProjectIndexer {
               await indexFilesBatch(validFiles);
               // Mark files as indexed in store (triggers UI update)
               const indexedPaths = validFiles.map(([filePath]) => filePath);
-              this.getStore().addIndexedFiles(indexedPaths);
+              this.addIndexedFiles(indexedPaths);
             } catch (error) {
               logger.error('Batch indexing failed, falling back to individual indexing:', error);
               // Fallback to individual indexing if batch fails
               for (const [filePath, content, lang] of validFiles) {
                 try {
                   await indexFile(filePath, content, lang);
-                  this.getStore().addIndexedFile(filePath);
+                  this.addIndexedFile(filePath);
                 } catch (e) {
                   logger.debug(`Failed to index file: ${filePath}`, e);
                 }
@@ -284,7 +327,7 @@ class ProjectIndexer {
       // Save the index with timestamps of ONLY indexed files
       // This ensures files that failed to index will be retried next time
       this.reportProgress({ phase: 'saving', current: 0, total: 1 });
-      const indexedFilesArray = Array.from(this.getStore().indexedFiles);
+      const indexedFilesArray = Array.from(this.getIndexedFiles());
       const indexedTimestamps: Record<string, number> = {};
       for (const filePath of indexedFilesArray) {
         if (currentTimestamps[filePath] !== undefined) {
@@ -294,7 +337,7 @@ class ProjectIndexer {
       await saveIndex(rootPath, indexedTimestamps);
 
       const totalTime = Date.now() - startTime;
-      const indexedCount = this.getStore().indexedFiles.size;
+      const indexedCount = this.getIndexedFiles().size;
       logger.info(`Project indexing complete: ${indexedCount} files (total: ${totalTime}ms)`);
 
       // Report completion
@@ -329,7 +372,7 @@ class ProjectIndexer {
         await this.indexSingleFile(filePath);
       }
 
-      logger.info(`Indexed ${this.getStore().indexedFiles.size} files`);
+      logger.info(`Indexed ${this.getIndexedFiles().size} files`);
     } finally {
       this.indexingInProgress = false;
     }
@@ -339,7 +382,7 @@ class ProjectIndexer {
    * Index a single file (internal method)
    */
   private async indexSingleFile(filePath: string): Promise<void> {
-    if (this.getStore().isFileIndexed(filePath)) {
+    if (this.isFileIndexed(filePath)) {
       return;
     }
 
@@ -351,7 +394,7 @@ class ProjectIndexer {
     try {
       const content = await readTextFile(filePath);
       await indexFile(filePath, content, lang);
-      this.getStore().addIndexedFile(filePath);
+      this.addIndexedFile(filePath);
     } catch (error) {
       logger.error(`Failed to index file: ${filePath}`, error);
     }
@@ -375,7 +418,7 @@ class ProjectIndexer {
 
     try {
       await clearFileIndex(filePath);
-      this.getStore().removeIndexedFile(filePath);
+      this.removeIndexedFile(filePath);
       await this.indexSingleFile(filePath);
     } catch (error) {
       logger.error(`Failed to reindex file: ${filePath}`, error);
@@ -388,7 +431,7 @@ class ProjectIndexer {
   async removeFile(filePath: string): Promise<void> {
     try {
       await clearFileIndex(filePath);
-      this.getStore().removeIndexedFile(filePath);
+      this.removeIndexedFile(filePath);
     } catch (error) {
       logger.error(`Failed to remove file from index: ${filePath}`, error);
     }
@@ -400,7 +443,7 @@ class ProjectIndexer {
   async clearAll(): Promise<void> {
     try {
       await clearAllIndex();
-      this.getStore().clearIndexedFiles();
+      this.clearIndexedFiles();
     } catch (error) {
       logger.error('Failed to clear index:', error);
     }
@@ -410,14 +453,14 @@ class ProjectIndexer {
    * Get count of indexed files
    */
   getIndexedCount(): number {
-    return this.getStore().indexedFiles.size;
+    return this.getIndexedFiles().size;
   }
 
   /**
    * Check if a file is indexed
    */
   isIndexed(filePath: string): boolean {
-    return this.getStore().isFileIndexed(filePath);
+    return this.isFileIndexed(filePath);
   }
 
   /**

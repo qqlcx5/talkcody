@@ -4,8 +4,8 @@ pub mod status;
 pub mod types;
 pub mod worktree;
 
-use types::{GitStatus, GitFileStatus, DiffLineType, FileDiff};
-use worktree::{WorktreeInfo, WorktreePoolStatus, WorktreeChanges, MergeResult, SyncResult};
+use types::{DiffLineType, FileDiff, GitFileStatus, GitStatus};
+use worktree::{MergeResult, SyncResult, WorktreeChanges, WorktreeInfo, WorktreePoolStatus};
 
 /// Gets the Git status for a repository at the given path
 #[tauri::command]
@@ -110,15 +110,18 @@ pub async fn git_acquire_worktree(
     force: Option<bool>,
     worktree_root: Option<String>,
 ) -> Result<WorktreeInfo, String> {
-    worktree::acquire_worktree(&project_path, pool_index, &task_id, force.unwrap_or(false), worktree_root.as_deref())
+    worktree::acquire_worktree(
+        &project_path,
+        pool_index,
+        &task_id,
+        force.unwrap_or(false),
+        worktree_root.as_deref(),
+    )
 }
 
 /// Release a worktree back to the pool
 #[tauri::command]
-pub async fn git_release_worktree(
-    project_path: String,
-    pool_index: u32,
-) -> Result<(), String> {
+pub async fn git_release_worktree(project_path: String, pool_index: u32) -> Result<(), String> {
     worktree::release_worktree(&project_path, pool_index)
 }
 
@@ -143,18 +146,13 @@ pub async fn git_list_worktrees(
 
 /// Get changes in a worktree
 #[tauri::command]
-pub async fn git_get_worktree_changes(
-    worktree_path: String,
-) -> Result<WorktreeChanges, String> {
+pub async fn git_get_worktree_changes(worktree_path: String) -> Result<WorktreeChanges, String> {
     worktree::get_worktree_changes(&worktree_path)
 }
 
 /// Commit all changes in a worktree
 #[tauri::command]
-pub async fn git_commit_worktree(
-    worktree_path: String,
-    message: String,
-) -> Result<String, String> {
+pub async fn git_commit_worktree(worktree_path: String, message: String) -> Result<String, String> {
     worktree::commit_worktree(&worktree_path, &message)
 }
 
@@ -166,14 +164,17 @@ pub async fn git_merge_worktree(
     commit_message: Option<String>,
     worktree_root: Option<String>,
 ) -> Result<MergeResult, String> {
-    worktree::merge_worktree_to_main(&project_path, pool_index, commit_message.as_deref(), worktree_root.as_deref())
+    worktree::merge_worktree_to_main(
+        &project_path,
+        pool_index,
+        commit_message.as_deref(),
+        worktree_root.as_deref(),
+    )
 }
 
 /// Abort an in-progress merge
 #[tauri::command]
-pub async fn git_abort_merge(
-    project_path: String,
-) -> Result<(), String> {
+pub async fn git_abort_merge(project_path: String) -> Result<(), String> {
     worktree::abort_merge(&project_path)
 }
 
@@ -207,8 +208,6 @@ pub async fn git_sync_worktree_from_main(
 
 /// Abort an in-progress rebase in a worktree
 #[tauri::command]
-pub async fn git_abort_rebase(
-    worktree_path: String,
-) -> Result<(), String> {
+pub async fn git_abort_rebase(worktree_path: String) -> Result<(), String> {
     worktree::abort_rebase(&worktree_path)
 }

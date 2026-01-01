@@ -1,10 +1,10 @@
+use log::{error, info, warn};
 use portable_pty::{native_pty_system, CommandBuilder, PtySize};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter};
-use log::{error, info, warn};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PtySpawnResult {
@@ -150,17 +150,26 @@ fn spawn_with_fallback(
                 return Ok((shell_cmd.to_string(), child));
             }
             Err(e) => {
-                warn!("Failed to spawn shell '{}': {}, trying next...", shell_cmd, e);
+                warn!(
+                    "Failed to spawn shell '{}': {}, trying next...",
+                    shell_cmd, e
+                );
                 last_error = format!("Failed to spawn shell '{}': {}", shell_cmd, e);
             }
         }
     }
 
     // All shells failed
-    error!("All shell spawn attempts failed. Last error: {}", last_error);
+    error!(
+        "All shell spawn attempts failed. Last error: {}",
+        last_error
+    );
     Err(format!(
         "Failed to spawn any shell. Tried: {:?}. Last error: {}",
-        WINDOWS_SHELLS.iter().map(|(cmd, _, _)| *cmd).collect::<Vec<_>>(),
+        WINDOWS_SHELLS
+            .iter()
+            .map(|(cmd, _, _)| *cmd)
+            .collect::<Vec<_>>(),
         last_error
     ))
 }
@@ -266,8 +275,14 @@ pub async fn pty_spawn(
     }
 
     let pty_id = uuid::Uuid::new_v4().to_string();
-    let writer = pair.master.take_writer().map_err(|e| format!("Failed to take writer: {}", e))?;
-    let mut reader = pair.master.try_clone_reader().map_err(|e| format!("Failed to clone reader: {}", e))?;
+    let writer = pair
+        .master
+        .take_writer()
+        .map_err(|e| format!("Failed to take writer: {}", e))?;
+    let mut reader = pair
+        .master
+        .try_clone_reader()
+        .map_err(|e| format!("Failed to clone reader: {}", e))?;
 
     // Store the session - keeping child and master alive is critical on Windows
     {
@@ -329,10 +344,7 @@ pub async fn pty_spawn(
         sessions.remove(&pty_id_clone);
 
         // Emit close event
-        let _ = app_clone.emit(
-            "pty-close",
-            serde_json::json!({ "pty_id": pty_id_clone }),
-        );
+        let _ = app_clone.emit("pty-close", serde_json::json!({ "pty_id": pty_id_clone }));
     });
 
     // Child is now stored in the session, not dropped here
@@ -342,24 +354,22 @@ pub async fn pty_spawn(
 
 #[tauri::command]
 pub fn pty_write(pty_id: String, data: String) -> Result<(), String> {
-    info!("pty_write called: pty_id={}, data_len={}", pty_id, data.len());
+    info!(
+        "pty_write called: pty_id={}, data_len={}",
+        pty_id,
+        data.len()
+    );
     let mut sessions = PTY_SESSIONS.lock().unwrap();
 
     if let Some(session) = sessions.get_mut(&pty_id) {
-        session
-            .writer
-            .write_all(data.as_bytes())
-            .map_err(|e| {
-                error!("Failed to write to PTY {}: {}", pty_id, e);
-                format!("Failed to write to PTY: {}", e)
-            })?;
-        session
-            .writer
-            .flush()
-            .map_err(|e| {
-                error!("Failed to flush PTY {}: {}", pty_id, e);
-                format!("Failed to flush PTY: {}", e)
-            })?;
+        session.writer.write_all(data.as_bytes()).map_err(|e| {
+            error!("Failed to write to PTY {}: {}", pty_id, e);
+            format!("Failed to write to PTY: {}", e)
+        })?;
+        session.writer.flush().map_err(|e| {
+            error!("Failed to flush PTY {}: {}", pty_id, e);
+            format!("Failed to flush PTY: {}", e)
+        })?;
         info!("pty_write successful for {}", pty_id);
         Ok(())
     } else {
@@ -429,7 +439,11 @@ mod tests {
             // On Windows, should be one of the known shells
             let valid_shells = ["pwsh", "powershell", "cmd.exe", "cmd"];
             let is_valid = valid_shells.iter().any(|s| shell.contains(s));
-            assert!(is_valid, "Shell '{}' should be a valid Windows shell", shell);
+            assert!(
+                is_valid,
+                "Shell '{}' should be a valid Windows shell",
+                shell
+            );
         }
 
         #[cfg(not(target_os = "windows"))]
@@ -437,7 +451,8 @@ mod tests {
             // On Unix, should be a path or shell name
             assert!(
                 shell.contains("sh") || shell.contains("bash") || shell.contains("zsh"),
-                "Shell '{}' should be a valid Unix shell", shell
+                "Shell '{}' should be a valid Unix shell",
+                shell
             );
         }
     }
@@ -495,12 +510,18 @@ mod tests {
         /// Test that WINDOWS_SHELLS constant is properly defined
         #[test]
         fn test_windows_shells_constant() {
-            assert!(!WINDOWS_SHELLS.is_empty(), "WINDOWS_SHELLS should not be empty");
+            assert!(
+                !WINDOWS_SHELLS.is_empty(),
+                "WINDOWS_SHELLS should not be empty"
+            );
 
             // Verify expected shells are in the list
             let shell_names: Vec<&str> = WINDOWS_SHELLS.iter().map(|(cmd, _, _)| *cmd).collect();
             assert!(shell_names.contains(&"pwsh"), "Should include pwsh");
-            assert!(shell_names.contains(&"powershell"), "Should include powershell");
+            assert!(
+                shell_names.contains(&"powershell"),
+                "Should include powershell"
+            );
             assert!(shell_names.contains(&"cmd.exe"), "Should include cmd.exe");
         }
 
@@ -521,7 +542,11 @@ mod tests {
 
             // spawn_with_fallback should succeed with at least one shell
             let result = spawn_with_fallback(&pair.slave, None);
-            assert!(result.is_ok(), "spawn_with_fallback should succeed: {:?}", result.err());
+            assert!(
+                result.is_ok(),
+                "spawn_with_fallback should succeed: {:?}",
+                result.err()
+            );
 
             let (shell, _child) = result.unwrap();
             println!("Successfully spawned shell: {}", shell);
@@ -555,8 +580,8 @@ mod tests {
             let pair = pty_system.openpty(pty_size).expect("Failed to open PTY");
 
             // Spawn shell
-            let (shell, child) = spawn_with_fallback(&pair.slave, None)
-                .expect("Failed to spawn shell");
+            let (shell, child) =
+                spawn_with_fallback(&pair.slave, None).expect("Failed to spawn shell");
             println!("Spawned shell: {}", shell);
 
             // Drop slave after spawn (as we do in pty_spawn)
@@ -564,7 +589,10 @@ mod tests {
 
             // Get writer and reader
             let writer = pair.master.take_writer().expect("Failed to take writer");
-            let reader = pair.master.try_clone_reader().expect("Failed to clone reader");
+            let reader = pair
+                .master
+                .try_clone_reader()
+                .expect("Failed to clone reader");
 
             // Store session with all handles
             let pty_id = "test-session-1".to_string();
@@ -583,7 +611,10 @@ mod tests {
             // Verify session exists
             {
                 let sessions = PTY_SESSIONS.lock().unwrap();
-                assert!(sessions.contains_key(&pty_id), "Session should exist after creation");
+                assert!(
+                    sessions.contains_key(&pty_id),
+                    "Session should exist after creation"
+                );
             }
 
             // Wait a bit to ensure the shell is running
@@ -623,16 +654,21 @@ mod tests {
                 pixel_height: 0,
             };
 
-            let pair = pty_system.openpty(initial_size).expect("Failed to open PTY");
+            let pair = pty_system
+                .openpty(initial_size)
+                .expect("Failed to open PTY");
 
             // Spawn shell
-            let (_shell, child) = spawn_with_fallback(&pair.slave, None)
-                .expect("Failed to spawn shell");
+            let (_shell, child) =
+                spawn_with_fallback(&pair.slave, None).expect("Failed to spawn shell");
 
             drop(pair.slave);
 
             let writer = pair.master.take_writer().expect("Failed to take writer");
-            let _reader = pair.master.try_clone_reader().expect("Failed to clone reader");
+            let _reader = pair
+                .master
+                .try_clone_reader()
+                .expect("Failed to clone reader");
 
             // Store session
             let pty_id = "test-resize-session".to_string();
@@ -688,13 +724,16 @@ mod tests {
 
             let pair = pty_system.openpty(pty_size).expect("Failed to open PTY");
 
-            let (_shell, child) = spawn_with_fallback(&pair.slave, None)
-                .expect("Failed to spawn shell");
+            let (_shell, child) =
+                spawn_with_fallback(&pair.slave, None).expect("Failed to spawn shell");
 
             drop(pair.slave);
 
             let writer = pair.master.take_writer().expect("Failed to take writer");
-            let _reader = pair.master.try_clone_reader().expect("Failed to clone reader");
+            let _reader = pair
+                .master
+                .try_clone_reader()
+                .expect("Failed to clone reader");
 
             let pty_id = "test-kill-session".to_string();
             {
@@ -723,7 +762,10 @@ mod tests {
             // Verify session is removed
             {
                 let sessions = PTY_SESSIONS.lock().unwrap();
-                assert!(!sessions.contains_key(&pty_id), "Session should be removed after kill");
+                assert!(
+                    !sessions.contains_key(&pty_id),
+                    "Session should be removed after kill"
+                );
             }
         }
 
@@ -744,13 +786,16 @@ mod tests {
 
             let pair = pty_system.openpty(pty_size).expect("Failed to open PTY");
 
-            let (_shell, child) = spawn_with_fallback(&pair.slave, None)
-                .expect("Failed to spawn shell");
+            let (_shell, child) =
+                spawn_with_fallback(&pair.slave, None).expect("Failed to spawn shell");
 
             drop(pair.slave);
 
             let writer = pair.master.take_writer().expect("Failed to take writer");
-            let _reader = pair.master.try_clone_reader().expect("Failed to clone reader");
+            let _reader = pair
+                .master
+                .try_clone_reader()
+                .expect("Failed to clone reader");
 
             let pty_id = "test-write-session".to_string();
             {
@@ -775,10 +820,18 @@ mod tests {
 
                 // Write a simple command
                 let write_result = session.writer.write_all(b"echo test\r\n");
-                assert!(write_result.is_ok(), "Write should succeed: {:?}", write_result.err());
+                assert!(
+                    write_result.is_ok(),
+                    "Write should succeed: {:?}",
+                    write_result.err()
+                );
 
                 let flush_result = session.writer.flush();
-                assert!(flush_result.is_ok(), "Flush should succeed: {:?}", flush_result.err());
+                assert!(
+                    flush_result.is_ok(),
+                    "Flush should succeed: {:?}",
+                    flush_result.err()
+                );
             }
 
             // Clean up
@@ -825,14 +878,20 @@ mod tests {
                 c
             };
 
-            let child = pair.slave.spawn_command(cmd).expect("Failed to spawn shell");
+            let child = pair
+                .slave
+                .spawn_command(cmd)
+                .expect("Failed to spawn shell");
 
             // Drop slave after spawn
             drop(pair.slave);
 
             // Get writer and reader
             let writer = pair.master.take_writer().expect("Failed to take writer");
-            let _reader = pair.master.try_clone_reader().expect("Failed to clone reader");
+            let _reader = pair
+                .master
+                .try_clone_reader()
+                .expect("Failed to clone reader");
 
             // Store all handles in session
             let pty_id = "test-cross-platform".to_string();
@@ -900,11 +959,17 @@ mod tests {
                     c
                 };
 
-                let child = pair.slave.spawn_command(cmd).expect("Failed to spawn shell");
+                let child = pair
+                    .slave
+                    .spawn_command(cmd)
+                    .expect("Failed to spawn shell");
                 drop(pair.slave);
 
                 let writer = pair.master.take_writer().expect("Failed to take writer");
-                let _reader = pair.master.try_clone_reader().expect("Failed to clone reader");
+                let _reader = pair
+                    .master
+                    .try_clone_reader()
+                    .expect("Failed to clone reader");
 
                 let pty_id = format!("test-multi-session-{}", i);
                 {
@@ -973,11 +1038,17 @@ mod tests {
             let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
 
             let cmd = portable_pty::CommandBuilder::new(&shell);
-            let child = pair.slave.spawn_command(cmd).expect("Failed to spawn shell");
+            let child = pair
+                .slave
+                .spawn_command(cmd)
+                .expect("Failed to spawn shell");
             drop(pair.slave);
 
             let writer = pair.master.take_writer().expect("Failed to take writer");
-            let _reader = pair.master.try_clone_reader().expect("Failed to clone reader");
+            let _reader = pair
+                .master
+                .try_clone_reader()
+                .expect("Failed to clone reader");
 
             let pty_id = "test-cleanup-session".to_string();
 

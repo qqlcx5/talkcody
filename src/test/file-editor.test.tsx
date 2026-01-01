@@ -8,6 +8,14 @@ vi.mock('@/services/repository-service', () => ({
   },
 }));
 
+vi.mock('@/stores/window-scoped-repository-store', () => ({
+  useRepositoryStore: vi.fn((selector) =>
+    selector({
+      updateFileContent: vi.fn(),
+    })
+  ),
+}));
+
 vi.useFakeTimers();
 
 import { act, renderHook } from '@testing-library/react';

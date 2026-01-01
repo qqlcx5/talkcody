@@ -71,23 +71,36 @@ export class WindowRestoreService {
 
   /**
    * Save all open windows state before closing
+   * Uses replacement strategy: clears all existing states then saves only currently open windows
+   * This ensures the saved state matches exactly what windows are actually open
    */
   static async saveAllWindowsState(): Promise<void> {
     try {
       const windows = await WindowManagerService.getAllWindows();
 
-      for (const window of windows) {
-        if (window.label !== 'main' && window.root_path) {
-          const state: WindowState = {
-            label: window.label,
-            projectId: window.project_id,
-            rootPath: window.root_path,
-          };
-          await WindowStateStore.saveWindowState(state);
-        }
+      // Filter to get only project windows (exclude main window)
+      const projectWindows = windows.filter(
+        (window) => window.label !== 'main' && window.root_path
+      );
+
+      logger.info(`Saving ${projectWindows.length} window states (clearing old states first)`);
+
+      // IMPORTANT: Clear all existing window states first
+      // This prevents accumulation of closed window states
+      await WindowStateStore.clearAll();
+
+      // Save only currently open windows
+      for (const window of projectWindows) {
+        const state: WindowState = {
+          label: window.label,
+          projectId: window.project_id,
+          rootPath: window.root_path,
+        };
+        await WindowStateStore.saveWindowState(state);
+        logger.info(`Saved window state: ${window.root_path}`);
       }
 
-      logger.info('All window states saved');
+      logger.info(`All window states saved: ${projectWindows.length} windows`);
     } catch (error) {
       logger.error('Failed to save all window states:', error);
     }

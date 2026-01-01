@@ -1,18 +1,18 @@
 // src-tauri/src/background_tasks.rs
 // Background task management for long-running processes
 
+use rand::Rng;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use tokio::process::{Child, Command as TokioCommand};
-use tokio::time::interval;
 use tokio::fs::{create_dir_all, remove_dir_all, File, OpenOptions};
-use tokio::io::{AsyncWriteExt, BufReader, AsyncReadExt, AsyncBufReadExt};
-use tokio::sync::{Mutex, broadcast};
-use serde::{Serialize, Deserialize};
-use rand::Rng;
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
+use tokio::process::{Child, Command as TokioCommand};
+use tokio::sync::{broadcast, Mutex};
+use tokio::time::interval;
 
 pub const DEFAULT_MAX_TIMEOUT_MS: u64 = 7_200_000; // 2 hours
 pub const CLEANUP_DAYS: u64 = 7;
@@ -172,7 +172,10 @@ fn validate_task_id(task_id: &str) -> Result<(), String> {
 
     // Only allow ASCII alphanumeric, underscore, and hyphen
     // Note: Use is_ascii_alphanumeric() instead of is_alphanumeric() to reject Unicode
-    if !task_id.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-') {
+    if !task_id
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+    {
         return Err("Task ID contains invalid characters".to_string());
     }
 
@@ -281,7 +284,9 @@ pub async fn spawn_background_task(
     let error_file = task_dir.join("stderr.log");
 
     // Create output files
-    let _ = File::create(&output_file).await.map_err(|e| e.to_string())?;
+    let _ = File::create(&output_file)
+        .await
+        .map_err(|e| e.to_string())?;
     let _ = File::create(&error_file).await.map_err(|e| e.to_string())?;
 
     // Determine shell based on platform
@@ -320,8 +325,14 @@ pub async fn spawn_background_task(
     })?;
 
     // Get PID - handle Option<u32>
-    let child_pid = child.id().ok_or_else(|| "Failed to get process ID".to_string())?;
-    log::info!("Background task {} spawned with PID: {}", task_id, child_pid);
+    let child_pid = child
+        .id()
+        .ok_or_else(|| "Failed to get process ID".to_string())?;
+    log::info!(
+        "Background task {} spawned with PID: {}",
+        task_id,
+        child_pid
+    );
 
     // Take stdout/stderr for async reading
     let stdout = child.stdout.take().ok_or("Failed to capture stdout")?;
@@ -344,7 +355,8 @@ pub async fn spawn_background_task(
             &output_file_clone,
             stdout_bytes_clone,
             &mut stdout_shutdown_rx,
-        ).await;
+        )
+        .await;
     });
 
     let stderr_bytes_clone = stderr_bytes.clone();
@@ -356,7 +368,8 @@ pub async fn spawn_background_task(
             &error_file_clone,
             stderr_bytes_clone,
             &mut stderr_shutdown_rx,
-        ).await;
+        )
+        .await;
     });
 
     // Create task handle
@@ -497,7 +510,11 @@ async fn monitor_task_timeout(task_id: String, timeout_ms: u64) {
 
         let current_time = current_time_ms();
         if current_time >= deadline {
-            log::info!("Background task {} timed out after {}ms", task_id, timeout_ms);
+            log::info!(
+                "Background task {} timed out after {}ms",
+                task_id,
+                timeout_ms
+            );
 
             // Mark task as timed out and kill it
             let registry = get_registry().await;
@@ -667,10 +684,7 @@ pub async fn kill_background_task(task_id: String) -> Result<bool, String> {
         let kill_result = guard.child.kill().await;
 
         // Wait for process to terminate (with timeout)
-        let _ = tokio::time::timeout(
-            Duration::from_secs(2),
-            guard.child.wait()
-        ).await;
+        let _ = tokio::time::timeout(Duration::from_secs(2), guard.child.wait()).await;
 
         match kill_result {
             Ok(_) => {

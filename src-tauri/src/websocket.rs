@@ -19,7 +19,18 @@ pub struct WebSocketMessage {
 
 // WebSocket connection state
 pub struct WebSocketState {
-    sender: Arc<Mutex<Option<futures_util::stream::SplitSink<tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>, Message>>>>,
+    sender: Arc<
+        Mutex<
+            Option<
+                futures_util::stream::SplitSink<
+                    tokio_tungstenite::WebSocketStream<
+                        tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+                    >,
+                    Message,
+                >,
+            >,
+        >,
+    >,
 }
 
 impl WebSocketState {
@@ -130,13 +141,10 @@ pub async fn ws_send(
     let mut sender_guard = ws_state.sender.lock().await;
 
     if let Some(sender) = sender_guard.as_mut() {
-        sender
-            .send(Message::Text(message))
-            .await
-            .map_err(|e| {
-                error!("[WebSocket] Failed to send message: {}", e);
-                format!("Failed to send message: {}", e)
-            })?;
+        sender.send(Message::Text(message)).await.map_err(|e| {
+            error!("[WebSocket] Failed to send message: {}", e);
+            format!("Failed to send message: {}", e)
+        })?;
 
         info!("[WebSocket] Message sent successfully");
         Ok(())
@@ -154,13 +162,10 @@ pub async fn ws_disconnect(state: State<'_, Arc<Mutex<WebSocketState>>>) -> Resu
     let mut sender_guard = ws_state.sender.lock().await;
 
     if let Some(mut sender) = sender_guard.take() {
-        sender
-            .send(Message::Close(None))
-            .await
-            .map_err(|e| {
-                error!("[WebSocket] Failed to send close message: {}", e);
-                format!("Failed to send close message: {}", e)
-            })?;
+        sender.send(Message::Close(None)).await.map_err(|e| {
+            error!("[WebSocket] Failed to send close message: {}", e);
+            format!("Failed to send close message: {}", e)
+        })?;
 
         info!("[WebSocket] Disconnected successfully");
         Ok(())

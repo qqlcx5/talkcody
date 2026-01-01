@@ -2,7 +2,7 @@
 
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { useRepositoryStore } from '@/stores/repository-store';
+import { useRepositoryStore } from '@/stores/window-scoped-repository-store';
 
 interface CurrentFileButtonProps {
   disabled?: boolean;

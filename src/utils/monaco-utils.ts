@@ -1,4 +1,5 @@
 import type { editor } from 'monaco-editor';
+import { setupVueAsHtml } from './monaco-vue-config';
 
 type Monaco = typeof import('monaco-editor');
 
@@ -37,6 +38,28 @@ export function setupMonacoDiagnostics(_model: editor.ITextModel | null, monacoI
   } catch {
     // monaco.languages.typescript may not be available when worker is removed
     // This is expected and safe to ignore
+  }
+}
+
+// Track if Vue language has been set up
+let vueLanguageSetup = false;
+
+/**
+ * Set up Vue language syntax highlighting
+ * Vue files need custom syntax highlighting for template expressions and directives
+ */
+export function setupVueLanguage(monacoInstance?: Monaco) {
+  if (vueLanguageSetup) return;
+
+  const monaco = monacoInstance || (window as { monaco?: Monaco }).monaco;
+  if (!monaco) return;
+
+  try {
+    setupVueAsHtml(monaco);
+    vueLanguageSetup = true;
+  } catch (error) {
+    // Vue language setup failed, fall back to default
+    console.error('Failed to setup Vue language support:', error);
   }
 }
 

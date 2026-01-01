@@ -4,8 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { logger } from '@/lib/logger';
 import { terminalService } from '@/services/terminal-service';
-import { useRepositoryStore } from '@/stores/repository-store';
 import { useTerminalStore } from '@/stores/terminal-store';
+import { useRepositoryStore } from '@/stores/window-scoped-repository-store';
 import { Terminal } from './terminal';
 import { TerminalTabs } from './terminal-tabs';
 

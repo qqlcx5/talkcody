@@ -8,7 +8,7 @@ vi.mock('@/services/repository-service', () => ({
   },
 }));
 
-vi.mock('@/stores/repository-store', () => ({
+vi.mock('@/stores/window-scoped-repository-store', () => ({
   useRepositoryStore: vi.fn((selector) =>
     selector({
       updateFileContent: mockUpdateFileContent,

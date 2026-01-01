@@ -17,8 +17,8 @@ import { logger } from '@/lib/logger';
 import { databaseService } from '@/services/database-service';
 import { WindowManagerService } from '@/services/window-manager-service';
 import { useProjectStore } from '@/stores/project-store';
-import { useRepositoryStore } from '@/stores/repository-store';
 import { settingsManager } from '@/stores/settings-store';
+import { useRepositoryStore } from '@/stores/window-scoped-repository-store';
 import type { Project } from '@/types';
 import { NavigationView } from '@/types/navigation';
 

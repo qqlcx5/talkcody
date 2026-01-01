@@ -1,5 +1,5 @@
 {
-  "version": "2025-12-17T06:55:50.687Z",
+  "version": "2025-12-31T06:55:50.687Z",
   "models": {
     "gpt-5-nano": {
       "name": "GPT-5 Nano",
@@ -429,7 +429,7 @@
         "ollama"
       ],
       "providerMappings": {
-        "zhipu": "glm-4.6",
+        "zhipu": "glm-4.7",
         "aiGateway": "zai/glm-4.7",
         "openRouter": "z-ai/glm-4.7",
         "ollama": "glm-4.7:cloud"
@@ -439,26 +439,6 @@
         "output": "0.0000022"
       },
       "context_length": 202752
-    },
-    "glm-4.6v": {
-      "name": "GLM 4.6 V",
-      "imageInput": true,
-      "providers": [
-        "zhipu",
-        "openRouter",
-        "aiGateway"
-      ],
-      "providerMappings": {
-        "zhipu": "glm-4.6v",
-        "aiGateway": "zai/glm-4.6v",
-        "openRouter": "z-ai/glm-4.6v"
-      },
-      "pricing": {
-        "input": "0.0000003",
-        "output": "0.0000009",
-        "cachedInput": "0.00000005"
-      },
-      "context_length": 131072
     },
     "minimax-m21": {
       "name": "MiniMax M2.1",

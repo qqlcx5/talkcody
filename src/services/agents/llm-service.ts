@@ -530,7 +530,7 @@ export class LLMService {
           // Log request context before calling streamText
           const requestStartTime = Date.now();
           logger.info('Calling streamText', {
-            model,
+            model: providerModel.modelId,
             agentId,
             provider: providerModel.provider,
             messageCount: loopState.messages.length,

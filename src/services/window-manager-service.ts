@@ -1,6 +1,23 @@
 import { invoke } from '@tauri-apps/api/core';
 import { logger } from '@/lib/logger';
 
+// Module-level state for new window flag
+let isNewWindowFlag = false;
+let isNewWindowFlagChecked = false;
+
+// Check URL parameters to determine if this is a new window
+function checkUrlForNewWindowFlag(): boolean {
+  if (typeof window === 'undefined') return false;
+
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get('isNewWindow') === 'true';
+  } catch (error) {
+    logger.error('Failed to check URL for new window flag:', error);
+    return false;
+  }
+}
+
 export interface WindowInfo {
   label: string;
   project_id?: string;
@@ -15,17 +32,48 @@ export class WindowManagerService {
    * Create a new window for a project
    * If the project is already open in another window, focus that window instead
    */
-  static async createProjectWindow(projectId?: string, rootPath?: string): Promise<string> {
+  static async createProjectWindow(
+    projectId?: string,
+    rootPath?: string,
+    isNewWindow?: boolean
+  ): Promise<string> {
     try {
       const label = await invoke<string>('create_project_window', {
         projectId,
         rootPath,
+        isNewWindow,
       });
       return label;
     } catch (error) {
       logger.error('Failed to create project window:', error);
       throw error;
     }
+  }
+
+  /**
+   * Check if this window was just created as a new window
+   * Should be called once on window startup to determine if auto-loading should be skipped
+   *
+   * NOTE: This function does NOT clear the flag. Call clearNewWindowFlag() after
+   * successfully detecting a new window to prevent other checks from seeing it.
+   */
+  static async checkNewWindowFlag(): Promise<boolean> {
+    // Check only once per window lifecycle
+    if (!isNewWindowFlagChecked) {
+      isNewWindowFlagChecked = true;
+      isNewWindowFlag = checkUrlForNewWindowFlag();
+      if (isNewWindowFlag) {
+        logger.info('[WindowManager] Detected new window from URL parameter');
+      }
+    }
+    return isNewWindowFlag;
+  }
+
+  /**
+   * Clear the new window flag - call this AFTER you're done checking
+   */
+  static async clearNewWindowFlag(): Promise<void> {
+    isNewWindowFlag = false;
   }
 
   /**
@@ -51,6 +99,25 @@ export class WindowManagerService {
     } catch (error) {
       logger.error('Failed to get current window label:', error);
       return 'main';
+    }
+  }
+
+  /**
+   * Get window project information
+   */
+  static async getWindowInfo(): Promise<{ projectId?: string; rootPath?: string } | null> {
+    try {
+      const info = await invoke<[string, string] | null>('get_window_info');
+      if (info) {
+        return {
+          projectId: info[0],
+          rootPath: info[1],
+        };
+      }
+      return null;
+    } catch (error) {
+      logger.error('Failed to get window info:', error);
+      return null;
     }
   }
 
@@ -149,8 +216,8 @@ export class WindowManagerService {
       }
     }
 
-    // Create new window
-    const label = await WindowManagerService.createProjectWindow(projectId, rootPath);
+    // Create new window with isNewWindow=true
+    const label = await WindowManagerService.createProjectWindow(projectId, rootPath, false);
     return label;
   }
 }

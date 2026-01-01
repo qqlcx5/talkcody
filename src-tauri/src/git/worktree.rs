@@ -179,10 +179,7 @@ fn get_main_branch_name(repo: &Repository) -> Result<String, GitError> {
     // Fall back to current branch
     let head = repo.head()?;
     if head.is_branch() {
-        Ok(head
-            .shorthand()
-            .unwrap_or("main")
-            .to_string())
+        Ok(head.shorthand().unwrap_or("main").to_string())
     } else {
         Ok("main".to_string())
     }
@@ -220,7 +217,9 @@ fn get_task_id(project_path: &str, pool_index: u32) -> Option<String> {
 /// Set task_id for a worktree in in-memory state
 fn set_task_id(project_path: &str, pool_index: u32, task_id: Option<String>) {
     if let Ok(mut map) = WORKTREE_TASK_MAP.lock() {
-        let pool_map = map.entry(project_path.to_string()).or_insert_with(HashMap::new);
+        let pool_map = map
+            .entry(project_path.to_string())
+            .or_insert_with(HashMap::new);
         if let Some(tid) = task_id {
             pool_map.insert(pool_index, tid);
         } else {
@@ -256,12 +255,12 @@ pub fn acquire_worktree(
     let branch_name = get_branch_name(pool_index);
 
     // Open the main repository
-    let repo = Repository::open(project_path)
-        .map_err(|e| format!("Failed to open repository: {}", e))?;
+    let repo =
+        Repository::open(project_path).map_err(|e| format!("Failed to open repository: {}", e))?;
 
     // Get current HEAD commit
-    let head_commit = get_head_commit(&repo)
-        .map_err(|e| format!("Failed to get HEAD commit: {}", e))?;
+    let head_commit =
+        get_head_commit(&repo).map_err(|e| format!("Failed to get HEAD commit: {}", e))?;
 
     if worktree_exists(&worktree_path) {
         // Check for uncommitted changes before resetting
@@ -339,12 +338,7 @@ pub fn acquire_worktree(
         if !output.status.success() {
             // If branch already exists, try without -b
             let output = Command::new("git")
-                .args([
-                    "worktree",
-                    "add",
-                    &worktree_path_str,
-                    &branch_name,
-                ])
+                .args(["worktree", "add", &worktree_path_str, &branch_name])
                 .current_dir(project_path)
                 .output()
                 .map_err(|e| format!("Failed to create worktree: {}", e))?;
@@ -394,7 +388,11 @@ pub fn release_worktree(project_path: &str, pool_index: u32) -> Result<(), Strin
 }
 
 /// Remove a worktree completely from the pool
-pub fn remove_worktree(project_path: &str, pool_index: u32, worktree_root: Option<&str>) -> Result<(), String> {
+pub fn remove_worktree(
+    project_path: &str,
+    pool_index: u32,
+    worktree_root: Option<&str>,
+) -> Result<(), String> {
     if pool_index >= MAX_POOL_SIZE {
         return Err(format!(
             "Pool index {} exceeds maximum pool size {}",
@@ -437,21 +435,28 @@ pub fn remove_worktree(project_path: &str, pool_index: u32, worktree_root: Optio
         .current_dir(project_path)
         .output();
 
-    log::info!("Removed worktree pool-{} for project {}", pool_index, project_path);
+    log::info!(
+        "Removed worktree pool-{} for project {}",
+        pool_index,
+        project_path
+    );
 
     Ok(())
 }
 
 /// List all worktrees in the pool for a project
-pub fn list_worktrees(project_path: &str, worktree_root: Option<&str>) -> Result<WorktreePoolStatus, String> {
-    let repo = Repository::open(project_path)
-        .map_err(|e| format!("Failed to open repository: {}", e))?;
+pub fn list_worktrees(
+    project_path: &str,
+    worktree_root: Option<&str>,
+) -> Result<WorktreePoolStatus, String> {
+    let repo =
+        Repository::open(project_path).map_err(|e| format!("Failed to open repository: {}", e))?;
 
     let pool_dir = get_pool_dir(project_path, worktree_root);
-    let main_branch = get_main_branch_name(&repo)
-        .map_err(|e| format!("Failed to get main branch: {}", e))?;
-    let head_commit = get_head_commit(&repo)
-        .map_err(|e| format!("Failed to get HEAD commit: {}", e))?;
+    let main_branch =
+        get_main_branch_name(&repo).map_err(|e| format!("Failed to get main branch: {}", e))?;
+    let head_commit =
+        get_head_commit(&repo).map_err(|e| format!("Failed to get HEAD commit: {}", e))?;
 
     let mut worktrees = Vec::new();
     let mut in_use_count = 0;
@@ -549,9 +554,8 @@ pub fn get_worktree_changes(worktree_path: &str) -> Result<WorktreeChanges, Stri
         }
     }
 
-    let has_uncommitted_changes = !modified_files.is_empty()
-        || !added_files.is_empty()
-        || !deleted_files.is_empty();
+    let has_uncommitted_changes =
+        !modified_files.is_empty() || !added_files.is_empty() || !deleted_files.is_empty();
 
     Ok(WorktreeChanges {
         worktree_path: worktree_path.to_string(),
@@ -630,7 +634,10 @@ pub fn merge_worktree_to_main(
     let branch_name = get_branch_name(pool_index);
 
     if !worktree_exists(&worktree_path) {
-        return Err(format!("Worktree does not exist at pool index {}", pool_index));
+        return Err(format!(
+            "Worktree does not exist at pool index {}",
+            pool_index
+        ));
     }
 
     // First, commit any uncommitted changes in the worktree
@@ -648,11 +655,11 @@ pub fn merge_worktree_to_main(
     }
 
     // Open main repository
-    let repo = Repository::open(project_path)
-        .map_err(|e| format!("Failed to open repository: {}", e))?;
+    let repo =
+        Repository::open(project_path).map_err(|e| format!("Failed to open repository: {}", e))?;
 
-    let main_branch = get_main_branch_name(&repo)
-        .map_err(|e| format!("Failed to get main branch: {}", e))?;
+    let main_branch =
+        get_main_branch_name(&repo).map_err(|e| format!("Failed to get main branch: {}", e))?;
 
     // Checkout main branch in main repo
     let output = Command::new("git")
@@ -728,8 +735,8 @@ pub fn merge_worktree_to_main(
     }
 
     // Get the merge commit hash
-    let head_commit = get_head_commit(&repo)
-        .map_err(|e| format!("Failed to get merge commit: {}", e))?;
+    let head_commit =
+        get_head_commit(&repo).map_err(|e| format!("Failed to get merge commit: {}", e))?;
 
     log::info!(
         "Successfully merged {} into {} with commit {}",
@@ -777,18 +784,21 @@ pub fn sync_worktree_from_main(
     let worktree_path_str = worktree_path.to_string_lossy().to_string();
 
     if !worktree_exists(&worktree_path) {
-        return Err(format!("Worktree does not exist at pool index {}", pool_index));
+        return Err(format!(
+            "Worktree does not exist at pool index {}",
+            pool_index
+        ));
     }
 
     // Get main branch's HEAD commit from project
-    let repo = Repository::open(project_path)
-        .map_err(|e| format!("Failed to open repository: {}", e))?;
+    let repo =
+        Repository::open(project_path).map_err(|e| format!("Failed to open repository: {}", e))?;
 
-    let main_branch = get_main_branch_name(&repo)
-        .map_err(|e| format!("Failed to get main branch: {}", e))?;
+    let main_branch =
+        get_main_branch_name(&repo).map_err(|e| format!("Failed to get main branch: {}", e))?;
 
-    let main_head = get_head_commit(&repo)
-        .map_err(|e| format!("Failed to get main HEAD commit: {}", e))?;
+    let main_head =
+        get_head_commit(&repo).map_err(|e| format!("Failed to get main HEAD commit: {}", e))?;
 
     log::info!(
         "Syncing worktree pool-{} from main branch {} at commit {}",
@@ -902,7 +912,9 @@ pub fn sync_worktree_from_main(
                         synced_commit: None,
                         has_conflicts: true,
                         conflicted_files,
-                        message: "Rebase succeeded but stash pop has conflicts. Please resolve manually.".to_string(),
+                        message:
+                            "Rebase succeeded but stash pop has conflicts. Please resolve manually."
+                                .to_string(),
                     });
                 }
                 log::warn!("Failed to pop stash: {}", stderr);
@@ -1013,16 +1025,13 @@ pub fn continue_merge(project_path: &str, message: Option<&str>) -> Result<Merge
     }
 
     // Get the merge commit hash
-    let repo = Repository::open(project_path)
-        .map_err(|e| format!("Failed to open repository: {}", e))?;
+    let repo =
+        Repository::open(project_path).map_err(|e| format!("Failed to open repository: {}", e))?;
 
-    let head_commit = get_head_commit(&repo)
-        .map_err(|e| format!("Failed to get merge commit: {}", e))?;
+    let head_commit =
+        get_head_commit(&repo).map_err(|e| format!("Failed to get merge commit: {}", e))?;
 
-    log::info!(
-        "Merge continued and completed with commit {}",
-        head_commit
-    );
+    log::info!("Merge continued and completed with commit {}", head_commit);
 
     Ok(MergeResult {
         success: true,
@@ -1034,7 +1043,10 @@ pub fn continue_merge(project_path: &str, message: Option<&str>) -> Result<Merge
 }
 
 /// Clean up all worktrees for a project
-pub fn cleanup_all_worktrees(project_path: &str, worktree_root: Option<&str>) -> Result<(), String> {
+pub fn cleanup_all_worktrees(
+    project_path: &str,
+    worktree_root: Option<&str>,
+) -> Result<(), String> {
     log::info!("Cleaning up all worktrees for project {}", project_path);
 
     for pool_index in 0..MAX_POOL_SIZE {
@@ -1208,7 +1220,10 @@ mod tests {
 
         // Step 4: Try to acquire without force - should fail due to staged changes
         let result = acquire_worktree(&project_path, 0, "task-2", false, None);
-        assert!(result.is_err(), "Should fail without force when there are staged changes");
+        assert!(
+            result.is_err(),
+            "Should fail without force when there are staged changes"
+        );
         let err = result.unwrap_err();
         assert!(
             err.contains("WORKTREE_HAS_CHANGES"),
@@ -1218,11 +1233,7 @@ mod tests {
 
         // Step 5: Force acquire - should succeed and clean the staged file
         let result = acquire_worktree(&project_path, 0, "task-2", true, None);
-        assert!(
-            result.is_ok(),
-            "Force acquire should succeed: {:?}",
-            result
-        );
+        assert!(result.is_ok(), "Force acquire should succeed: {:?}", result);
 
         // Step 6: Verify the staged file was properly removed
         assert!(
@@ -1278,7 +1289,11 @@ mod tests {
 
         // Verify we have changes
         let changes_count = count_worktree_changes(worktree_path);
-        assert!(changes_count >= 3, "Should have at least 3 changes, got {}", changes_count);
+        assert!(
+            changes_count >= 3,
+            "Should have at least 3 changes, got {}",
+            changes_count
+        );
 
         // Release and force acquire
         release_worktree(&project_path, 0).unwrap();
@@ -1291,7 +1306,10 @@ mod tests {
 
         // Verify files are in correct state
         let readme_content = std::fs::read_to_string(&readme_path).unwrap();
-        assert_eq!(readme_content, "# Test", "README.md should be reset to original");
+        assert_eq!(
+            readme_content, "# Test",
+            "README.md should be reset to original"
+        );
         assert!(!untracked_path.exists(), "Untracked file should be removed");
         assert!(!staged_path.exists(), "Staged new file should be removed");
 
@@ -1333,11 +1351,17 @@ mod tests {
         std::fs::write(nested_repo_dir.join("lib.c"), "// library code").unwrap();
 
         // Verify the nested .git exists
-        assert!(nested_repo_dir.join(".git").exists(), "Nested .git should exist");
+        assert!(
+            nested_repo_dir.join(".git").exists(),
+            "Nested .git should exist"
+        );
 
         // Verify we have untracked changes (the _deps directory)
         let changes_count = count_worktree_changes(worktree_path);
-        assert!(changes_count > 0, "Should have untracked changes from _deps");
+        assert!(
+            changes_count > 0,
+            "Should have untracked changes from _deps"
+        );
 
         // Release and force acquire
         release_worktree(&project_path, 0).unwrap();

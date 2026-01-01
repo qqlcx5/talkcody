@@ -21,6 +21,7 @@ const TREE_SITTER_LANGUAGES = [
   'java',
   'typescript',
   'javascript',
+  'vue',
 ];
 
 // Regex patterns to detect if cursor is on an import path string
@@ -40,6 +41,14 @@ const IMPORT_PATH_PATTERNS: Record<string, RegExp[]> = {
   c: [/#include\s*["<]([^">]+)[">]/],
   rust: [/use\s+([\w:]+)/, /mod\s+(\w+)/],
   go: [/import\s+["']([^"']+)["']/],
+  vue: [
+    // Vue 3 composition API imports
+    /(?:import\s+)(?:\{[^}]*\}\s+from\s+)?['"]([^'"]+)['"]/,
+    // Vue imports with 'from'
+    /(?:from\s+['"])([^'"]+)(?:['"])/,
+    // require() style imports
+    /require\s*\(\s*['"]([^'"]+)['"]\s*\)/,
+  ],
 };
 
 /**
@@ -97,6 +106,18 @@ function resolvePath(basePath: string, relativePath: string): string {
 const EXTENSION_MAPPINGS: Record<string, string[]> = {
   typescript: ['.ts', '.tsx', '.js', '.jsx', '/index.ts', '/index.tsx', '/index.js', '/index.jsx'],
   javascript: ['.js', '.jsx', '.ts', '.tsx', '/index.js', '/index.jsx', '/index.ts', '/index.tsx'],
+  vue: [
+    '.vue',
+    '.ts',
+    '.tsx',
+    '.js',
+    '.jsx',
+    '/index.vue',
+    '/index.ts',
+    '/index.tsx',
+    '/index.js',
+    '/index.jsx',
+  ],
   python: ['.py', '/__init__.py'],
   rust: ['.rs', '/mod.rs'],
   go: ['.go'],
@@ -188,6 +209,42 @@ async function resolveImportPath(
       possiblePaths.push(`${rootPath}/${packageName}`);
       possiblePaths.push(`${rootPath}/pkg/${packageName}`);
       possiblePaths.push(`${rootPath}/internal/${packageName}`);
+      break;
+    }
+    case 'vue': {
+      // Vue files use the same resolution logic as TypeScript/JavaScript
+      const extensions = EXTENSION_MAPPINGS.typescript || [];
+      // Handle @/ alias -> src/
+      if (importPath.startsWith('@/')) {
+        const basePath = `${rootPath}/src/${importPath.slice(2)}`;
+        // First try .vue extension
+        possiblePaths.push(`${basePath}.vue`);
+        // Then try other common extensions
+        for (const ext of extensions) {
+          possiblePaths.push(`${basePath}${ext}`);
+        }
+        possiblePaths.push(basePath);
+      }
+      // Handle relative paths
+      else if (importPath.startsWith('./') || importPath.startsWith('../')) {
+        const basePath = resolvePath(currentDir, importPath);
+        // First try .vue extension
+        possiblePaths.push(`${basePath}.vue`);
+        // Then try other common extensions
+        for (const ext of extensions) {
+          possiblePaths.push(`${basePath}${ext}`);
+        }
+        possiblePaths.push(basePath);
+      }
+      // Handle bare imports (node modules)
+      else {
+        // Try to resolve as node module
+        const basePath = `${rootPath}/node_modules/${importPath}`;
+        for (const ext of ['.vue', ...extensions]) {
+          possiblePaths.push(`${basePath}${ext}`);
+        }
+        possiblePaths.push(basePath);
+      }
       break;
     }
   }

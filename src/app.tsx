@@ -16,10 +16,14 @@ import { useGlobalShortcuts } from '@/hooks/use-global-shortcuts';
 import { useTheme } from '@/hooks/use-theme';
 import { logger } from '@/lib/logger';
 import { initializationManager } from '@/services/initialization-manager';
+import { WindowManagerService } from '@/services/window-manager-service';
 import { WindowRestoreService } from '@/services/window-restore-service';
 import { useAuthStore } from '@/stores/auth-store';
 import { useSettingsStore } from '@/stores/settings-store';
-import { RepositoryStoreProvider } from '@/stores/window-scoped-repository-store';
+import {
+  RepositoryStoreProvider,
+  useWindowScopedRepositoryStore,
+} from '@/stores/window-scoped-repository-store';
 import { NavigationView } from '@/types/navigation';
 
 function AppContent() {
@@ -103,7 +107,7 @@ function AppContent() {
           logger.error('[Deep Link] Failed to show/focus window:', windowError);
         }
 
-        // Step 3: Parse the URL and extract token
+        // Step 3: Parse URL and extract token
         logger.info('[Deep Link] Parsing URL...');
         const parsedUrl = new URL(url);
         logger.info('[Deep Link] URL pathname:', parsedUrl.pathname);
@@ -137,7 +141,7 @@ function AppContent() {
   );
 
   // Use ref to avoid stale closure in deep link listener
-  // This ensures the listener always uses the latest handleDeepLinkUrl function
+  // This ensures that listener always uses the latest handleDeepLinkUrl function
   const handleDeepLinkUrlRef = useRef(handleDeepLinkUrl);
 
   // Keep ref updated on every render
@@ -236,6 +240,70 @@ function AppContent() {
 
     restoreWindows();
   }, [isMainWindow, isInitializing]);
+
+  // Store ref for dynamic dependencies to avoid infinite loops
+  const repositoryDepsRef = useRef<{
+    openRepository: (path: string, projectId: string) => Promise<void>;
+    rootPath: string | null;
+  }>({ openRepository: () => Promise.resolve(), rootPath: null });
+
+  // Update ref when store changes
+  const openRepository = useWindowScopedRepositoryStore((state) => state.openRepository);
+  const rootPath = useWindowScopedRepositoryStore((state) => state.rootPath);
+
+  // Update the ref on every render
+  repositoryDepsRef.current = { openRepository, rootPath };
+
+  // Track if we've already loaded window project
+  const projectLoadedRef = useRef(false);
+
+  // Track when repository becomes ready (has a rootPath)
+  const repositoryReadyRef = useRef(false);
+  useEffect(() => {
+    if (rootPath) {
+      repositoryReadyRef.current = true;
+    }
+  }, [rootPath]);
+
+  // Load window-associated project on startup (for all windows)
+  // This handles the case where a window is created from dock menu with a specific project
+  useEffect(() => {
+    const loadWindowProject = async () => {
+      // Wait for initialization to complete
+      if (isInitializing) return;
+      // Skip if already loaded or repository already ready
+      if (projectLoadedRef.current || repositoryReadyRef.current) return;
+
+      // 1. First check if this is a new window
+      const isNewWindow = await WindowManagerService.checkNewWindowFlag();
+      if (isNewWindow) {
+        logger.info('[app.tsx] New window detected - skipping auto-load');
+        await WindowManagerService.clearNewWindowFlag();
+        projectLoadedRef.current = true;
+        return;
+      }
+
+      // 2. Then check window-associated project
+      try {
+        const windowInfo = await WindowManagerService.getWindowInfo();
+        const { openRepository: repoOpenFn, rootPath: currentRootPath } = repositoryDepsRef.current;
+
+        if (windowInfo?.projectId && windowInfo?.rootPath && !currentRootPath) {
+          logger.info('[app.tsx] Loading window-associated project:', windowInfo.rootPath);
+          projectLoadedRef.current = true;
+          await repoOpenFn(windowInfo.rootPath, windowInfo.projectId);
+        } else {
+          logger.info('[app.tsx] No window-associated project, delegating to repository-layout');
+          projectLoadedRef.current = true;
+        }
+      } catch (error) {
+        logger.error('[app.tsx] Failed to load window project:', error);
+        projectLoadedRef.current = true;
+      }
+    };
+
+    loadWindowProject();
+  }, [isInitializing]);
 
   // Save window state before closing
   useEffect(() => {

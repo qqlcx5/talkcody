@@ -100,8 +100,7 @@ impl DirectoryTreeBuilder {
         let gitignore = Self::build_gitignore_matcher(root);
 
         // Build tree with immediate depth loading
-        let node = self
-            .build_node_recursive(root, 0, max_immediate_depth, now, &gitignore)?;
+        let node = self.build_node_recursive(root, 0, max_immediate_depth, now, &gitignore)?;
 
         // Cache the result
         if let Ok(mut cache) = self.cache.lock() {
@@ -201,19 +200,23 @@ impl DirectoryTreeBuilder {
                 continue;
             }
 
-            match self.build_node_recursive(&entry_path, current_depth + 1, max_depth, timestamp, gitignore) {
+            match self.build_node_recursive(
+                &entry_path,
+                current_depth + 1,
+                max_depth,
+                timestamp,
+                gitignore,
+            ) {
                 Ok(child) => children.push(child),
                 Err(_) => {} // Skip failed entries
             }
         }
 
         // Sort children: directories first, then files, both alphabetically
-        children.sort_by(|a, b| {
-            match (a.is_directory, b.is_directory) {
-                (true, false) => std::cmp::Ordering::Less,
-                (false, true) => std::cmp::Ordering::Greater,
-                _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
-            }
+        children.sort_by(|a, b| match (a.is_directory, b.is_directory) {
+            (true, false) => std::cmp::Ordering::Less,
+            (false, true) => std::cmp::Ordering::Greater,
+            _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
         });
 
         Ok(FileNode {
@@ -265,8 +268,8 @@ impl DirectoryTreeBuilder {
         }
 
         // Build gitignore matcher from git root
-        let gitignore = Self::find_git_root(path)
-            .and_then(|root| Self::build_gitignore_matcher(root));
+        let gitignore =
+            Self::find_git_root(path).and_then(|root| Self::build_gitignore_matcher(root));
 
         // Build children
         let entries = match std::fs::read_dir(path) {
@@ -301,12 +304,10 @@ impl DirectoryTreeBuilder {
             }
         }
 
-        children.sort_by(|a, b| {
-            match (a.is_directory, b.is_directory) {
-                (true, false) => std::cmp::Ordering::Less,
-                (false, true) => std::cmp::Ordering::Greater,
-                _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
-            }
+        children.sort_by(|a, b| match (a.is_directory, b.is_directory) {
+            (true, false) => std::cmp::Ordering::Less,
+            (false, true) => std::cmp::Ordering::Greater,
+            _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
         });
 
         // Cache the result
@@ -361,14 +362,12 @@ pub fn build_directory_tree(
     max_immediate_depth: Option<usize>,
 ) -> Result<FileNode, String> {
     let depth = max_immediate_depth.unwrap_or(2); // Default to 2 levels deep
-    DIRECTORY_TREE_BUILDER
-        .build_directory_tree_fast(&root_path, depth)
+    DIRECTORY_TREE_BUILDER.build_directory_tree_fast(&root_path, depth)
 }
 
 #[tauri::command]
 pub fn load_directory_children(dir_path: String) -> Result<Vec<FileNode>, String> {
-    DIRECTORY_TREE_BUILDER
-        .load_directory_children(&dir_path)
+    DIRECTORY_TREE_BUILDER.load_directory_children(&dir_path)
 }
 
 #[tauri::command]

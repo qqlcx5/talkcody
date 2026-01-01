@@ -13,7 +13,7 @@ vi.mock('@/stores/file-changes-store', () => ({
   },
 }));
 
-vi.mock('@/stores/repository-store', () => ({
+vi.mock('@/stores/window-scoped-repository-store', () => ({
   useRepositoryStore: (selector: (state: { selectFile: any; rootPath: string }) => any) => {
     return selector({
       selectFile: mockSelectFile,

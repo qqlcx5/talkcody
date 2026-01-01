@@ -178,7 +178,11 @@ fn parse_biome_json_output(output: &str, file_content: &str) -> Vec<LintDiagnost
             continue;
         }
 
-        log::debug!("Trying to parse line {} as JSON (length: {})", line_num, line.len());
+        log::debug!(
+            "Trying to parse line {} as JSON (length: {})",
+            line_num,
+            line.len()
+        );
         match serde_json::from_str::<serde_json::Value>(line) {
             Ok(json) => {
                 log::debug!("Parsed JSON successfully, checking for diagnostics field");
@@ -222,13 +226,19 @@ fn parse_biome_json_output(output: &str, file_content: &str) -> Vec<LintDiagnost
         }
     }
 
-    log::debug!("parse_biome_json_output: returning {} diagnostics", diagnostics.len());
+    log::debug!(
+        "parse_biome_json_output: returning {} diagnostics",
+        diagnostics.len()
+    );
     diagnostics
 }
 
 /// Parse a single diagnostic from biome JSON
 /// line_index is used for efficient byte offset to line/column conversion
-fn parse_single_diagnostic(diag: &serde_json::Value, line_index: &LineIndex) -> Option<LintDiagnostic> {
+fn parse_single_diagnostic(
+    diag: &serde_json::Value,
+    line_index: &LineIndex,
+) -> Option<LintDiagnostic> {
     // Get severity
     let severity = diag
         .get("severity")

@@ -16,9 +16,9 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useGit } from '@/hooks/use-git';
 import { getLocale, type SupportedLocale } from '@/locales';
 import { useFileChangesStore } from '@/stores/file-changes-store';
-import { useRepositoryStore } from '@/stores/repository-store';
 import { useSettingsStore } from '@/stores/settings-store';
 import { useTaskStore } from '@/stores/task-store';
+import { useRepositoryStore } from '@/stores/window-scoped-repository-store';
 import { useWorktreeStore } from '@/stores/worktree-store';
 import { FileChangeItem } from './file-change-item';
 import { FileDiffModal } from './file-diff-modal';

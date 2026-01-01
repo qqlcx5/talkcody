@@ -1,13 +1,13 @@
 use crate::constants::{is_code_extension, is_code_filename, should_exclude_dir};
 use grep::regex::{RegexMatcher, RegexMatcherBuilder};
-use grep::searcher::{BinaryDetection, SearcherBuilder};
 use grep::searcher::sinks::UTF8;
+use grep::searcher::{BinaryDetection, SearcherBuilder};
 use ignore::WalkBuilder;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::ffi::OsStr;
-use std::path::{Path};
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 /// Maximum line length before truncation (in characters)
@@ -62,18 +62,13 @@ impl RipgrepSearch {
     }
 
     pub fn with_file_types(mut self, file_types: Option<Vec<String>>) -> Self {
-        self.file_types = file_types.map(|types| {
-            types.into_iter()
-                .map(|t| t.to_lowercase())
-                .collect()
-        });
+        self.file_types =
+            file_types.map(|types| types.into_iter().map(|t| t.to_lowercase()).collect());
         self
     }
 
     pub fn with_exclude_dirs(mut self, exclude_dirs: Option<Vec<String>>) -> Self {
-        self.exclude_dirs = exclude_dirs.map(|dirs| {
-            dirs.into_iter().collect()
-        });
+        self.exclude_dirs = exclude_dirs.map(|dirs| dirs.into_iter().collect());
         self
     }
 
@@ -172,7 +167,11 @@ impl RipgrepSearch {
         }
     }
 
-    pub fn search_content(&self, query: &str, root_path: &str) -> Result<Vec<SearchResult>, String> {
+    pub fn search_content(
+        &self,
+        query: &str,
+        root_path: &str,
+    ) -> Result<Vec<SearchResult>, String> {
         if query.is_empty() {
             return Ok(vec![]);
         }
@@ -183,20 +182,20 @@ impl RipgrepSearch {
                 .case_insensitive(true)
                 .line_terminator(Some(b'\n'))
                 .build(query)
-                .map_err(|e| format!("Failed to create regex matcher: {}", e))?
+                .map_err(|e| format!("Failed to create regex matcher: {}", e))?,
         );
 
         // Build walker with proper gitignore support and optimizations
         let mut walker_builder = WalkBuilder::new(root_path);
 
         walker_builder
-            .hidden(true)          // Skip hidden files by default
-            .git_ignore(false)     // Don't use .gitignore files (search all files)
-            .git_global(false)     // Don't use global gitignore
-            .git_exclude(false)    // Don't use .git/info/exclude
-            .ignore(true)          // Use .ignore files
-            .parents(true)         // Search parent directories for ignore files
-            .max_depth(Some(20));  // Reasonable depth limit
+            .hidden(true) // Skip hidden files by default
+            .git_ignore(false) // Don't use .gitignore files (search all files)
+            .git_global(false) // Don't use global gitignore
+            .git_exclude(false) // Don't use .git/info/exclude
+            .ignore(true) // Use .ignore files
+            .parents(true) // Search parent directories for ignore files
+            .max_depth(Some(20)); // Reasonable depth limit
 
         // Add custom exclude directories as overrides if specified
         if let Some(ref exclude_dirs) = self.exclude_dirs {
@@ -213,9 +212,7 @@ impl RipgrepSearch {
 
                 // Quick directory filtering
                 if path.is_dir() {
-                    let dir_name = path.file_name()
-                        .and_then(OsStr::to_str)
-                        .unwrap_or("");
+                    let dir_name = path.file_name().and_then(OsStr::to_str).unwrap_or("");
 
                     // Check custom exclude_dirs
                     if let Some(ref exclude_dirs) = exclude_dirs_clone {
@@ -273,7 +270,7 @@ impl RipgrepSearch {
                     }
                 }
                 Ok(None) => {} // No matches
-                Err(_) => {} // Skip errors silently for performance
+                Err(_) => {}   // Skip errors silently for performance
             }
         });
 
@@ -336,8 +333,8 @@ impl RipgrepSearch {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
     use std::fs;
+    use tempfile::TempDir;
 
     fn create_test_search_directory() -> TempDir {
         let temp_dir = TempDir::new().unwrap();
@@ -349,8 +346,9 @@ mod tests {
         // Create files with searchable content
         fs::write(
             temp_dir.path().join("src/main.rs"),
-            "fn main() {\n    println!(\"Hello, world!\");\n}\n"
-        ).unwrap();
+            "fn main() {\n    println!(\"Hello, world!\");\n}\n",
+        )
+        .unwrap();
 
         fs::write(
             temp_dir.path().join("src/lib.rs"),
@@ -359,13 +357,15 @@ mod tests {
 
         fs::write(
             temp_dir.path().join("tests/test.rs"),
-            "fn test_hello() {\n    assert!(true);\n}\n"
-        ).unwrap();
+            "fn test_hello() {\n    assert!(true);\n}\n",
+        )
+        .unwrap();
 
         fs::write(
             temp_dir.path().join("README.md"),
-            "# Hello World\n\nThis is a test project.\n"
-        ).unwrap();
+            "# Hello World\n\nThis is a test project.\n",
+        )
+        .unwrap();
 
         temp_dir
     }
@@ -400,8 +400,8 @@ mod tests {
 
     #[test]
     fn test_with_file_types() {
-        let search = RipgrepSearch::new()
-            .with_file_types(Some(vec!["rs".to_string(), "js".to_string()]));
+        let search =
+            RipgrepSearch::new().with_file_types(Some(vec!["rs".to_string(), "js".to_string()]));
 
         assert!(search.file_types.is_some());
         let types = search.file_types.unwrap();
@@ -431,7 +431,9 @@ mod tests {
         let temp_dir = create_test_search_directory();
         let search = RipgrepSearch::new();
 
-        let results = search.search_content("", temp_dir.path().to_str().unwrap()).unwrap();
+        let results = search
+            .search_content("", temp_dir.path().to_str().unwrap())
+            .unwrap();
         assert!(results.is_empty());
     }
 
@@ -440,7 +442,9 @@ mod tests {
         let temp_dir = create_test_search_directory();
         let search = RipgrepSearch::new();
 
-        let results = search.search_content("println", temp_dir.path().to_str().unwrap()).unwrap();
+        let results = search
+            .search_content("println", temp_dir.path().to_str().unwrap())
+            .unwrap();
         assert!(!results.is_empty(), "Should find println in files");
 
         // Verify we found matches in the expected files
@@ -455,8 +459,12 @@ mod tests {
         let search = RipgrepSearch::new();
 
         // Search should be case insensitive
-        let results_lower = search.search_content("hello", temp_dir.path().to_str().unwrap()).unwrap();
-        let results_upper = search.search_content("HELLO", temp_dir.path().to_str().unwrap()).unwrap();
+        let results_lower = search
+            .search_content("hello", temp_dir.path().to_str().unwrap())
+            .unwrap();
+        let results_upper = search
+            .search_content("HELLO", temp_dir.path().to_str().unwrap())
+            .unwrap();
 
         assert!(!results_lower.is_empty());
         assert!(!results_upper.is_empty());
@@ -467,7 +475,9 @@ mod tests {
         let temp_dir = create_test_search_directory();
         let search = RipgrepSearch::new();
 
-        let results = search.search_content("main", temp_dir.path().to_str().unwrap()).unwrap();
+        let results = search
+            .search_content("main", temp_dir.path().to_str().unwrap())
+            .unwrap();
 
         for result in &results {
             assert!(!result.file_path.is_empty());
@@ -483,7 +493,9 @@ mod tests {
         let temp_dir = create_test_search_directory();
         let search = RipgrepSearch::new().with_max_results(1);
 
-        let results = search.search_content("fn", temp_dir.path().to_str().unwrap()).unwrap();
+        let results = search
+            .search_content("fn", temp_dir.path().to_str().unwrap())
+            .unwrap();
         assert!(results.len() <= 1);
     }
 
@@ -492,7 +504,9 @@ mod tests {
         let temp_dir = create_test_search_directory();
         let search = RipgrepSearch::new().with_max_matches_per_file(1);
 
-        let results = search.search_content("println", temp_dir.path().to_str().unwrap()).unwrap();
+        let results = search
+            .search_content("println", temp_dir.path().to_str().unwrap())
+            .unwrap();
 
         for result in &results {
             assert!(result.matches.len() <= 1);
@@ -502,15 +516,19 @@ mod tests {
     #[test]
     fn test_file_type_filter() {
         let temp_dir = create_test_search_directory();
-        let search = RipgrepSearch::new()
-            .with_file_types(Some(vec!["rs".to_string()]));
+        let search = RipgrepSearch::new().with_file_types(Some(vec!["rs".to_string()]));
 
-        let results = search.search_content("Hello", temp_dir.path().to_str().unwrap()).unwrap();
+        let results = search
+            .search_content("Hello", temp_dir.path().to_str().unwrap())
+            .unwrap();
 
         // Should only find matches in .rs files, not .md
         for result in &results {
-            assert!(result.file_path.ends_with(".rs"),
-                "Expected only .rs files, got: {}", result.file_path);
+            assert!(
+                result.file_path.ends_with(".rs"),
+                "Expected only .rs files, got: {}",
+                result.file_path
+            );
         }
     }
 
@@ -536,13 +554,11 @@ mod tests {
     fn test_search_result_serialization() {
         let result = SearchResult {
             file_path: "/path/to/file.rs".to_string(),
-            matches: vec![
-                SearchMatch {
-                    line_number: 1,
-                    line_content: "fn main() {}".to_string(),
-                    byte_offset: 0,
-                },
-            ],
+            matches: vec![SearchMatch {
+                line_number: 1,
+                line_content: "fn main() {}".to_string(),
+                byte_offset: 0,
+            }],
         };
 
         let json = serde_json::to_string(&result).unwrap();
@@ -625,7 +641,10 @@ mod tests {
 
         // Result should contain the match and not start with ellipsis
         assert!(result.contains("FINDME"));
-        assert!(!result.starts_with("..."), "Should not have leading ellipsis when match is at start");
+        assert!(
+            !result.starts_with("..."),
+            "Should not have leading ellipsis when match is at start"
+        );
         assert!(result.ends_with("..."), "Should have trailing ellipsis");
     }
 
@@ -640,7 +659,10 @@ mod tests {
         // Result should contain the match and not end with ellipsis
         assert!(result.contains("FINDME"));
         assert!(result.starts_with("..."), "Should have leading ellipsis");
-        assert!(!result.ends_with("..."), "Should not have trailing ellipsis when match is at end");
+        assert!(
+            !result.ends_with("..."),
+            "Should not have trailing ellipsis when match is at end"
+        );
     }
 
     #[test]

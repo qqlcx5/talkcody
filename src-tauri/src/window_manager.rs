@@ -1,7 +1,10 @@
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::collections::HashMap;
+use std::fs;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, Runtime, WebviewUrl, WebviewWindowBuilder};
 
 use crate::file_watcher::FileWatcher;
 
@@ -56,7 +59,10 @@ impl WindowRegistry {
                 label: label.clone(),
                 project_id: state.project_id.clone(),
                 root_path: state.root_path.clone(),
-                title: state.root_path.clone().unwrap_or_else(|| "TalkCody".to_string()),
+                title: state
+                    .root_path
+                    .clone()
+                    .unwrap_or_else(|| "TalkCody".to_string()),
             });
         }
         Ok(infos)
@@ -121,88 +127,215 @@ impl WindowRegistry {
     }
 }
 
-pub fn create_window(
-    app_handle: &AppHandle,
+/// Try to focus an existing window if the project is already open
+fn try_focus_existing_window<R: Runtime>(
+    app_handle: &AppHandle<R>,
     window_registry: &WindowRegistry,
-    project_id: Option<String>,
-    root_path: Option<String>,
-) -> Result<String, String> {
-    // Check if project is already open in another window
-    if let Some(ref path) = root_path {
-        if let Some(existing_label) = window_registry.find_window_by_project(path)? {
-            // Try to focus existing window
-            log::info!("Project already open in window: {}, attempting to focus it", existing_label);
-            if let Some(window) = app_handle.get_webview_window(&existing_label) {
-                // Window exists, focus it
-                window.set_focus().map_err(|e| e.to_string())?;
-                window.show().map_err(|e| e.to_string())?;
-                #[cfg(target_os = "macos")]
-                {
-                    use cocoa::appkit::NSApplication;
-                    unsafe {
-                        let app = cocoa::appkit::NSApp();
-                        app.activateIgnoringOtherApps_(cocoa::base::YES);
-                    }
+    root_path: &str,
+) -> Result<Option<String>, String> {
+    if let Some(existing_label) = window_registry.find_window_by_project(root_path)? {
+        log::info!(
+            "Project already open in window: {}, attempting to focus it",
+            existing_label
+        );
+        if let Some(window) = app_handle.get_webview_window(&existing_label) {
+            window.set_focus().map_err(|e| e.to_string())?;
+            window.show().map_err(|e| e.to_string())?;
+            #[cfg(target_os = "macos")]
+            {
+                use cocoa::appkit::NSApplication;
+                unsafe {
+                    let app = cocoa::appkit::NSApp();
+                    app.activateIgnoringOtherApps_(cocoa::base::YES);
                 }
-                log::info!("Successfully focused existing window: {}", existing_label);
-                return Ok(existing_label);
-            } else {
-                // Window is in registry but doesn't actually exist (was closed without cleanup)
-                log::warn!("Window {} is in registry but doesn't exist, cleaning up", existing_label);
-                window_registry.unregister_window(&existing_label)?;
-                log::info!("Cleaned up stale window registration, will create new window");
-                // Continue to create a new window
             }
+            log::info!("Successfully focused existing window: {}", existing_label);
+            return Ok(Some(existing_label));
+        } else {
+            log::warn!(
+                "Window {} is in registry but doesn't exist, cleaning up",
+                existing_label
+            );
+            window_registry.unregister_window(&existing_label)?;
+            log::info!("Cleaned up stale window registration, will create new window");
         }
     }
+    Ok(None)
+}
 
-    // Generate unique window label
-    let label = format!("window-{}", std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_err(|e| e.to_string())?
-        .as_millis());
+/// Generate a unique window label
+fn generate_window_label() -> Result<String, String> {
+    let label = format!(
+        "window-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(|e| e.to_string())?
+            .as_millis()
+    );
+    Ok(label)
+}
 
-    let title = root_path
-        .as_ref()
+/// Build window title based on root path
+fn build_window_title(root_path: Option<&String>) -> String {
+    root_path
         .and_then(|p| std::path::Path::new(p).file_name())
         .and_then(|n| n.to_str())
         .map(|s| format!("{} - TalkCody", s))
-        .unwrap_or_else(|| "TalkCody".to_string());
+        .unwrap_or_else(|| "TalkCody".to_string())
+}
 
-    log::info!("Creating new window with label: {}", label);
+/// Register window in registry and set up cleanup handler
+/// Remove a window's state from windows-state.json
+/// This prevents accumulation of closed window states
+fn remove_window_state_from_file<R: Runtime>(
+    app_handle: &AppHandle<R>,
+    window_label: &str,
+) -> Result<(), String> {
+    // Skip main window - we don't want to remove it
+    if window_label == "main" {
+        return Ok(());
+    }
 
-    // Create window
-    let window = WebviewWindowBuilder::new(
-        app_handle,
-        &label,
-        WebviewUrl::App("/".into()),
-    )
-    .title(&title)
-    .inner_size(1200.0, 800.0)
-    .build()
-    .map_err(|e| format!("Failed to create window: {}", e))?;
+    // Get app data directory
+    let app_data_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to get app data dir: {}", e))?;
 
-    // Register window in registry
-    let state = WindowState {
-        project_id: project_id.clone(),
-        root_path: root_path.clone(),
-        file_watcher: None,
-    };
+    let state_file = app_data_dir.join("windows-state.json");
+
+    // If file doesn't exist, nothing to clean up
+    if !state_file.exists() {
+        return Ok(());
+    }
+
+    // Read current state
+    let content = fs::read_to_string(&state_file)
+        .map_err(|e| format!("Failed to read windows-state.json: {}", e))?;
+
+    let mut state: Value = serde_json::from_str(&content)
+        .map_err(|e| format!("Failed to parse windows-state.json: {}", e))?;
+
+    // Remove the window with matching label
+    if let Some(windows) = state.get_mut("windows").and_then(|w| w.as_array_mut()) {
+        let original_len = windows.len();
+        windows.retain(|window| {
+            window
+                .get("label")
+                .and_then(|l| l.as_str())
+                .map(|l| l != window_label)
+                .unwrap_or(true)
+        });
+        let removed_count = original_len - windows.len();
+
+        if removed_count > 0 {
+            // Write back to file
+            let updated_content = serde_json::to_string_pretty(&state)
+                .map_err(|e| format!("Failed to serialize state: {}", e))?;
+            fs::write(&state_file, updated_content)
+                .map_err(|e| format!("Failed to write windows-state.json: {}", e))?;
+
+            log::info!(
+                "Removed window state for '{}' from windows-state.json ({} entries removed)",
+                window_label,
+                removed_count
+            );
+        }
+    }
+
+    Ok(())
+}
+
+fn register_window_with_cleanup<R: Runtime>(
+    window: &tauri::WebviewWindow<R>,
+    window_registry: &WindowRegistry,
+    label: String,
+    state: WindowState,
+) -> Result<(), String> {
     window_registry.register_window(label.clone(), state)?;
 
-    // Setup window close handler to clean up registry
     let registry_clone = window_registry.clone();
     let label_clone = label.clone();
+    let app_handle = window.app_handle().clone();
+
     window.on_window_event(move |event| {
         if let tauri::WindowEvent::Destroyed = event {
-            log::info!("Window {} is being destroyed, cleaning up registry", label_clone);
+            log::info!(
+                "Window {} is being destroyed, cleaning up registry and state file",
+                label_clone
+            );
+
+            // Clean up window registry
             if let Err(e) = registry_clone.unregister_window(&label_clone) {
                 log::error!("Failed to unregister window {}: {}", label_clone, e);
+            }
+
+            // Clean up windows-state.json
+            if let Err(e) = remove_window_state_from_file(&app_handle, &label_clone) {
+                log::error!(
+                    "Failed to remove window state from file for {}: {}",
+                    label_clone,
+                    e
+                );
             }
         }
     });
 
     log::info!("Window created successfully: {}", label);
+    Ok(())
+}
+
+pub fn create_window<R: Runtime>(
+    app_handle: &AppHandle<R>,
+    window_registry: &WindowRegistry,
+    project_id: Option<String>,
+    root_path: Option<String>,
+    is_new_window: bool,
+) -> Result<String, String> {
+    // Only try to reuse existing window if not explicitly requesting a new window
+    // When is_new_window is true, always create a new window even if project is already open
+    if !is_new_window {
+        if let Some(ref path) = root_path {
+            if let Some(existing_label) =
+                try_focus_existing_window(app_handle, window_registry, path)?
+            {
+                return Ok(existing_label);
+            }
+        }
+    }
+
+    // Generate unique window label
+    let label = generate_window_label()?;
+    let title = build_window_title(root_path.as_ref());
+
+    log::info!(
+        "Creating new window with label: {}, is_new_window: {}",
+        label,
+        is_new_window
+    );
+
+    // Create window with URL parameter to indicate new window
+    // This is more reliable than events due to timing issues
+    let url_path = if is_new_window && root_path.is_none() {
+        "/?isNewWindow=true"
+    } else {
+        "/"
+    };
+
+    let window = WebviewWindowBuilder::new(app_handle, &label, WebviewUrl::App(url_path.into()))
+        .title(&title)
+        .inner_size(1200.0, 800.0)
+        .build()
+        .map_err(|e| format!("Failed to create window: {}", e))?;
+
+    // Register window in registry and set up cleanup handler
+    let state = WindowState {
+        project_id,
+        root_path,
+        file_watcher: None,
+    };
+    register_window_with_cleanup(&window, window_registry, label.clone(), state)?;
+
     Ok(label)
 }
 
@@ -247,7 +380,9 @@ mod tests {
             file_watcher: None,
         };
 
-        registry.register_window("window-1".to_string(), state).unwrap();
+        registry
+            .register_window("window-1".to_string(), state)
+            .unwrap();
         assert_eq!(registry.get_all_windows().unwrap().len(), 1);
 
         let result = registry.unregister_window("window-1");
@@ -280,13 +415,21 @@ mod tests {
             file_watcher: None,
         };
 
-        registry.register_window("window-1".to_string(), state1).unwrap();
-        registry.register_window("window-2".to_string(), state2).unwrap();
+        registry
+            .register_window("window-1".to_string(), state1)
+            .unwrap();
+        registry
+            .register_window("window-2".to_string(), state2)
+            .unwrap();
 
-        let found = registry.find_window_by_project("/path/to/project1").unwrap();
+        let found = registry
+            .find_window_by_project("/path/to/project1")
+            .unwrap();
         assert_eq!(found, Some("window-1".to_string()));
 
-        let found = registry.find_window_by_project("/path/to/project2").unwrap();
+        let found = registry
+            .find_window_by_project("/path/to/project2")
+            .unwrap();
         assert_eq!(found, Some("window-2".to_string()));
 
         let not_found = registry.find_window_by_project("/path/to/unknown").unwrap();
@@ -303,14 +446,18 @@ mod tests {
             file_watcher: None,
         };
 
-        registry.register_window("window-1".to_string(), state).unwrap();
+        registry
+            .register_window("window-1".to_string(), state)
+            .unwrap();
 
         // Update the window project
-        registry.update_window_project(
-            "window-1",
-            Some("new-project".to_string()),
-            Some("/new/path".to_string()),
-        ).unwrap();
+        registry
+            .update_window_project(
+                "window-1",
+                Some("new-project".to_string()),
+                Some("/new/path".to_string()),
+            )
+            .unwrap();
 
         let windows = registry.get_all_windows().unwrap();
         assert_eq!(windows[0].project_id, Some("new-project".to_string()));
@@ -340,7 +487,9 @@ mod tests {
                 root_path: Some(format!("/path/to/project{}", i)),
                 file_watcher: None,
             };
-            registry.register_window(format!("window-{}", i), state).unwrap();
+            registry
+                .register_window(format!("window-{}", i), state)
+                .unwrap();
         }
 
         let windows = registry.get_all_windows().unwrap();
@@ -395,7 +544,9 @@ mod tests {
             root_path: Some("/path/to/project".to_string()),
             file_watcher: None,
         };
-        registry.register_window("window-1".to_string(), state_with_path).unwrap();
+        registry
+            .register_window("window-1".to_string(), state_with_path)
+            .unwrap();
 
         // Window without root_path - should use "TalkCody" as title
         let state_without_path = WindowState {
@@ -403,7 +554,9 @@ mod tests {
             root_path: None,
             file_watcher: None,
         };
-        registry.register_window("window-2".to_string(), state_without_path).unwrap();
+        registry
+            .register_window("window-2".to_string(), state_without_path)
+            .unwrap();
 
         let windows = registry.get_all_windows().unwrap();
         assert_eq!(windows.len(), 2);
@@ -434,7 +587,9 @@ mod tests {
                     root_path: Some(format!("/path/{}", i)),
                     file_watcher: None,
                 };
-                registry_clone.register_window(format!("window-{}", i), state).unwrap();
+                registry_clone
+                    .register_window(format!("window-{}", i), state)
+                    .unwrap();
             });
             handles.push(handle);
         }
@@ -466,7 +621,9 @@ mod tests {
                 root_path: Some(format!("/path/{}", i)),
                 file_watcher: None, // No watcher
             };
-            registry.register_window(format!("window-{}", i), state).unwrap();
+            registry
+                .register_window(format!("window-{}", i), state)
+                .unwrap();
         }
 
         // Should complete without panic
@@ -490,7 +647,9 @@ mod tests {
                 root_path: Some(format!("/path/{}", i)),
                 file_watcher: watcher,
             };
-            registry.register_window(format!("window-{}", i), state).unwrap();
+            registry
+                .register_window(format!("window-{}", i), state)
+                .unwrap();
         }
 
         // Should complete without panic and clean up all watchers
@@ -513,7 +672,9 @@ mod tests {
                 root_path: Some(format!("/path/{}", i)),
                 file_watcher: watcher,
             };
-            registry.register_window(format!("window-{}", i), state).unwrap();
+            registry
+                .register_window(format!("window-{}", i), state)
+                .unwrap();
         }
 
         // Call cleanup multiple times - should not panic
@@ -536,7 +697,9 @@ mod tests {
                 root_path: Some(format!("/path/{}", i)),
                 file_watcher: watcher,
             };
-            registry.register_window(format!("window-{}", i), state).unwrap();
+            registry
+                .register_window(format!("window-{}", i), state)
+                .unwrap();
         }
 
         // Call cleanup from multiple threads
@@ -567,11 +730,15 @@ mod tests {
             root_path: Some("/path/1".to_string()),
             file_watcher: None,
         };
-        registry.register_window("window-1".to_string(), state).unwrap();
+        registry
+            .register_window("window-1".to_string(), state)
+            .unwrap();
 
         // Add watcher via set_window_file_watcher
         let watcher = FileWatcher::new().unwrap();
-        registry.set_window_file_watcher("window-1", Some(watcher)).unwrap();
+        registry
+            .set_window_file_watcher("window-1", Some(watcher))
+            .unwrap();
 
         // Cleanup should handle this correctly
         registry.cleanup_all_watchers();
@@ -594,11 +761,15 @@ mod tests {
                 root_path: Some(format!("/path/to/project{}", i)),
                 file_watcher: None,
             };
-            registry.register_window(format!("window-{}", i), state).unwrap();
+            registry
+                .register_window(format!("window-{}", i), state)
+                .unwrap();
 
             // Add a watcher for each window
             let watcher = FileWatcher::new().unwrap();
-            registry.set_window_file_watcher(&format!("window-{}", i), Some(watcher)).unwrap();
+            registry
+                .set_window_file_watcher(&format!("window-{}", i), Some(watcher))
+                .unwrap();
         }
 
         // Verify all windows exist
@@ -621,15 +792,21 @@ mod tests {
                 root_path: Some(format!("/path/{}", i)),
                 file_watcher: None,
             };
-            registry.register_window(format!("window-{}", i), state).unwrap();
+            registry
+                .register_window(format!("window-{}", i), state)
+                .unwrap();
 
             let watcher = FileWatcher::new().unwrap();
-            registry.set_window_file_watcher(&format!("window-{}", i), Some(watcher)).unwrap();
+            registry
+                .set_window_file_watcher(&format!("window-{}", i), Some(watcher))
+                .unwrap();
         }
 
         // Replace watcher for window-0
         let new_watcher = FileWatcher::new().unwrap();
-        registry.set_window_file_watcher("window-0", Some(new_watcher)).unwrap();
+        registry
+            .set_window_file_watcher("window-0", Some(new_watcher))
+            .unwrap();
 
         // Both windows should still exist (replacing watcher shouldn't affect other windows)
         let windows = registry.get_all_windows().unwrap();
@@ -647,10 +824,14 @@ mod tests {
             root_path: Some("/path/1".to_string()),
             file_watcher: None,
         };
-        registry.register_window("window-1".to_string(), state).unwrap();
+        registry
+            .register_window("window-1".to_string(), state)
+            .unwrap();
 
         let watcher = FileWatcher::new().unwrap();
-        registry.set_window_file_watcher("window-1", Some(watcher)).unwrap();
+        registry
+            .set_window_file_watcher("window-1", Some(watcher))
+            .unwrap();
 
         // Unregister the window (this should stop the watcher via WindowState cleanup)
         registry.unregister_window("window-1").unwrap();
@@ -670,19 +851,27 @@ mod tests {
             root_path: Some("/path/1".to_string()),
             file_watcher: None,
         };
-        registry.register_window("window-1".to_string(), state).unwrap();
+        registry
+            .register_window("window-1".to_string(), state)
+            .unwrap();
 
         // Set initial watcher
         let watcher1 = FileWatcher::new().unwrap();
-        registry.set_window_file_watcher("window-1", Some(watcher1)).unwrap();
+        registry
+            .set_window_file_watcher("window-1", Some(watcher1))
+            .unwrap();
 
         // Replace with new watcher - old one should be stopped
         let watcher2 = FileWatcher::new().unwrap();
-        registry.set_window_file_watcher("window-1", Some(watcher2)).unwrap();
+        registry
+            .set_window_file_watcher("window-1", Some(watcher2))
+            .unwrap();
 
         // Replace again
         let watcher3 = FileWatcher::new().unwrap();
-        registry.set_window_file_watcher("window-1", Some(watcher3)).unwrap();
+        registry
+            .set_window_file_watcher("window-1", Some(watcher3))
+            .unwrap();
 
         // Should not panic and window should still exist
         let windows = registry.get_all_windows().unwrap();
@@ -699,11 +888,15 @@ mod tests {
             root_path: Some("/path/1".to_string()),
             file_watcher: None,
         };
-        registry.register_window("window-1".to_string(), state).unwrap();
+        registry
+            .register_window("window-1".to_string(), state)
+            .unwrap();
 
         // Set a watcher
         let watcher = FileWatcher::new().unwrap();
-        registry.set_window_file_watcher("window-1", Some(watcher)).unwrap();
+        registry
+            .set_window_file_watcher("window-1", Some(watcher))
+            .unwrap();
 
         // Clear the watcher by setting None
         registry.set_window_file_watcher("window-1", None).unwrap();
@@ -724,9 +917,13 @@ mod tests {
             root_path: Some("/Users/kks/mygit/talkcody".to_string()),
             file_watcher: None,
         };
-        registry.register_window("window-talkcody".to_string(), state1).unwrap();
+        registry
+            .register_window("window-talkcody".to_string(), state1)
+            .unwrap();
         let watcher1 = FileWatcher::new().unwrap();
-        registry.set_window_file_watcher("window-talkcody", Some(watcher1)).unwrap();
+        registry
+            .set_window_file_watcher("window-talkcody", Some(watcher1))
+            .unwrap();
 
         // Window 2: Trader project
         let state2 = WindowState {
@@ -734,9 +931,13 @@ mod tests {
             root_path: Some("/Users/kks/mygit/trader".to_string()),
             file_watcher: None,
         };
-        registry.register_window("window-trader".to_string(), state2).unwrap();
+        registry
+            .register_window("window-trader".to_string(), state2)
+            .unwrap();
         let watcher2 = FileWatcher::new().unwrap();
-        registry.set_window_file_watcher("window-trader", Some(watcher2)).unwrap();
+        registry
+            .set_window_file_watcher("window-trader", Some(watcher2))
+            .unwrap();
 
         // Both windows should exist with their own watchers
         let windows = registry.get_all_windows().unwrap();
@@ -748,7 +949,13 @@ mod tests {
 
         assert!(talkcody_window.is_some());
         assert!(trader_window.is_some());
-        assert_eq!(talkcody_window.unwrap().root_path, Some("/Users/kks/mygit/talkcody".to_string()));
-        assert_eq!(trader_window.unwrap().root_path, Some("/Users/kks/mygit/trader".to_string()));
+        assert_eq!(
+            talkcody_window.unwrap().root_path,
+            Some("/Users/kks/mygit/talkcody".to_string())
+        );
+        assert_eq!(
+            trader_window.unwrap().root_path,
+            Some("/Users/kks/mygit/trader".to_string())
+        );
     }
 }

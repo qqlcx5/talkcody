@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AUTO_SAVE_DELAY, TYPING_TIMEOUT } from '@/constants/editor';
 import { logger } from '@/lib/logger';
 import { repositoryService } from '@/services/repository-service';
-import { useRepositoryStore } from '@/stores/repository-store';
+import { useRepositoryStore } from '@/stores/window-scoped-repository-store';
 
 interface UseFileEditorStateProps {
   filePath: string | null;

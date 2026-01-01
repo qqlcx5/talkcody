@@ -9,7 +9,7 @@ import { useLsp } from '@/hooks/use-lsp';
 import { useMonacoEditor } from '@/hooks/use-monaco-editor';
 import { logger } from '@/lib/logger';
 import { useLintStore } from '@/stores/lint-store';
-import { useRepositoryStore } from '@/stores/repository-store';
+import { useRepositoryStore } from '@/stores/window-scoped-repository-store';
 import type { FileEditorProps } from '@/types/file-editor';
 import { FileEditorContent } from './file-editor/file-editor-content';
 import { FileEditorEmptyState } from './file-editor/file-editor-empty-state';

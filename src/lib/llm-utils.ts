@@ -262,7 +262,7 @@ export async function convertMessages(
 
       for (const attachment of msg.attachments) {
         if (attachment.type === 'image' && attachment.content) {
-          if (modelKey === 'glm-4.6') {
+          if (modelKey === 'glm-4.6' || modelKey === 'glm-4.7') {
             const filePath = attachment.filePath ?? attachment.filename;
             content.push({
               type: 'text' as const,

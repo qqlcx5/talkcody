@@ -24,6 +24,19 @@ import type {
   RepositoryState,
 } from '@/types/file-system';
 
+// Helper function to collect paths for initial expansion
+// Only expand root directory (level 0), all subdirectories are collapsed by default (VS Code behavior)
+const collectInitialExpandedPaths = (
+  node: FileNode,
+  _level = 0,
+  paths: Set<string> = new Set()
+): Set<string> => {
+  if (node.is_directory) {
+    paths.add(node.path);
+  }
+  return paths;
+};
+
 interface RepositoryActions {
   // Actions
   openRepository: (path: string, projectId: string) => Promise<void>;
@@ -50,6 +63,23 @@ interface RepositoryActions {
   toggleExpansion: (path: string) => void;
   getFileLanguage: (filename: string) => string;
   getCacheSize: () => number;
+
+  // Indexing state management
+  indexedFiles: Set<string>;
+  addIndexedFile: (path: string) => void;
+  addIndexedFiles: (paths: string[]) => void;
+  setIndexedFiles: (files: Set<string>) => void;
+  removeIndexedFile: (path: string) => void;
+  clearIndexedFiles: () => void;
+  isFileIndexed: (path: string) => boolean;
+
+  // External file change handling
+  pendingExternalChange: {
+    filePath: string;
+    diskContent: string;
+  } | null;
+  handleExternalFileChange: (filePath: string) => Promise<void>;
+  applyExternalChange: (keepLocal: boolean) => void;
 }
 
 type RepositoryStore = RepositoryState & RepositoryActions;
@@ -68,6 +98,8 @@ function createRepositoryStore() {
     selectedFilePath: null,
     loadingPhase: 'idle',
     indexingProgress: null,
+    indexedFiles: new Set<string>(),
+    pendingExternalChange: null,
 
     // Loading phase setter
     setLoadingPhase: (phase: LoadingPhase) => set({ loadingPhase: phase }),
@@ -145,38 +177,56 @@ function createRepositoryStore() {
 
     // Open a repository
     openRepository: async (path: string, projectId: string) => {
+      logger.info(`[openRepository] Called with path=${path}, projectId=${projectId}`);
+
       // Skip if already opening or already opened the same path
       const currentState = get();
       if (currentState.rootPath === path) {
+        logger.info('[openRepository] Skipping: same path already open');
         return;
       }
       if (currentState.isLoading) {
+        logger.info('[openRepository] Skipping: already loading');
         return;
       }
 
       set({ isLoading: true, error: null });
+      logger.info('[openRepository] Starting to build directory tree...');
 
       try {
         const fileTree = await repositoryService.buildDirectoryTree(path);
+        logger.info(
+          `[openRepository] Directory tree built successfully, root has ${fileTree?.children?.length || 0} children`
+        );
+
         settingsManager.setCurrentRootPath(path);
+        logger.info('[openRepository] Current root path set in settings');
 
         // Set the project if provided
         if (projectId) {
           await settingsManager.setCurrentProjectId(projectId);
+          logger.info('[openRepository] Project ID set in settings');
         }
 
+        // Collect paths for initial expansion (level 0 and 1)
+        const initialExpandedPaths = collectInitialExpandedPaths(fileTree);
+
+        logger.info('[openRepository] About to set store state...');
         set({
           rootPath: path,
           fileTree,
           openFiles: [],
           activeFileIndex: -1,
           isLoading: false,
+          expandedPaths: initialExpandedPaths,
         });
+        logger.info('[openRepository] Store state updated successfully');
 
         // Update window project info in backend
         try {
           const windowLabel = await WindowManagerService.getCurrentWindowLabel();
           await WindowManagerService.updateWindowProject(windowLabel, projectId, path);
+          logger.info('[openRepository] Window project info updated in backend');
         } catch (error) {
           logger.error('Failed to update window project:', error);
         }
@@ -184,12 +234,15 @@ function createRepositoryStore() {
         // Save window state for restoration
         try {
           await WindowRestoreService.saveCurrentWindowState(projectId, path);
+          logger.info('[openRepository] Window state saved');
         } catch (error) {
           logger.error('Failed to save window state:', error);
         }
 
         toast.success(getTranslations().RepositoryStore.success.repositoryOpened);
+        logger.info('[openRepository] Repository opened successfully!');
       } catch (error) {
+        logger.error('[openRepository] Error occurred:', error);
         const errorMessage = (error as Error).message;
         set({
           error: errorMessage,
@@ -581,6 +634,103 @@ function createRepositoryStore() {
     getFileLanguage: (filename: string) => repositoryService.getLanguageFromExtension(filename),
 
     getCacheSize: () => repositoryService.getCacheSize(),
+
+    // Indexing state management
+    addIndexedFile: (path: string) => {
+      set((state) => {
+        const newIndexedFiles = new Set(state.indexedFiles);
+        newIndexedFiles.add(path);
+        return { indexedFiles: newIndexedFiles };
+      });
+    },
+
+    addIndexedFiles: (paths: string[]) => {
+      set((state) => {
+        const newIndexedFiles = new Set(state.indexedFiles);
+        for (const path of paths) {
+          newIndexedFiles.add(path);
+        }
+        return { indexedFiles: newIndexedFiles };
+      });
+    },
+
+    setIndexedFiles: (files: Set<string>) => {
+      set({ indexedFiles: files });
+    },
+
+    removeIndexedFile: (path: string) => {
+      set((state) => {
+        const newIndexedFiles = new Set(state.indexedFiles);
+        newIndexedFiles.delete(path);
+        return { indexedFiles: newIndexedFiles };
+      });
+    },
+
+    clearIndexedFiles: () => {
+      set({ indexedFiles: new Set<string>() });
+    },
+
+    isFileIndexed: (path: string) => {
+      return get().indexedFiles.has(path);
+    },
+
+    // Handle external file change
+    handleExternalFileChange: async (filePath: string) => {
+      const { openFiles } = get();
+      const openFile = openFiles.find((file) => file.path === filePath);
+
+      if (!openFile) return;
+
+      try {
+        // Read latest content from disk
+        repositoryService.invalidateCache(filePath);
+        const diskContent = await repositoryService.readFileWithCache(filePath);
+
+        // If content is the same, no need to update
+        if (openFile.content === diskContent) {
+          return;
+        }
+
+        // If file has unsaved changes, show dialog
+        if (openFile.hasUnsavedChanges) {
+          set({
+            pendingExternalChange: { filePath, diskContent },
+          });
+        } else {
+          // No unsaved changes, silently update
+          set((state) => ({
+            openFiles: state.openFiles.map((file) =>
+              file.path === filePath ? { ...file, content: diskContent } : file
+            ),
+          }));
+        }
+      } catch (error) {
+        logger.error('Failed to handle external file change:', error);
+      }
+    },
+
+    // Apply external change based on user choice
+    applyExternalChange: (keepLocal: boolean) => {
+      const { pendingExternalChange } = get();
+      if (!pendingExternalChange) return;
+
+      const { filePath, diskContent } = pendingExternalChange;
+
+      if (!keepLocal) {
+        // User chose to load disk version
+        set((state) => ({
+          openFiles: state.openFiles.map((file) =>
+            file.path === filePath
+              ? { ...file, content: diskContent, hasUnsavedChanges: false }
+              : file
+          ),
+          pendingExternalChange: null,
+        }));
+      } else {
+        // User chose to keep local changes, just clear dialog state
+        set({ pendingExternalChange: null });
+      }
+    },
   }));
 }
 

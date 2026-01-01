@@ -1,10 +1,13 @@
+use crate::constants::EXCLUDED_DIRS;
 use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
 use std::path::Path;
-use std::sync::{mpsc, Arc, atomic::{AtomicBool, Ordering}};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    mpsc, Arc,
+};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter};
-use crate::constants::EXCLUDED_DIRS;
 
 pub struct FileWatcher {
     _watcher: RecommendedWatcher,
@@ -106,7 +109,9 @@ impl FileWatcher {
                             | notify::EventKind::Modify(notify::event::ModifyKind::Name(_))
                             | notify::EventKind::Modify(notify::event::ModifyKind::Data(_)) => {
                                 // Check if the event is for files we care about
-                                let relevant_paths: Vec<_> = event.paths.iter()
+                                let relevant_paths: Vec<_> = event
+                                    .paths
+                                    .iter()
                                     .filter(|path| Self::should_watch_path(path))
                                     .cloned()
                                     .collect();
@@ -139,8 +144,11 @@ impl FileWatcher {
                 if pending_emit {
                     let elapsed = Instant::now().duration_since(last_event_time);
                     if elapsed >= debounce_duration {
-                        log::debug!("Emitting debounced file-system-changed event for {} paths to {:?}",
-                            pending_paths.len(), file_window_label);
+                        log::debug!(
+                            "Emitting debounced file-system-changed event for {} paths to {:?}",
+                            pending_paths.len(),
+                            file_window_label
+                        );
 
                         // Emit to specific window if label provided, otherwise broadcast
                         let result = if let Some(ref label) = file_window_label {
@@ -178,11 +186,18 @@ impl FileWatcher {
         let git_path = repo_path.as_ref().join(".git");
 
         if !git_path.exists() {
-            log::info!("No .git directory found at {:?}, skipping git watcher", git_path);
+            log::info!(
+                "No .git directory found at {:?}, skipping git watcher",
+                git_path
+            );
             return Ok(());
         }
 
-        log::info!("Starting git directory watcher for: {:?} (window: {:?})", git_path, window_label);
+        log::info!(
+            "Starting git directory watcher for: {:?} (window: {:?})",
+            git_path,
+            window_label
+        );
 
         // Stop any existing git watcher
         self.stop_git_watcher();
@@ -228,9 +243,10 @@ impl FileWatcher {
                 match receiver.recv_timeout(check_interval) {
                     Ok(Ok(event)) => {
                         // Check if this is a git status-related file change
-                        let is_git_status_change = event.paths.iter().any(|path| {
-                            Self::is_git_status_file(path)
-                        });
+                        let is_git_status_change = event
+                            .paths
+                            .iter()
+                            .any(|path| Self::is_git_status_file(path));
 
                         if is_git_status_change {
                             log::debug!("Git status change detected: {:?}", event.paths);
@@ -256,7 +272,10 @@ impl FileWatcher {
                 if pending_emit {
                     let elapsed = Instant::now().duration_since(last_event_time);
                     if elapsed >= debounce_duration {
-                        log::info!("Emitting debounced git-status-changed event to {:?}", window_label);
+                        log::info!(
+                            "Emitting debounced git-status-changed event to {:?}",
+                            window_label
+                        );
 
                         // Emit to specific window if label provided, otherwise broadcast
                         let result = if let Some(ref label) = window_label {
@@ -326,8 +345,17 @@ impl FileWatcher {
         if let Some(extension) = path.extension() {
             let ext_str = extension.to_string_lossy().to_lowercase();
             let ignore_extensions = [
-                "tmp", "temp", "log", "cache", "lock", "swp", "swo", "bak",
-                "DS_Store", "Thumbs.db", "desktop.ini",
+                "tmp",
+                "temp",
+                "log",
+                "cache",
+                "lock",
+                "swp",
+                "swo",
+                "bak",
+                "DS_Store",
+                "Thumbs.db",
+                "desktop.ini",
             ];
 
             if ignore_extensions.contains(&ext_str.as_str()) {
@@ -357,7 +385,9 @@ impl FileWatcher {
         // .git/CHERRY_PICK_HEAD - cherry-pick state
         // .git/ORIG_HEAD - original head before dangerous operations
 
-        if path_str.ends_with(".git/index") || (path_str.contains(".git/index") && !path_str.ends_with(".lock")) {
+        if path_str.ends_with(".git/index")
+            || (path_str.contains(".git/index") && !path_str.ends_with(".lock"))
+        {
             return true;
         }
         // Only match .git/HEAD, not logs/HEAD or other HEAD files
@@ -373,7 +403,8 @@ impl FileWatcher {
         if path_str.ends_with("MERGE_HEAD")
             || path_str.ends_with("REBASE_HEAD")
             || path_str.ends_with("CHERRY_PICK_HEAD")
-            || path_str.ends_with("ORIG_HEAD") {
+            || path_str.ends_with("ORIG_HEAD")
+        {
             return true;
         }
 
@@ -394,79 +425,131 @@ mod tests {
 
     #[test]
     fn test_is_git_status_file_matches_index() {
-        assert!(FileWatcher::is_git_status_file(Path::new("/repo/.git/index")));
+        assert!(FileWatcher::is_git_status_file(Path::new(
+            "/repo/.git/index"
+        )));
     }
 
     #[test]
     fn test_is_git_status_file_matches_head() {
-        assert!(FileWatcher::is_git_status_file(Path::new("/repo/.git/HEAD")));
+        assert!(FileWatcher::is_git_status_file(Path::new(
+            "/repo/.git/HEAD"
+        )));
         // refs/heads/HEAD is actually a branch named HEAD (rare but valid), still matches via refs/heads/
-        assert!(FileWatcher::is_git_status_file(Path::new("/repo/.git/refs/heads/HEAD")));
+        assert!(FileWatcher::is_git_status_file(Path::new(
+            "/repo/.git/refs/heads/HEAD"
+        )));
     }
 
     #[test]
     fn test_is_git_status_file_matches_refs_heads() {
-        assert!(FileWatcher::is_git_status_file(Path::new("/repo/.git/refs/heads/main")));
-        assert!(FileWatcher::is_git_status_file(Path::new("/repo/.git/refs/heads/feature/branch")));
+        assert!(FileWatcher::is_git_status_file(Path::new(
+            "/repo/.git/refs/heads/main"
+        )));
+        assert!(FileWatcher::is_git_status_file(Path::new(
+            "/repo/.git/refs/heads/feature/branch"
+        )));
     }
 
     #[test]
     fn test_is_git_status_file_matches_refs_remotes() {
-        assert!(FileWatcher::is_git_status_file(Path::new("/repo/.git/refs/remotes/origin/main")));
-        assert!(FileWatcher::is_git_status_file(Path::new("/repo/.git/refs/remotes/upstream/develop")));
+        assert!(FileWatcher::is_git_status_file(Path::new(
+            "/repo/.git/refs/remotes/origin/main"
+        )));
+        assert!(FileWatcher::is_git_status_file(Path::new(
+            "/repo/.git/refs/remotes/upstream/develop"
+        )));
     }
 
     #[test]
     fn test_is_git_status_file_matches_special_heads() {
-        assert!(FileWatcher::is_git_status_file(Path::new("/repo/.git/MERGE_HEAD")));
-        assert!(FileWatcher::is_git_status_file(Path::new("/repo/.git/REBASE_HEAD")));
-        assert!(FileWatcher::is_git_status_file(Path::new("/repo/.git/CHERRY_PICK_HEAD")));
-        assert!(FileWatcher::is_git_status_file(Path::new("/repo/.git/ORIG_HEAD")));
+        assert!(FileWatcher::is_git_status_file(Path::new(
+            "/repo/.git/MERGE_HEAD"
+        )));
+        assert!(FileWatcher::is_git_status_file(Path::new(
+            "/repo/.git/REBASE_HEAD"
+        )));
+        assert!(FileWatcher::is_git_status_file(Path::new(
+            "/repo/.git/CHERRY_PICK_HEAD"
+        )));
+        assert!(FileWatcher::is_git_status_file(Path::new(
+            "/repo/.git/ORIG_HEAD"
+        )));
     }
 
     #[test]
     fn test_is_git_status_file_ignores_lock_files() {
-        assert!(!FileWatcher::is_git_status_file(Path::new("/repo/.git/index.lock")));
-        assert!(!FileWatcher::is_git_status_file(Path::new("/repo/.git/refs/heads/main.lock")));
-        assert!(!FileWatcher::is_git_status_file(Path::new("/repo/.git/HEAD.lock")));
+        assert!(!FileWatcher::is_git_status_file(Path::new(
+            "/repo/.git/index.lock"
+        )));
+        assert!(!FileWatcher::is_git_status_file(Path::new(
+            "/repo/.git/refs/heads/main.lock"
+        )));
+        assert!(!FileWatcher::is_git_status_file(Path::new(
+            "/repo/.git/HEAD.lock"
+        )));
     }
 
     #[test]
     fn test_is_git_status_file_ignores_other_git_files() {
-        assert!(!FileWatcher::is_git_status_file(Path::new("/repo/.git/config")));
-        assert!(!FileWatcher::is_git_status_file(Path::new("/repo/.git/description")));
-        assert!(!FileWatcher::is_git_status_file(Path::new("/repo/.git/objects/pack/pack-abc.idx")));
-        assert!(!FileWatcher::is_git_status_file(Path::new("/repo/.git/COMMIT_EDITMSG")));
-        assert!(!FileWatcher::is_git_status_file(Path::new("/repo/.git/logs/HEAD")));
+        assert!(!FileWatcher::is_git_status_file(Path::new(
+            "/repo/.git/config"
+        )));
+        assert!(!FileWatcher::is_git_status_file(Path::new(
+            "/repo/.git/description"
+        )));
+        assert!(!FileWatcher::is_git_status_file(Path::new(
+            "/repo/.git/objects/pack/pack-abc.idx"
+        )));
+        assert!(!FileWatcher::is_git_status_file(Path::new(
+            "/repo/.git/COMMIT_EDITMSG"
+        )));
+        assert!(!FileWatcher::is_git_status_file(Path::new(
+            "/repo/.git/logs/HEAD"
+        )));
     }
 
     #[test]
     fn test_should_watch_path_normal_files() {
-        assert!(FileWatcher::should_watch_path(Path::new("/repo/src/main.rs")));
-        assert!(FileWatcher::should_watch_path(Path::new("/repo/package.json")));
+        assert!(FileWatcher::should_watch_path(Path::new(
+            "/repo/src/main.rs"
+        )));
+        assert!(FileWatcher::should_watch_path(Path::new(
+            "/repo/package.json"
+        )));
         assert!(FileWatcher::should_watch_path(Path::new("/repo/README.md")));
     }
 
     #[test]
     fn test_should_watch_path_excludes_node_modules() {
-        assert!(!FileWatcher::should_watch_path(Path::new("/repo/node_modules/package/index.js")));
+        assert!(!FileWatcher::should_watch_path(Path::new(
+            "/repo/node_modules/package/index.js"
+        )));
     }
 
     #[test]
     fn test_should_watch_path_excludes_git_dir() {
-        assert!(!FileWatcher::should_watch_path(Path::new("/repo/.git/objects/abc")));
-        assert!(!FileWatcher::should_watch_path(Path::new("/repo/.git/config")));
+        assert!(!FileWatcher::should_watch_path(Path::new(
+            "/repo/.git/objects/abc"
+        )));
+        assert!(!FileWatcher::should_watch_path(Path::new(
+            "/repo/.git/config"
+        )));
     }
 
     #[test]
     fn test_should_watch_path_excludes_target_dir() {
-        assert!(!FileWatcher::should_watch_path(Path::new("/repo/target/debug/deps/lib.rlib")));
+        assert!(!FileWatcher::should_watch_path(Path::new(
+            "/repo/target/debug/deps/lib.rlib"
+        )));
     }
 
     #[test]
     fn test_should_watch_path_excludes_temp_files() {
         assert!(!FileWatcher::should_watch_path(Path::new("/repo/file.tmp")));
-        assert!(!FileWatcher::should_watch_path(Path::new("/repo/file.temp")));
+        assert!(!FileWatcher::should_watch_path(Path::new(
+            "/repo/file.temp"
+        )));
         assert!(!FileWatcher::should_watch_path(Path::new("/repo/file.swp")));
         assert!(!FileWatcher::should_watch_path(Path::new("/repo/file.bak")));
     }
@@ -478,9 +561,13 @@ mod tests {
 
     #[test]
     fn test_should_watch_path_excludes_lock_files() {
-        assert!(!FileWatcher::should_watch_path(Path::new("/repo/package-lock.json.lock")));
+        assert!(!FileWatcher::should_watch_path(Path::new(
+            "/repo/package-lock.json.lock"
+        )));
         // Note: package-lock.json itself should be watched as it has .json extension
-        assert!(FileWatcher::should_watch_path(Path::new("/repo/package-lock.json")));
+        assert!(FileWatcher::should_watch_path(Path::new(
+            "/repo/package-lock.json"
+        )));
     }
 
     // Test for trailing-edge debounce behavior simulation
@@ -518,7 +605,10 @@ mod tests {
         }
 
         // With trailing-edge debounce, we should emit exactly once after all events
-        assert_eq!(emit_count, 1, "Should emit exactly once after debounce window");
+        assert_eq!(
+            emit_count, 1,
+            "Should emit exactly once after debounce window"
+        );
         assert!(!pending_emit, "Pending flag should be cleared after emit");
     }
 

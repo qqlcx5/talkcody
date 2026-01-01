@@ -12,6 +12,7 @@ import { useLspStore } from '@/stores/lsp-store';
 const LSP_SUPPORTED_LANGUAGES = [
   { name: 'TypeScript', extensions: '.ts, .tsx' },
   { name: 'JavaScript', extensions: '.js, .jsx' },
+  { name: 'Vue', extensions: '.vue' },
   { name: 'Rust', extensions: '.rs' },
   { name: 'Python', extensions: '.py' },
   { name: 'Go', extensions: '.go' },

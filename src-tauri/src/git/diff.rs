@@ -1,5 +1,5 @@
-use git2::{Diff, DiffOptions, Repository, Error as GitError};
-use super::types::{FileDiff, DiffHunk, DiffLine, DiffLineType, GitFileStatus};
+use super::types::{DiffHunk, DiffLine, DiffLineType, FileDiff, GitFileStatus};
+use git2::{Diff, DiffOptions, Error as GitError, Repository};
 use lazy_static::lazy_static;
 use lru::LruCache;
 use std::num::NonZeroUsize;
@@ -52,7 +52,9 @@ fn parse_diff(diff: Diff, file_path: &str) -> Result<FileDiff, GitError> {
                 git2::Delta::Deleted => GitFileStatus::Deleted,
                 git2::Delta::Modified => GitFileStatus::Modified,
                 git2::Delta::Renamed => {
-                    *old_path_clone.borrow_mut() = delta.old_file().path()
+                    *old_path_clone.borrow_mut() = delta
+                        .old_file()
+                        .path()
                         .and_then(|p| p.to_str())
                         .map(|s| s.to_string());
                     GitFileStatus::Renamed
@@ -182,7 +184,11 @@ pub fn get_line_changes(
     // Store in cache
     if let Ok(mut cache) = LINE_CHANGES_CACHE.lock() {
         cache.put(cache_key, changes.clone());
-        log::debug!("Cached line changes for: {} ({} changes)", file_path, changes.len());
+        log::debug!(
+            "Cached line changes for: {} ({} changes)",
+            file_path,
+            changes.len()
+        );
     }
 
     Ok(changes)
@@ -288,8 +294,8 @@ fn format_diff_as_text(diff: Diff) -> Result<String, GitError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
     use std::process::Command;
+    use tempfile::TempDir;
 
     /// Helper to create a temporary git repository with initial commit
     fn create_temp_git_repo_with_commit() -> TempDir {
@@ -354,12 +360,20 @@ mod tests {
 
         // Add lines to README.md
         let readme = temp_dir.path().join("README.md");
-        std::fs::write(&readme, "# Initial\nLine 2\nLine 3\nNew Line 4\nNew Line 5\n").unwrap();
+        std::fs::write(
+            &readme,
+            "# Initial\nLine 2\nLine 3\nNew Line 4\nNew Line 5\n",
+        )
+        .unwrap();
 
         let repo = Repository::open(temp_dir.path()).unwrap();
         let diff = get_file_diff(&repo, "README.md").unwrap();
 
-        assert!(diff.additions >= 2, "Expected at least 2 additions, got {}", diff.additions);
+        assert!(
+            diff.additions >= 2,
+            "Expected at least 2 additions, got {}",
+            diff.additions
+        );
     }
 
     #[test]
@@ -373,7 +387,11 @@ mod tests {
         let repo = Repository::open(temp_dir.path()).unwrap();
         let diff = get_file_diff(&repo, "README.md").unwrap();
 
-        assert!(diff.deletions >= 2, "Expected at least 2 deletions, got {}", diff.deletions);
+        assert!(
+            diff.deletions >= 2,
+            "Expected at least 2 deletions, got {}",
+            diff.deletions
+        );
     }
 
     #[test]
@@ -391,10 +409,17 @@ mod tests {
         assert!(!changes.is_empty(), "Expected some line changes");
 
         // Check that changes contain the expected types
-        let has_addition = changes.iter().any(|(_, t)| matches!(t, DiffLineType::Addition));
-        let has_deletion = changes.iter().any(|(_, t)| matches!(t, DiffLineType::Deletion));
+        let has_addition = changes
+            .iter()
+            .any(|(_, t)| matches!(t, DiffLineType::Addition));
+        let has_deletion = changes
+            .iter()
+            .any(|(_, t)| matches!(t, DiffLineType::Deletion));
 
-        assert!(has_addition || has_deletion, "Expected addition or deletion changes");
+        assert!(
+            has_addition || has_deletion,
+            "Expected addition or deletion changes"
+        );
     }
 
     #[test]
@@ -438,7 +463,11 @@ mod tests {
             .unwrap();
 
         // Modify the file
-        std::fs::write(&code_file, "fn main() {\n    println!(\"goodbye\");\n    // comment\n}\n").unwrap();
+        std::fs::write(
+            &code_file,
+            "fn main() {\n    println!(\"goodbye\");\n    // comment\n}\n",
+        )
+        .unwrap();
 
         let repo = Repository::open(temp_dir.path()).unwrap();
         let diff = get_file_diff(&repo, "code.rs").unwrap();
@@ -464,7 +493,9 @@ mod tests {
         let diff = get_file_diff(&repo, "README.md").unwrap();
 
         // Check that we have addition lines in hunks
-        let has_addition_line = diff.hunks.iter()
+        let has_addition_line = diff
+            .hunks
+            .iter()
             .flat_map(|h| &h.lines)
             .any(|l| matches!(l.line_type, DiffLineType::Addition));
 
@@ -486,15 +517,23 @@ mod tests {
             for line in &hunk.lines {
                 match line.line_type {
                     DiffLineType::Addition => {
-                        assert!(line.new_line_number.is_some(), "Addition should have new line number");
+                        assert!(
+                            line.new_line_number.is_some(),
+                            "Addition should have new line number"
+                        );
                     }
                     DiffLineType::Deletion => {
-                        assert!(line.old_line_number.is_some(), "Deletion should have old line number");
+                        assert!(
+                            line.old_line_number.is_some(),
+                            "Deletion should have old line number"
+                        );
                     }
                     DiffLineType::Context => {
                         // Context lines should have both
-                        assert!(line.old_line_number.is_some() || line.new_line_number.is_some(),
-                            "Context should have line numbers");
+                        assert!(
+                            line.old_line_number.is_some() || line.new_line_number.is_some(),
+                            "Context should have line numbers"
+                        );
                     }
                 }
             }

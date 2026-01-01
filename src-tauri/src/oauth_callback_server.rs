@@ -113,7 +113,8 @@ fn generate_error_html(error: &str) -> String {
         .replace('>', "&gt;")
         .replace('"', "&quot;");
 
-    format!(r#"<!DOCTYPE html>
+    format!(
+        r#"<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -181,7 +182,9 @@ fn generate_error_html(error: &str) -> String {
         </div>
     </div>
 </body>
-</html>"#, escaped_error)
+</html>"#,
+        escaped_error
+    )
 }
 
 /// URL decode a string
@@ -275,7 +278,10 @@ pub async fn start_oauth_callback_server(
     thread::spawn(move || {
         thread::sleep(Duration::from_secs(SERVER_TIMEOUT_SECS));
         if !shutdown_flag_timeout.load(Ordering::SeqCst) {
-            log::info!("OAuth callback server timed out after {} seconds", SERVER_TIMEOUT_SECS);
+            log::info!(
+                "OAuth callback server timed out after {} seconds",
+                SERVER_TIMEOUT_SECS
+            );
             shutdown_flag_timeout.store(true, Ordering::SeqCst);
         }
     });
@@ -333,8 +339,7 @@ fn run_callback_server(
         // Only handle callback path
         if !url.starts_with(CALLBACK_PATH) {
             // Return 404 for other requests
-            let response = tiny_http::Response::from_string("Not Found")
-                .with_status_code(404);
+            let response = tiny_http::Response::from_string("Not Found").with_status_code(404);
             let _ = request.respond(response);
             continue;
         }
@@ -347,7 +352,11 @@ fn run_callback_server(
                 let response = tiny_http::Response::from_string(html)
                     .with_status_code(400)
                     .with_header(
-                        tiny_http::Header::from_bytes(&b"Content-Type"[..], &b"text/html; charset=utf-8"[..]).unwrap()
+                        tiny_http::Header::from_bytes(
+                            &b"Content-Type"[..],
+                            &b"text/html; charset=utf-8"[..],
+                        )
+                        .unwrap(),
                     );
                 let _ = request.respond(response);
                 continue;
@@ -362,7 +371,11 @@ fn run_callback_server(
                 let response = tiny_http::Response::from_string(html)
                     .with_status_code(400)
                     .with_header(
-                        tiny_http::Header::from_bytes(&b"Content-Type"[..], &b"text/html; charset=utf-8"[..]).unwrap()
+                        tiny_http::Header::from_bytes(
+                            &b"Content-Type"[..],
+                            &b"text/html; charset=utf-8"[..],
+                        )
+                        .unwrap(),
                     );
                 let _ = request.respond(response);
 
@@ -382,7 +395,11 @@ fn run_callback_server(
             let response = tiny_http::Response::from_string(html)
                 .with_status_code(400)
                 .with_header(
-                    tiny_http::Header::from_bytes(&b"Content-Type"[..], &b"text/html; charset=utf-8"[..]).unwrap()
+                    tiny_http::Header::from_bytes(
+                        &b"Content-Type"[..],
+                        &b"text/html; charset=utf-8"[..],
+                    )
+                    .unwrap(),
                 );
             let _ = request.respond(response);
 
@@ -400,7 +417,11 @@ fn run_callback_server(
         let response = tiny_http::Response::from_string(html)
             .with_status_code(200)
             .with_header(
-                tiny_http::Header::from_bytes(&b"Content-Type"[..], &b"text/html; charset=utf-8"[..]).unwrap()
+                tiny_http::Header::from_bytes(
+                    &b"Content-Type"[..],
+                    &b"text/html; charset=utf-8"[..],
+                )
+                .unwrap(),
             );
         let _ = request.respond(response);
 

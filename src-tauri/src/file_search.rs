@@ -19,9 +19,7 @@ pub struct HighPerformanceFileSearch {
 
 impl Default for HighPerformanceFileSearch {
     fn default() -> Self {
-        Self {
-            max_results: 200,
-        }
+        Self { max_results: 200 }
     }
 }
 
@@ -36,7 +34,11 @@ impl HighPerformanceFileSearch {
     }
 
     /// High-performance file search with fuzzy matching and scoring
-    pub fn search_files(&self, root_path: &str, query: &str) -> Result<Vec<FileSearchResult>, String> {
+    pub fn search_files(
+        &self,
+        root_path: &str,
+        query: &str,
+    ) -> Result<Vec<FileSearchResult>, String> {
         if query.trim().is_empty() {
             return Ok(vec![]);
         }
@@ -50,7 +52,7 @@ impl HighPerformanceFileSearch {
         let mut walker_builder = WalkBuilder::new(root_path);
 
         walker_builder
-            .hidden(false)  // Allow hidden files like .github
+            .hidden(false) // Allow hidden files like .github
             .git_ignore(true)
             .git_global(true)
             .git_exclude(true)
@@ -107,7 +109,10 @@ impl HighPerformanceFileSearch {
 
         // Sort by score (descending) and then by name length (ascending)
         final_results.par_sort_unstable_by(|a, b| {
-            let score_cmp = b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal);
+            let score_cmp = b
+                .score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal);
             if score_cmp != std::cmp::Ordering::Equal {
                 score_cmp
             } else {
@@ -118,7 +123,6 @@ impl HighPerformanceFileSearch {
         final_results.truncate(self.max_results);
         Ok(final_results)
     }
-
 
     /// Parse search query into keywords, splitting on spaces and non-alphanumeric chars
     fn parse_query(query: &str) -> Vec<String> {
@@ -145,11 +149,19 @@ impl HighPerformanceFileSearch {
     }
 
     /// Advanced filename matching with scoring
-    fn match_filename(&self, filename: &str, full_path: &Path, keywords: &[String]) -> Option<FileSearchResult> {
+    fn match_filename(
+        &self,
+        filename: &str,
+        full_path: &Path,
+        keywords: &[String],
+    ) -> Option<FileSearchResult> {
         let filename_lower = filename.to_lowercase();
 
         // Check if all keywords match
-        if !keywords.iter().all(|keyword| self.keyword_matches(&filename_lower, keyword)) {
+        if !keywords
+            .iter()
+            .all(|keyword| self.keyword_matches(&filename_lower, keyword))
+        {
             return None;
         }
 
@@ -262,7 +274,11 @@ impl HighPerformanceFileSearch {
         score -= filename.len() as f64 * 0.1;
 
         // Bonus for common file types
-        if filename.ends_with(".ts") || filename.ends_with(".js") || filename.ends_with(".tsx") || filename.ends_with(".jsx") {
+        if filename.ends_with(".ts")
+            || filename.ends_with(".js")
+            || filename.ends_with(".tsx")
+            || filename.ends_with(".jsx")
+        {
             score += 10.0;
         }
 
@@ -291,8 +307,10 @@ impl HighPerformanceFileSearch {
 
         // Check if keyword appears at start of filename
         if filename.starts_with(keyword) {
-            return filename.len() == keyword.len() ||
-                   separators.iter().any(|&sep| filename.chars().nth(keyword.len()) == Some(sep));
+            return filename.len() == keyword.len()
+                || separators
+                    .iter()
+                    .any(|&sep| filename.chars().nth(keyword.len()) == Some(sep));
         }
 
         // Check if keyword appears after a separator
@@ -300,8 +318,10 @@ impl HighPerformanceFileSearch {
             if separators.contains(&window) {
                 let remaining = &filename[i + 1..];
                 if remaining.starts_with(keyword) {
-                    return remaining.len() == keyword.len() ||
-                           separators.iter().any(|&sep| remaining.chars().nth(keyword.len()) == Some(sep));
+                    return remaining.len() == keyword.len()
+                        || separators
+                            .iter()
+                            .any(|&sep| remaining.chars().nth(keyword.len()) == Some(sep));
                 }
             }
         }
@@ -313,8 +333,8 @@ impl HighPerformanceFileSearch {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
     use std::fs;
+    use tempfile::TempDir;
 
     #[test]
     fn test_github_directory_allowed() {
@@ -322,7 +342,7 @@ mod tests {
 
         // Create .github directory structure
         fs::create_dir_all(temp_dir.path().join(".github/workflows")).unwrap();
-        
+
         // Create a .yml file in .github directory
         let yml_content = r#"
 name: CI
@@ -339,21 +359,19 @@ jobs:
         fs::write(&target_path, yml_content).unwrap();
 
         let search = HighPerformanceFileSearch::new();
-        
+
         // Search for .yml files
-        let results = search.search_files(
-            temp_dir.path().to_str().unwrap(),
-            "ci.yml"
-        ).unwrap();
+        let results = search
+            .search_files(temp_dir.path().to_str().unwrap(), "ci.yml")
+            .unwrap();
 
         // Should find the ci.yml file
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].name, "ci.yml");
-        
+
         // Check that the file is in .github directory (cross-platform)
         let result_path = std::path::Path::new(&results[0].path);
-        let is_in_github = result_path.components()
-            .any(|c| c.as_os_str() == ".github");
+        let is_in_github = result_path.components().any(|c| c.as_os_str() == ".github");
         assert!(is_in_github, "File should be in .github directory");
     }
 
@@ -363,25 +381,26 @@ jobs:
 
         // Create .github directory structure
         fs::create_dir_all(temp_dir.path().join(".github/workflows")).unwrap();
-        
+
         // Create multiple yml files in .github directory
         fs::write(
             temp_dir.path().join(".github/workflows/release.yml"),
-            "name: Release"
-        ).unwrap();
-        
+            "name: Release",
+        )
+        .unwrap();
+
         fs::write(
             temp_dir.path().join(".github/workflows/test.yml"),
-            "name: Test"
-        ).unwrap();
+            "name: Test",
+        )
+        .unwrap();
 
         let search = HighPerformanceFileSearch::new();
-        
+
         // Search for .yml files
-        let results = search.search_files(
-            temp_dir.path().to_str().unwrap(),
-            "yml"
-        ).unwrap();
+        let results = search
+            .search_files(temp_dir.path().to_str().unwrap(), "yml")
+            .unwrap();
 
         // Should find both .yml files
         assert_eq!(results.len(), 2);

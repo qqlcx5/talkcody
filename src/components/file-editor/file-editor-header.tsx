@@ -7,7 +7,7 @@ import { projectIndexer } from '@/services/project-indexer';
 import { repositoryService } from '@/services/repository-service';
 import { getRelativePath } from '@/services/repository-utils';
 import { useLintStore } from '@/stores/lint-store';
-import { useRepositoryStore } from '@/stores/repository-store';
+import { useRepositoryStore } from '@/stores/window-scoped-repository-store';
 import type { AICompletionState } from '@/types/file-editor';
 import { formatLastSavedTime } from '@/utils/monaco-utils';
 

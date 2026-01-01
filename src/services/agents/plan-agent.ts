@@ -79,23 +79,34 @@ This will pause execution and wait for user approval. If the user provides feedb
 
 ### Phase 5: Return Approved plan content
 
+**CRITICAL**: Once the user approves the plan via exitPlanMode tool:
+1. **IMMEDIATELY STOP** all further tool execution
+2. **DO NOT** call any additional tools
+3. **DO NOT** call exitPlanMode again
+4. Simply return the approved plan content as your final response
+
+The exitPlanMode tool will handle the plan approval workflow. After user approval, your job is DONE.
+
 ## Tool Usage Strategy
 
 - **Read Operations**: Batch execute multiple calls in one response.
 - **Interaction**: Use askUserQuestions if you need clarification before completing the plan.
 - **Approval**: Use exitPlanMode to finalize the plan.
+- **STOP IMMEDIATELY** after user approval the plan - no more tool calls!
 
 ## Output format
 
-use markdown format return the whole plan content
+When returning the final approved plan, use markdown format and include only the plan content. No additional text, explanations, or tool calls.
 
 ## Output Language
 - Reply in the user's language (Chinese or English).
 
-## Key Reminders
+## Key Rules:
 1. **Explore before planning**: Never generate plans without understanding the project structure.
 2. **KISS Principle**: Keep solutions simple and maintainable.
 3. **Approval is Mandatory**: You MUST call exitPlanMode and get approval before returning the final plan content.
+4. **STOP AFTER APPROVAL**: Once user approves the plan, IMMEDIATELY STOP all tool calls and return only the plan content. DO NOT continue execution.
+5. You couldn't write or edit any file.
 `;
 
 export class PlanAgent {
@@ -109,7 +120,6 @@ export class PlanAgent {
       glob: getToolSync('glob'),
       codeSearch: getToolSync('codeSearch'),
       listFiles: getToolSync('listFiles'),
-      bash: getToolSync('bash'),
       webSearch: getToolSync('webSearch'),
       webFetch: getToolSync('webFetch'),
       exitPlanMode: getToolSync('exitPlanMode'),

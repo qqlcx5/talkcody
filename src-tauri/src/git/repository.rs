@@ -1,6 +1,6 @@
-use git2::{Repository, Error as GitError};
-use std::path::Path;
 use super::types::BranchInfo;
+use git2::{Error as GitError, Repository};
+use std::path::Path;
 
 /// Discovers a Git repository starting from the given path
 /// This will search upward from the given path until a .git directory is found
@@ -33,9 +33,9 @@ pub fn get_current_branch(repo: &Repository) -> Result<BranchInfo, GitError> {
         })
     } else {
         // Detached HEAD state
-        let oid = head.target().ok_or_else(|| {
-            GitError::from_str("HEAD has no target")
-        })?;
+        let oid = head
+            .target()
+            .ok_or_else(|| GitError::from_str("HEAD has no target"))?;
 
         Ok(BranchInfo {
             name: format!("detached at {}", &oid.to_string()[..7]),
@@ -66,26 +66,21 @@ fn get_upstream_info(
 
     match branch.upstream() {
         Ok(upstream_branch) => {
-            let upstream_name = upstream_branch
-                .name()?
-                .map(|s| s.to_string());
+            let upstream_name = upstream_branch.name()?.map(|s| s.to_string());
 
             // Calculate ahead/behind
-            let local_oid = reference.target().ok_or_else(|| {
-                GitError::from_str("Local branch has no target")
-            })?;
+            let local_oid = reference
+                .target()
+                .ok_or_else(|| GitError::from_str("Local branch has no target"))?;
 
-            let upstream_oid = upstream_branch.get().target().ok_or_else(|| {
-                GitError::from_str("Upstream branch has no target")
-            })?;
+            let upstream_oid = upstream_branch
+                .get()
+                .target()
+                .ok_or_else(|| GitError::from_str("Upstream branch has no target"))?;
 
             match repo.graph_ahead_behind(local_oid, upstream_oid) {
-                Ok((ahead, behind)) => {
-                    Ok((upstream_name, Some(ahead), Some(behind)))
-                }
-                Err(_) => {
-                    Ok((upstream_name, None, None))
-                }
+                Ok((ahead, behind)) => Ok((upstream_name, Some(ahead), Some(behind))),
+                Err(_) => Ok((upstream_name, None, None)),
             }
         }
         Err(_) => {
@@ -105,8 +100,8 @@ pub fn get_repository_root(repo: &Repository) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
     use std::process::Command;
+    use tempfile::TempDir;
 
     /// Helper to create a temporary git repository
     fn create_temp_git_repo() -> TempDir {
@@ -138,7 +133,10 @@ mod tests {
         let temp_dir = create_temp_git_repo();
 
         let result = discover_repository(temp_dir.path());
-        assert!(result.is_ok(), "Should discover repository in git directory");
+        assert!(
+            result.is_ok(),
+            "Should discover repository in git directory"
+        );
 
         let repo = result.unwrap();
         assert!(repo.workdir().is_some());
@@ -154,7 +152,10 @@ mod tests {
 
         // Should discover repo from subdirectory
         let result = discover_repository(&subdir);
-        assert!(result.is_ok(), "Should discover repository from subdirectory");
+        assert!(
+            result.is_ok(),
+            "Should discover repository from subdirectory"
+        );
     }
 
     #[test]
@@ -163,14 +164,20 @@ mod tests {
         // This is NOT a git repo
 
         let result = discover_repository(temp_dir.path());
-        assert!(result.is_err(), "Should fail to discover repository in non-git directory");
+        assert!(
+            result.is_err(),
+            "Should fail to discover repository in non-git directory"
+        );
     }
 
     #[test]
     fn test_is_git_repository_true() {
         let temp_dir = create_temp_git_repo();
 
-        assert!(is_git_repository(temp_dir.path()), "Should identify as git repository");
+        assert!(
+            is_git_repository(temp_dir.path()),
+            "Should identify as git repository"
+        );
     }
 
     #[test]
@@ -178,7 +185,10 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         // This is NOT a git repo
 
-        assert!(!is_git_repository(temp_dir.path()), "Should not identify as git repository");
+        assert!(
+            !is_git_repository(temp_dir.path()),
+            "Should not identify as git repository"
+        );
     }
 
     #[test]

@@ -1,10 +1,10 @@
 // Database module using libsql for Turso integration
 use libsql::Builder;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 use std::path::Path;
-use tokio::sync::Mutex;
+use std::sync::Arc;
 use tauri::State;
+use tokio::sync::Mutex;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct QueryResult {
@@ -55,11 +55,20 @@ impl Database {
         Ok(())
     }
 
-    pub async fn execute(&self, sql: &str, params: Vec<serde_json::Value>) -> Result<QueryResult, String> {
+    pub async fn execute(
+        &self,
+        sql: &str,
+        params: Vec<serde_json::Value>,
+    ) -> Result<QueryResult, String> {
         self.execute_with_retry(sql, params, 3).await
     }
 
-    async fn execute_with_retry(&self, sql: &str, params: Vec<serde_json::Value>, max_retries: u32) -> Result<QueryResult, String> {
+    async fn execute_with_retry(
+        &self,
+        sql: &str,
+        params: Vec<serde_json::Value>,
+        max_retries: u32,
+    ) -> Result<QueryResult, String> {
         let mut attempt = 0;
 
         loop {
@@ -67,10 +76,8 @@ impl Database {
             let conn = lock.as_ref().ok_or("Database not connected")?;
 
             // Convert JSON values to libsql Values
-            let libsql_params: Vec<libsql::Value> = params
-                .iter()
-                .map(|v| json_to_libsql_value(v))
-                .collect();
+            let libsql_params: Vec<libsql::Value> =
+                params.iter().map(|v| json_to_libsql_value(v)).collect();
 
             // Check if this is a SELECT query - if so, use query() instead
             let sql_trimmed = sql.trim_start().to_uppercase();
@@ -83,7 +90,10 @@ impl Database {
                         if Self::is_busy_error(&error_msg) && attempt < max_retries {
                             drop(lock);
                             attempt += 1;
-                            tokio::time::sleep(tokio::time::Duration::from_millis(10 * attempt as u64)).await;
+                            tokio::time::sleep(tokio::time::Duration::from_millis(
+                                10 * attempt as u64,
+                            ))
+                            .await;
                             continue;
                         }
                         return Err(error_msg);
@@ -97,7 +107,10 @@ impl Database {
                         if Self::is_busy_error(&error_msg) && attempt < max_retries {
                             drop(lock);
                             attempt += 1;
-                            tokio::time::sleep(tokio::time::Duration::from_millis(10 * attempt as u64)).await;
+                            tokio::time::sleep(tokio::time::Duration::from_millis(
+                                10 * attempt as u64,
+                            ))
+                            .await;
                             continue;
                         }
                         return Err(error_msg);
@@ -106,13 +119,22 @@ impl Database {
 
                 let mut rows = Vec::new();
 
-                while let Some(row) = rows_result.next().await.map_err(|e| format!("Row fetch error: {}", e))? {
+                while let Some(row) = rows_result
+                    .next()
+                    .await
+                    .map_err(|e| format!("Row fetch error: {}", e))?
+                {
                     let mut row_obj = serde_json::Map::new();
                     let column_count = row.column_count();
 
                     for i in 0..column_count {
-                        let value = row.get_value(i).map_err(|e| format!("Get value error: {}", e))?;
-                        let column_name = row.column_name(i).unwrap_or(&format!("column_{}", i)).to_string();
+                        let value = row
+                            .get_value(i)
+                            .map_err(|e| format!("Get value error: {}", e))?;
+                        let column_name = row
+                            .column_name(i)
+                            .unwrap_or(&format!("column_{}", i))
+                            .to_string();
                         row_obj.insert(column_name, libsql_value_to_json(&value));
                     }
 
@@ -135,7 +157,10 @@ impl Database {
                         if Self::is_busy_error(&error_msg) && attempt < max_retries {
                             drop(lock);
                             attempt += 1;
-                            tokio::time::sleep(tokio::time::Duration::from_millis(10 * attempt as u64)).await;
+                            tokio::time::sleep(tokio::time::Duration::from_millis(
+                                10 * attempt as u64,
+                            ))
+                            .await;
                             continue;
                         }
                         Err(error_msg)
@@ -151,15 +176,17 @@ impl Database {
         error_msg.contains("database is locked") || error_msg.contains("SQLITE_BUSY")
     }
 
-    pub async fn query(&self, sql: &str, params: Vec<serde_json::Value>) -> Result<QueryResult, String> {
+    pub async fn query(
+        &self,
+        sql: &str,
+        params: Vec<serde_json::Value>,
+    ) -> Result<QueryResult, String> {
         let lock = self.conn.lock().await;
         let conn = lock.as_ref().ok_or("Database not connected")?;
 
         // Convert JSON values to libsql Values
-        let libsql_params: Vec<libsql::Value> = params
-            .iter()
-            .map(|v| json_to_libsql_value(v))
-            .collect();
+        let libsql_params: Vec<libsql::Value> =
+            params.iter().map(|v| json_to_libsql_value(v)).collect();
 
         let stmt = conn
             .prepare(sql)
@@ -173,15 +200,24 @@ impl Database {
 
         let mut rows = Vec::new();
 
-        while let Some(row) = rows_result.next().await.map_err(|e| format!("Row fetch error: {}", e))? {
+        while let Some(row) = rows_result
+            .next()
+            .await
+            .map_err(|e| format!("Row fetch error: {}", e))?
+        {
             let mut row_obj = serde_json::Map::new();
 
             // Get column count
             let column_count = row.column_count();
 
             for i in 0..column_count {
-                let value = row.get_value(i).map_err(|e| format!("Get value error: {}", e))?;
-                let column_name = row.column_name(i).unwrap_or(&format!("column_{}", i)).to_string();
+                let value = row
+                    .get_value(i)
+                    .map_err(|e| format!("Get value error: {}", e))?;
+                let column_name = row
+                    .column_name(i)
+                    .unwrap_or(&format!("column_{}", i))
+                    .to_string();
 
                 row_obj.insert(column_name, libsql_value_to_json(&value));
             }
@@ -195,7 +231,10 @@ impl Database {
         })
     }
 
-    pub async fn batch(&self, statements: Vec<(String, Vec<serde_json::Value>)>) -> Result<Vec<QueryResult>, String> {
+    pub async fn batch(
+        &self,
+        statements: Vec<(String, Vec<serde_json::Value>)>,
+    ) -> Result<Vec<QueryResult>, String> {
         let mut results = Vec::new();
 
         for (sql, params) in statements {
@@ -278,7 +317,8 @@ fn base64_encode(data: &[u8]) -> String {
     use std::io::Write;
     let mut buf = Vec::new();
     {
-        let mut encoder = base64::write::EncoderWriter::new(&mut buf, &base64::engine::general_purpose::STANDARD);
+        let mut encoder =
+            base64::write::EncoderWriter::new(&mut buf, &base64::engine::general_purpose::STANDARD);
         encoder.write_all(data).unwrap();
     }
     String::from_utf8(buf).unwrap()
@@ -328,7 +368,11 @@ mod tests {
         // when they don't exist, preventing the error users experienced.
 
         let temp_dir = TempDir::new().unwrap();
-        let db_path = temp_dir.path().join("nested").join("subdirectory").join("test.db");
+        let db_path = temp_dir
+            .path()
+            .join("nested")
+            .join("subdirectory")
+            .join("test.db");
 
         // Verify parent directory does not exist initially
         assert!(!db_path.parent().unwrap().exists());
@@ -338,10 +382,17 @@ mod tests {
         let result = database.connect().await;
 
         // Verify connection succeeds
-        assert!(result.is_ok(), "Database connection should succeed: {:?}", result);
+        assert!(
+            result.is_ok(),
+            "Database connection should succeed: {:?}",
+            result
+        );
 
         // Verify parent directory was created
-        assert!(db_path.parent().unwrap().exists(), "Parent directory should be created");
+        assert!(
+            db_path.parent().unwrap().exists(),
+            "Parent directory should be created"
+        );
 
         // Verify database file was created
         assert!(db_path.exists(), "Database file should be created");
@@ -362,7 +413,11 @@ mod tests {
         let result = database.connect().await;
 
         // Verify connection succeeds
-        assert!(result.is_ok(), "Database connection should succeed: {:?}", result);
+        assert!(
+            result.is_ok(),
+            "Database connection should succeed: {:?}",
+            result
+        );
 
         // Verify database file was created
         assert!(db_path.exists(), "Database file should be created");
@@ -380,29 +435,51 @@ mod tests {
         database.connect().await.expect("Failed to connect");
 
         // Test CREATE TABLE operation
-        let create_result = database.execute(
-            "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, name TEXT)",
-            vec![]
-        ).await;
-        assert!(create_result.is_ok(), "CREATE TABLE should succeed: {:?}", create_result);
+        let create_result = database
+            .execute(
+                "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, name TEXT)",
+                vec![],
+            )
+            .await;
+        assert!(
+            create_result.is_ok(),
+            "CREATE TABLE should succeed: {:?}",
+            create_result
+        );
 
         // Test INSERT operation
-        let insert_result = database.execute(
-            "INSERT INTO test (id, name) VALUES (?, ?)",
-            vec![
-                serde_json::Value::Number(1.into()),
-                serde_json::Value::String("test".to_string())
-            ]
-        ).await;
-        assert!(insert_result.is_ok(), "INSERT should succeed: {:?}", insert_result);
-        assert_eq!(insert_result.unwrap().rows_affected, 1, "Should insert 1 row");
+        let insert_result = database
+            .execute(
+                "INSERT INTO test (id, name) VALUES (?, ?)",
+                vec![
+                    serde_json::Value::Number(1.into()),
+                    serde_json::Value::String("test".to_string()),
+                ],
+            )
+            .await;
+        assert!(
+            insert_result.is_ok(),
+            "INSERT should succeed: {:?}",
+            insert_result
+        );
+        assert_eq!(
+            insert_result.unwrap().rows_affected,
+            1,
+            "Should insert 1 row"
+        );
 
         // Test SELECT operation
-        let query_result = database.query(
-            "SELECT * FROM test WHERE id = ?",
-            vec![serde_json::Value::Number(1.into())]
-        ).await;
-        assert!(query_result.is_ok(), "SELECT should succeed: {:?}", query_result);
+        let query_result = database
+            .query(
+                "SELECT * FROM test WHERE id = ?",
+                vec![serde_json::Value::Number(1.into())],
+            )
+            .await;
+        assert!(
+            query_result.is_ok(),
+            "SELECT should succeed: {:?}",
+            query_result
+        );
 
         let rows = query_result.unwrap().rows;
         assert_eq!(rows.len(), 1, "Should return 1 row");
@@ -419,7 +496,8 @@ mod tests {
         // This simulates the actual user scenario: /Users/username/Library/Application Support/com.talkcody/
 
         let temp_dir = TempDir::new().unwrap();
-        let db_path = temp_dir.path()
+        let db_path = temp_dir
+            .path()
             .join("Library")
             .join("Application Support")
             .join("com.talkcody")
@@ -433,12 +511,25 @@ mod tests {
         let result = database.connect().await;
 
         // Verify connection succeeds
-        assert!(result.is_ok(), "Database connection should succeed for deeply nested path: {:?}", result);
+        assert!(
+            result.is_ok(),
+            "Database connection should succeed for deeply nested path: {:?}",
+            result
+        );
 
         // Verify all parent directories were created
         assert!(temp_dir.path().join("Library").exists());
-        assert!(temp_dir.path().join("Library").join("Application Support").exists());
-        assert!(temp_dir.path().join("Library").join("Application Support").join("com.talkcody").exists());
+        assert!(temp_dir
+            .path()
+            .join("Library")
+            .join("Application Support")
+            .exists());
+        assert!(temp_dir
+            .path()
+            .join("Library")
+            .join("Application Support")
+            .join("com.talkcody")
+            .exists());
 
         // Verify database file was created
         assert!(db_path.exists(), "Database file should be created");
@@ -477,10 +568,13 @@ mod tests {
         database.connect().await.expect("Failed to connect");
 
         // Create table first
-        database.execute(
-            "CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT, age INTEGER)",
-            vec![]
-        ).await.expect("Failed to create table");
+        database
+            .execute(
+                "CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT, age INTEGER)",
+                vec![],
+            )
+            .await
+            .expect("Failed to create table");
 
         // Execute batch insert operations
         let statements = vec![
@@ -490,7 +584,7 @@ mod tests {
                     serde_json::Value::Number(1.into()),
                     serde_json::Value::String("Alice".to_string()),
                     serde_json::Value::Number(25.into()),
-                ]
+                ],
             ),
             (
                 "INSERT INTO users (id, name, age) VALUES (?, ?, ?)".to_string(),
@@ -498,7 +592,7 @@ mod tests {
                     serde_json::Value::Number(2.into()),
                     serde_json::Value::String("Bob".to_string()),
                     serde_json::Value::Number(30.into()),
-                ]
+                ],
             ),
             (
                 "INSERT INTO users (id, name, age) VALUES (?, ?, ?)".to_string(),
@@ -506,12 +600,16 @@ mod tests {
                     serde_json::Value::Number(3.into()),
                     serde_json::Value::String("Charlie".to_string()),
                     serde_json::Value::Number(35.into()),
-                ]
+                ],
             ),
         ];
 
         let results = database.batch(statements).await;
-        assert!(results.is_ok(), "Batch operation should succeed: {:?}", results);
+        assert!(
+            results.is_ok(),
+            "Batch operation should succeed: {:?}",
+            results
+        );
 
         let results = results.unwrap();
         assert_eq!(results.len(), 3, "Should have 3 results");
@@ -520,7 +618,9 @@ mod tests {
         }
 
         // Verify all rows were inserted
-        let query_result = database.query("SELECT COUNT(*) as count FROM users", vec![]).await;
+        let query_result = database
+            .query("SELECT COUNT(*) as count FROM users", vec![])
+            .await;
         assert!(query_result.is_ok());
         let count = &query_result.unwrap().rows[0]["count"];
         assert_eq!(count, &serde_json::Value::Number(3.into()));
@@ -537,10 +637,13 @@ mod tests {
         database.connect().await.expect("Failed to connect");
 
         // Setup: create table and insert data
-        database.execute(
-            "CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT, price REAL)",
-            vec![]
-        ).await.unwrap();
+        database
+            .execute(
+                "CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT, price REAL)",
+                vec![],
+            )
+            .await
+            .unwrap();
 
         database.execute(
             "INSERT INTO items (id, name, price) VALUES (1, 'Apple', 1.5), (2, 'Banana', 0.75), (3, 'Orange', 2.0)",
@@ -548,15 +651,26 @@ mod tests {
         ).await.unwrap();
 
         // Query all items
-        let result = database.query("SELECT * FROM items ORDER BY id", vec![]).await;
+        let result = database
+            .query("SELECT * FROM items ORDER BY id", vec![])
+            .await;
         assert!(result.is_ok());
 
         let rows = result.unwrap().rows;
         assert_eq!(rows.len(), 3);
 
-        assert_eq!(rows[0]["name"], serde_json::Value::String("Apple".to_string()));
-        assert_eq!(rows[1]["name"], serde_json::Value::String("Banana".to_string()));
-        assert_eq!(rows[2]["name"], serde_json::Value::String("Orange".to_string()));
+        assert_eq!(
+            rows[0]["name"],
+            serde_json::Value::String("Apple".to_string())
+        );
+        assert_eq!(
+            rows[1]["name"],
+            serde_json::Value::String("Banana".to_string())
+        );
+        assert_eq!(
+            rows[2]["name"],
+            serde_json::Value::String("Orange".to_string())
+        );
     }
 
     #[tokio::test]
@@ -570,41 +684,60 @@ mod tests {
         database.connect().await.expect("Failed to connect");
 
         // Setup
-        database.execute(
-            "CREATE TABLE products (id INTEGER PRIMARY KEY, name TEXT, stock INTEGER)",
-            vec![]
-        ).await.unwrap();
+        database
+            .execute(
+                "CREATE TABLE products (id INTEGER PRIMARY KEY, name TEXT, stock INTEGER)",
+                vec![],
+            )
+            .await
+            .unwrap();
 
-        database.execute(
-            "INSERT INTO products (id, name, stock) VALUES (1, 'Widget', 100)",
-            vec![]
-        ).await.unwrap();
+        database
+            .execute(
+                "INSERT INTO products (id, name, stock) VALUES (1, 'Widget', 100)",
+                vec![],
+            )
+            .await
+            .unwrap();
 
         // Test UPDATE
-        let update_result = database.execute(
-            "UPDATE products SET stock = ? WHERE id = ?",
-            vec![
-                serde_json::Value::Number(50.into()),
-                serde_json::Value::Number(1.into()),
-            ]
-        ).await;
+        let update_result = database
+            .execute(
+                "UPDATE products SET stock = ? WHERE id = ?",
+                vec![
+                    serde_json::Value::Number(50.into()),
+                    serde_json::Value::Number(1.into()),
+                ],
+            )
+            .await;
         assert!(update_result.is_ok());
         assert_eq!(update_result.unwrap().rows_affected, 1);
 
         // Verify update
-        let query_result = database.query("SELECT stock FROM products WHERE id = 1", vec![]).await.unwrap();
-        assert_eq!(query_result.rows[0]["stock"], serde_json::Value::Number(50.into()));
+        let query_result = database
+            .query("SELECT stock FROM products WHERE id = 1", vec![])
+            .await
+            .unwrap();
+        assert_eq!(
+            query_result.rows[0]["stock"],
+            serde_json::Value::Number(50.into())
+        );
 
         // Test DELETE
-        let delete_result = database.execute(
-            "DELETE FROM products WHERE id = ?",
-            vec![serde_json::Value::Number(1.into())]
-        ).await;
+        let delete_result = database
+            .execute(
+                "DELETE FROM products WHERE id = ?",
+                vec![serde_json::Value::Number(1.into())],
+            )
+            .await;
         assert!(delete_result.is_ok());
         assert_eq!(delete_result.unwrap().rows_affected, 1);
 
         // Verify delete
-        let query_result = database.query("SELECT * FROM products", vec![]).await.unwrap();
+        let query_result = database
+            .query("SELECT * FROM products", vec![])
+            .await
+            .unwrap();
         assert_eq!(query_result.rows.len(), 0);
     }
 
@@ -618,22 +751,28 @@ mod tests {
         let database = Database::new(db_path.to_string_lossy().to_string());
         database.connect().await.expect("Failed to connect");
 
-        database.execute(
-            "CREATE TABLE nullable (id INTEGER PRIMARY KEY, value TEXT)",
-            vec![]
-        ).await.unwrap();
+        database
+            .execute(
+                "CREATE TABLE nullable (id INTEGER PRIMARY KEY, value TEXT)",
+                vec![],
+            )
+            .await
+            .unwrap();
 
         // Insert NULL value
-        database.execute(
-            "INSERT INTO nullable (id, value) VALUES (?, ?)",
-            vec![
-                serde_json::Value::Number(1.into()),
-                serde_json::Value::Null,
-            ]
-        ).await.unwrap();
+        database
+            .execute(
+                "INSERT INTO nullable (id, value) VALUES (?, ?)",
+                vec![serde_json::Value::Number(1.into()), serde_json::Value::Null],
+            )
+            .await
+            .unwrap();
 
         // Query and verify NULL is returned
-        let result = database.query("SELECT * FROM nullable WHERE id = 1", vec![]).await.unwrap();
+        let result = database
+            .query("SELECT * FROM nullable WHERE id = 1", vec![])
+            .await
+            .unwrap();
         assert_eq!(result.rows[0]["value"], serde_json::Value::Null);
     }
 
@@ -647,33 +786,51 @@ mod tests {
         let database = Database::new(db_path.to_string_lossy().to_string());
         database.connect().await.expect("Failed to connect");
 
-        database.execute(
-            "CREATE TABLE flags (id INTEGER PRIMARY KEY, active INTEGER)",
-            vec![]
-        ).await.unwrap();
+        database
+            .execute(
+                "CREATE TABLE flags (id INTEGER PRIMARY KEY, active INTEGER)",
+                vec![],
+            )
+            .await
+            .unwrap();
 
         // Insert boolean true (should convert to 1)
-        database.execute(
-            "INSERT INTO flags (id, active) VALUES (?, ?)",
-            vec![
-                serde_json::Value::Number(1.into()),
-                serde_json::Value::Bool(true),
-            ]
-        ).await.unwrap();
+        database
+            .execute(
+                "INSERT INTO flags (id, active) VALUES (?, ?)",
+                vec![
+                    serde_json::Value::Number(1.into()),
+                    serde_json::Value::Bool(true),
+                ],
+            )
+            .await
+            .unwrap();
 
         // Insert boolean false (should convert to 0)
-        database.execute(
-            "INSERT INTO flags (id, active) VALUES (?, ?)",
-            vec![
-                serde_json::Value::Number(2.into()),
-                serde_json::Value::Bool(false),
-            ]
-        ).await.unwrap();
+        database
+            .execute(
+                "INSERT INTO flags (id, active) VALUES (?, ?)",
+                vec![
+                    serde_json::Value::Number(2.into()),
+                    serde_json::Value::Bool(false),
+                ],
+            )
+            .await
+            .unwrap();
 
         // Query and verify conversion
-        let result = database.query("SELECT * FROM flags ORDER BY id", vec![]).await.unwrap();
-        assert_eq!(result.rows[0]["active"], serde_json::Value::Number(1.into()));
-        assert_eq!(result.rows[1]["active"], serde_json::Value::Number(0.into()));
+        let result = database
+            .query("SELECT * FROM flags ORDER BY id", vec![])
+            .await
+            .unwrap();
+        assert_eq!(
+            result.rows[0]["active"],
+            serde_json::Value::Number(1.into())
+        );
+        assert_eq!(
+            result.rows[1]["active"],
+            serde_json::Value::Number(0.into())
+        );
     }
 
     #[tokio::test]
@@ -792,7 +949,10 @@ mod tests {
         // Note: NOT calling connect()
 
         let result = database.close().await;
-        assert!(result.is_ok(), "Close should succeed even without prior connect");
+        assert!(
+            result.is_ok(),
+            "Close should succeed even without prior connect"
+        );
     }
 
     #[test]
@@ -850,10 +1010,10 @@ mod tests {
             database.connect().await.expect("Failed to connect");
 
             // Create a table and insert data
-            database.execute(
-                "CREATE TABLE test (id INTEGER PRIMARY KEY)",
-                vec![]
-            ).await.expect("Failed to create table");
+            database
+                .execute("CREATE TABLE test (id INTEGER PRIMARY KEY)", vec![])
+                .await
+                .expect("Failed to create table");
 
             // Close the database
             database.close().await.expect("Failed to close");
@@ -865,7 +1025,11 @@ mod tests {
 
         // On Windows, this would fail if handles weren't released
         let remove_result = std::fs::remove_file(&db_path);
-        assert!(remove_result.is_ok(), "Should be able to remove db file after close: {:?}", remove_result);
+        assert!(
+            remove_result.is_ok(),
+            "Should be able to remove db file after close: {:?}",
+            remove_result
+        );
     }
 
     #[tokio::test]
@@ -881,19 +1045,22 @@ mod tests {
             database.connect().await.expect("Failed to connect");
 
             // Perform some writes to ensure WAL files are created
-            database.execute(
-                "CREATE TABLE test (id INTEGER, data TEXT)",
-                vec![]
-            ).await.expect("Failed to create table");
+            database
+                .execute("CREATE TABLE test (id INTEGER, data TEXT)", vec![])
+                .await
+                .expect("Failed to create table");
 
             for i in 0..10 {
-                database.execute(
-                    "INSERT INTO test (id, data) VALUES (?, ?)",
-                    vec![
-                        serde_json::Value::Number(i.into()),
-                        serde_json::Value::String(format!("data_{}", i)),
-                    ]
-                ).await.expect("Failed to insert");
+                database
+                    .execute(
+                        "INSERT INTO test (id, data) VALUES (?, ?)",
+                        vec![
+                            serde_json::Value::Number(i.into()),
+                            serde_json::Value::String(format!("data_{}", i)),
+                        ],
+                    )
+                    .await
+                    .expect("Failed to insert");
             }
 
             // Close the database
@@ -908,11 +1075,19 @@ mod tests {
         // but if they exist, they should be removable
         if wal_path.exists() {
             let result = std::fs::remove_file(&wal_path);
-            assert!(result.is_ok(), "Should be able to remove WAL file: {:?}", result);
+            assert!(
+                result.is_ok(),
+                "Should be able to remove WAL file: {:?}",
+                result
+            );
         }
         if shm_path.exists() {
             let result = std::fs::remove_file(&shm_path);
-            assert!(result.is_ok(), "Should be able to remove SHM file: {:?}", result);
+            assert!(
+                result.is_ok(),
+                "Should be able to remove SHM file: {:?}",
+                result
+            );
         }
     }
 }

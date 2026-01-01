@@ -4,7 +4,7 @@ import { logger } from '@/lib/logger';
 import { fastDirectoryTreeService } from '@/services/fast-directory-tree-service';
 import { WindowManagerService } from '@/services/window-manager-service';
 import { useGitStore } from '@/stores/git-store';
-import { useRepositoryStore } from '@/stores/repository-store';
+import { useRepositoryStore } from '@/stores/window-scoped-repository-store';
 
 const GIT_STATUS_DEBOUNCE_DELAY = 300; // ms
 const FILE_TREE_DEBOUNCE_DELAY = 200; // ms
@@ -41,6 +41,18 @@ const normalizeFileSystemPaths = (payload: unknown): string[] => {
 export function useRepositoryWatcher() {
   const rootPath = useRepositoryStore((state) => state.rootPath);
   const refreshFileTree = useRepositoryStore((state) => state.refreshFileTree);
+  const openFiles = useRepositoryStore((state) => state.openFiles);
+  const handleExternalFileChange = useRepositoryStore((state) => state.handleExternalFileChange);
+
+  // Use refs to access current state values in event callbacks
+  const openFilesRef = useRef(openFiles);
+  const handleExternalFileChangeRef = useRef(handleExternalFileChange);
+
+  // Keep refs updated
+  useEffect(() => {
+    openFilesRef.current = openFiles;
+    handleExternalFileChangeRef.current = handleExternalFileChange;
+  }, [openFiles, handleExternalFileChange]);
 
   // Use refs to store timeout IDs for proper cleanup and debouncing
   const gitStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -114,8 +126,8 @@ export function useRepositoryWatcher() {
 
       if (changedPaths.length > 0) {
         const uniquePaths = Array.from(new Set(changedPaths));
-        const { openFiles, handleExternalFileChange } = useRepositoryStore.getState();
-        const openFilePaths = new Set(openFiles.map((file) => file.path));
+        const currentOpenFiles = openFilesRef.current;
+        const openFilePaths = new Set(currentOpenFiles.map((file) => file.path));
 
         for (const changedPath of uniquePaths) {
           fastDirectoryTreeService.invalidatePath(changedPath);
@@ -123,7 +135,7 @@ export function useRepositoryWatcher() {
           // If the changed file is currently open, refresh its content
           if (openFilePaths.has(changedPath)) {
             setTimeout(() => {
-              handleExternalFileChange(changedPath);
+              handleExternalFileChangeRef.current(changedPath);
             }, 100);
           }
         }

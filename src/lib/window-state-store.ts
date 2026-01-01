@@ -85,7 +85,10 @@ export class WindowStateStore {
 
   static async clearAll(): Promise<void> {
     try {
+      const currentState = await WindowStateStore.readData();
+      const clearedCount = currentState.windows.length;
       await WindowStateStore.writeData({ windows: [] });
+      logger.info(`Cleared ${clearedCount} window states`);
     } catch (error) {
       logger.error('Failed to clear window states:', error);
     }
@@ -94,7 +97,9 @@ export class WindowStateStore {
   static async getWindowsToRestore(): Promise<WindowState[]> {
     try {
       const state = await WindowStateStore.readData();
-      return state.windows.filter((w) => w.label !== 'main' && w.rootPath);
+      const windowsToRestore = state.windows.filter((w) => w.label !== 'main' && w.rootPath);
+      logger.info(`Found ${windowsToRestore.length} windows to restore from saved state`);
+      return windowsToRestore;
     } catch (error) {
       logger.error('Failed to get windows to restore:', error);
       return [];

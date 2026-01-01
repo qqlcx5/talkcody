@@ -1,11 +1,11 @@
 // src-tauri/src/script_executor.rs
 
-use std::time::Instant;
 use serde::{Deserialize, Serialize};
-use tokio::process::Command;
-use tokio::io::{AsyncReadExt, BufReader};
 use std::process::Stdio;
 use std::time::Duration;
+use std::time::Instant;
+use tokio::io::{AsyncReadExt, BufReader};
+use tokio::process::Command;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ScriptExecutionRequest {
@@ -99,7 +99,10 @@ impl ScriptExecutor {
                         exit_code: -1,
                         execution_time_ms: start_time.elapsed().as_millis() as u64,
                         success: false,
-                        error: Some(format!("Script execution timeout ({}ms)", timeout.as_millis())),
+                        error: Some(format!(
+                            "Script execution timeout ({}ms)",
+                            timeout.as_millis()
+                        )),
                     });
                 }
             }
@@ -128,22 +131,24 @@ impl ScriptExecutor {
                     },
                 })
             }
-            Err(e) => {
-                Ok(ScriptExecutionResult {
-                    stdout: String::new(),
-                    stderr: format!("Failed to execute script: {}", e),
-                    exit_code: -1,
-                    execution_time_ms: execution_time,
-                    success: false,
-                    error: Some(format!("Execution error: {}", e)),
-                })
-            }
+            Err(e) => Ok(ScriptExecutionResult {
+                stdout: String::new(),
+                stderr: format!("Failed to execute script: {}", e),
+                exit_code: -1,
+                execution_time_ms: execution_time,
+                success: false,
+                error: Some(format!("Execution error: {}", e)),
+            }),
         }
     }
 
     /// Helper function to run a command and capture output
-    async fn run_command(mut cmd: Command) -> Result<(String, String, std::process::ExitStatus), String> {
-        let mut child = cmd.spawn().map_err(|e| format!("Failed to spawn process: {}", e))?;
+    async fn run_command(
+        mut cmd: Command,
+    ) -> Result<(String, String, std::process::ExitStatus), String> {
+        let mut child = cmd
+            .spawn()
+            .map_err(|e| format!("Failed to spawn process: {}", e))?;
 
         // Take stdout and stderr
         let stdout = child.stdout.take().ok_or("Failed to capture stdout")?;
@@ -165,11 +170,18 @@ impl ScriptExecutor {
         });
 
         // Wait for process to complete
-        let exit_status = child.wait().await.map_err(|e| format!("Failed to wait for process: {}", e))?;
+        let exit_status = child
+            .wait()
+            .await
+            .map_err(|e| format!("Failed to wait for process: {}", e))?;
 
         // Get outputs
-        let stdout = stdout_handle.await.map_err(|e| format!("Failed to read stdout: {}", e))?;
-        let stderr = stderr_handle.await.map_err(|e| format!("Failed to read stderr: {}", e))?;
+        let stdout = stdout_handle
+            .await
+            .map_err(|e| format!("Failed to read stdout: {}", e))?;
+        let stderr = stderr_handle
+            .await
+            .map_err(|e| format!("Failed to read stderr: {}", e))?;
 
         Ok((stdout, stderr, exit_status))
     }
@@ -225,8 +237,8 @@ mod tests {
     #[tokio::test]
     #[cfg(not(target_os = "windows"))]
     async fn test_timeout_enforcement() {
-        use tempfile::NamedTempFile;
         use std::io::Write;
+        use tempfile::NamedTempFile;
 
         // Create a script that sleeps for 5 seconds
         let mut script_file = NamedTempFile::new().unwrap();
@@ -255,8 +267,8 @@ mod tests {
     #[tokio::test]
     #[cfg(not(target_os = "windows"))]
     async fn test_successful_execution() {
-        use tempfile::NamedTempFile;
         use std::io::Write;
+        use tempfile::NamedTempFile;
 
         // Create a simple script that echoes hello
         let mut script_file = NamedTempFile::new().unwrap();
@@ -284,8 +296,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_invalid_working_directory() {
-        use tempfile::NamedTempFile;
         use std::io::Write;
+        use tempfile::NamedTempFile;
 
         let mut script_file = NamedTempFile::new().unwrap();
         writeln!(script_file, "#!/bin/bash").unwrap();

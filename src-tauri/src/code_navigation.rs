@@ -768,14 +768,22 @@ pub async fn code_nav_index_files_batch(
                 "java" => tree_sitter_java::LANGUAGE.into(),
                 "typescript" | "javascript" => tree_sitter_typescript::LANGUAGE_TSX.into(),
                 _ => {
-                    log::warn!("Unsupported language for indexing: {} (file: {})", lang_id, file_path);
+                    log::warn!(
+                        "Unsupported language for indexing: {} (file: {})",
+                        lang_id,
+                        file_path
+                    );
                     return None;
                 }
             };
 
             let mut parser = Parser::new();
             if parser.set_language(&language).is_err() {
-                log::error!("Failed to set language for parser: {} (file: {})", lang_id, file_path);
+                log::error!(
+                    "Failed to set language for parser: {} (file: {})",
+                    lang_id,
+                    file_path
+                );
                 return None;
             }
 
@@ -829,7 +837,11 @@ pub async fn code_nav_index_files_batch(
                 }
             }
 
-            log::debug!("File {} parsed with {} definitions", file_path, definitions.len());
+            log::debug!(
+                "File {} parsed with {} definitions",
+                file_path,
+                definitions.len()
+            );
             Some((definitions, defined_names, file_path.clone()))
         })
         .collect();
@@ -961,7 +973,8 @@ pub async fn code_nav_save_index(
 
     // Ensure index directory exists
     let index_dir = get_index_dir(&app_handle)?;
-    fs::create_dir_all(&index_dir).map_err(|e| format!("Failed to create index directory: {}", e))?;
+    fs::create_dir_all(&index_dir)
+        .map_err(|e| format!("Failed to create index directory: {}", e))?;
 
     // Serialize and write to file
     let index_path = get_index_path(&app_handle, &root_path)?;
@@ -973,7 +986,11 @@ pub async fn code_nav_save_index(
     log::info!(
         "Saved index for {} ({} definitions) in {:.2}ms",
         root_path,
-        persisted.definitions.values().map(|v| v.len()).sum::<usize>(),
+        persisted
+            .definitions
+            .values()
+            .map(|v| v.len())
+            .sum::<usize>(),
         duration.as_secs_f64() * 1000.0
     );
 
@@ -997,10 +1014,10 @@ pub async fn code_nav_load_index(
     }
 
     // Read and deserialize
-    let json = fs::read_to_string(&index_path)
-        .map_err(|e| format!("Failed to read index file: {}", e))?;
-    let persisted: PersistedIndex = serde_json::from_str(&json)
-        .map_err(|e| format!("Failed to deserialize index: {}", e))?;
+    let json =
+        fs::read_to_string(&index_path).map_err(|e| format!("Failed to read index file: {}", e))?;
+    let persisted: PersistedIndex =
+        serde_json::from_str(&json).map_err(|e| format!("Failed to deserialize index: {}", e))?;
 
     // Check version compatibility
     if persisted.version != INDEX_VERSION {
@@ -1034,7 +1051,12 @@ pub async fn code_nav_load_index(
     log::info!(
         "Loaded index for {} ({} definitions) in {:.2}ms",
         root_path,
-        service.index.definitions.values().map(|v| v.len()).sum::<usize>(),
+        service
+            .index
+            .definitions
+            .values()
+            .map(|v| v.len())
+            .sum::<usize>(),
         duration.as_secs_f64() * 1000.0
     );
 
@@ -1054,10 +1076,10 @@ pub async fn code_nav_get_index_metadata(
     }
 
     // Read and deserialize
-    let json = fs::read_to_string(&index_path)
-        .map_err(|e| format!("Failed to read index file: {}", e))?;
-    let persisted: PersistedIndex = serde_json::from_str(&json)
-        .map_err(|e| format!("Failed to deserialize index: {}", e))?;
+    let json =
+        fs::read_to_string(&index_path).map_err(|e| format!("Failed to read index file: {}", e))?;
+    let persisted: PersistedIndex =
+        serde_json::from_str(&json).map_err(|e| format!("Failed to deserialize index: {}", e))?;
 
     // Check version compatibility
     if persisted.version != INDEX_VERSION {
@@ -1076,15 +1098,11 @@ pub async fn code_nav_get_index_metadata(
 
 /// Delete a persisted index
 #[tauri::command]
-pub async fn code_nav_delete_index(
-    app_handle: AppHandle,
-    root_path: String,
-) -> Result<(), String> {
+pub async fn code_nav_delete_index(app_handle: AppHandle, root_path: String) -> Result<(), String> {
     let index_path = get_index_path(&app_handle, &root_path)?;
 
     if index_path.exists() {
-        fs::remove_file(&index_path)
-            .map_err(|e| format!("Failed to delete index file: {}", e))?;
+        fs::remove_file(&index_path).map_err(|e| format!("Failed to delete index file: {}", e))?;
         log::info!("Deleted index for {}", root_path);
     }
 
@@ -1365,7 +1383,12 @@ fn get_summarization_query(lang_id: &str) -> &'static str {
 }
 
 /// Build a human-readable summary from captured symbols
-fn build_summary(content: &str, captures: &[CapturedSymbol], lang_id: &str, original_lines: usize) -> String {
+fn build_summary(
+    content: &str,
+    captures: &[CapturedSymbol],
+    lang_id: &str,
+    original_lines: usize,
+) -> String {
     let mut result = format!(
         "[COMPRESSED: Original {} lines → Summarized using tree-sitter]\n\n",
         original_lines
@@ -1379,15 +1402,9 @@ fn build_summary(content: &str, captures: &[CapturedSymbol], lang_id: &str, orig
 
         // For function/method bodies, we want to show only the signature
         let summarized = match capture.kind.as_str() {
-            "function" | "method" | "arrow_function" => {
-                extract_function_signature(text, lang_id)
-            }
-            "class" => {
-                extract_class_summary(text, lang_id)
-            }
-            "impl" => {
-                extract_impl_summary(text)
-            }
+            "function" | "method" | "arrow_function" => extract_function_signature(text, lang_id),
+            "class" => extract_class_summary(text, lang_id),
+            "impl" => extract_impl_summary(text),
             "interface" | "type_alias" | "enum" | "struct" | "trait" | "type_decl" => {
                 // For types, keep as-is (they're usually not too long)
                 // But limit to reasonable size
@@ -1629,16 +1646,10 @@ fn extract_doc_comment(lines: &[&str], start_line: usize, lang_id: &str) -> Stri
                     || line.ends_with("*/")
             }
             "python" => {
-                line.starts_with("\"\"\"")
-                    || line.starts_with("'''")
-                    || line.starts_with("#")
+                line.starts_with("\"\"\"") || line.starts_with("'''") || line.starts_with("#")
             }
-            "rust" => {
-                line.starts_with("///") || line.starts_with("//!")
-            }
-            "go" => {
-                line.starts_with("//")
-            }
+            "rust" => line.starts_with("///") || line.starts_with("//!"),
+            "go" => line.starts_with("//"),
             _ => false,
         };
 
@@ -1722,8 +1733,14 @@ mod tests {
     fn test_get_lang_family() {
         assert_eq!(CodeNavigationService::get_lang_family("c"), "c_family");
         assert_eq!(CodeNavigationService::get_lang_family("cpp"), "c_family");
-        assert_eq!(CodeNavigationService::get_lang_family("typescript"), "js_family");
-        assert_eq!(CodeNavigationService::get_lang_family("javascript"), "js_family");
+        assert_eq!(
+            CodeNavigationService::get_lang_family("typescript"),
+            "js_family"
+        );
+        assert_eq!(
+            CodeNavigationService::get_lang_family("javascript"),
+            "js_family"
+        );
         assert_eq!(CodeNavigationService::get_lang_family("python"), "python");
         assert_eq!(CodeNavigationService::get_lang_family("rust"), "rust");
         assert_eq!(CodeNavigationService::get_lang_family("go"), "go");
@@ -1733,35 +1750,110 @@ mod tests {
 
     #[test]
     fn test_get_lang_id_from_path() {
-        assert_eq!(CodeNavigationService::get_lang_id_from_path("test.py"), Some("python".to_string()));
-        assert_eq!(CodeNavigationService::get_lang_id_from_path("test.rs"), Some("rust".to_string()));
-        assert_eq!(CodeNavigationService::get_lang_id_from_path("test.go"), Some("go".to_string()));
-        assert_eq!(CodeNavigationService::get_lang_id_from_path("test.c"), Some("c".to_string()));
-        assert_eq!(CodeNavigationService::get_lang_id_from_path("test.h"), Some("c".to_string()));
-        assert_eq!(CodeNavigationService::get_lang_id_from_path("test.cpp"), Some("cpp".to_string()));
-        assert_eq!(CodeNavigationService::get_lang_id_from_path("test.cc"), Some("cpp".to_string()));
-        assert_eq!(CodeNavigationService::get_lang_id_from_path("test.hpp"), Some("cpp".to_string()));
-        assert_eq!(CodeNavigationService::get_lang_id_from_path("test.java"), Some("java".to_string()));
-        assert_eq!(CodeNavigationService::get_lang_id_from_path("test.ts"), Some("typescript".to_string()));
-        assert_eq!(CodeNavigationService::get_lang_id_from_path("test.tsx"), Some("typescript".to_string()));
-        assert_eq!(CodeNavigationService::get_lang_id_from_path("test.js"), Some("javascript".to_string()));
-        assert_eq!(CodeNavigationService::get_lang_id_from_path("test.jsx"), Some("javascript".to_string()));
-        assert_eq!(CodeNavigationService::get_lang_id_from_path("test.mjs"), Some("javascript".to_string()));
-        assert_eq!(CodeNavigationService::get_lang_id_from_path("test.txt"), None);
+        assert_eq!(
+            CodeNavigationService::get_lang_id_from_path("test.py"),
+            Some("python".to_string())
+        );
+        assert_eq!(
+            CodeNavigationService::get_lang_id_from_path("test.rs"),
+            Some("rust".to_string())
+        );
+        assert_eq!(
+            CodeNavigationService::get_lang_id_from_path("test.go"),
+            Some("go".to_string())
+        );
+        assert_eq!(
+            CodeNavigationService::get_lang_id_from_path("test.c"),
+            Some("c".to_string())
+        );
+        assert_eq!(
+            CodeNavigationService::get_lang_id_from_path("test.h"),
+            Some("c".to_string())
+        );
+        assert_eq!(
+            CodeNavigationService::get_lang_id_from_path("test.cpp"),
+            Some("cpp".to_string())
+        );
+        assert_eq!(
+            CodeNavigationService::get_lang_id_from_path("test.cc"),
+            Some("cpp".to_string())
+        );
+        assert_eq!(
+            CodeNavigationService::get_lang_id_from_path("test.hpp"),
+            Some("cpp".to_string())
+        );
+        assert_eq!(
+            CodeNavigationService::get_lang_id_from_path("test.java"),
+            Some("java".to_string())
+        );
+        assert_eq!(
+            CodeNavigationService::get_lang_id_from_path("test.ts"),
+            Some("typescript".to_string())
+        );
+        assert_eq!(
+            CodeNavigationService::get_lang_id_from_path("test.tsx"),
+            Some("typescript".to_string())
+        );
+        assert_eq!(
+            CodeNavigationService::get_lang_id_from_path("test.js"),
+            Some("javascript".to_string())
+        );
+        assert_eq!(
+            CodeNavigationService::get_lang_id_from_path("test.jsx"),
+            Some("javascript".to_string())
+        );
+        assert_eq!(
+            CodeNavigationService::get_lang_id_from_path("test.mjs"),
+            Some("javascript".to_string())
+        );
+        assert_eq!(
+            CodeNavigationService::get_lang_id_from_path("test.txt"),
+            None
+        );
     }
 
     #[test]
     fn test_get_symbol_kind() {
-        assert_eq!(CodeNavigationService::get_symbol_kind("function.definition"), "function");
-        assert_eq!(CodeNavigationService::get_symbol_kind("class.definition"), "class");
-        assert_eq!(CodeNavigationService::get_symbol_kind("struct.definition"), "struct");
-        assert_eq!(CodeNavigationService::get_symbol_kind("enum.definition"), "enum");
-        assert_eq!(CodeNavigationService::get_symbol_kind("trait.definition"), "trait");
-        assert_eq!(CodeNavigationService::get_symbol_kind("interface.definition"), "interface");
-        assert_eq!(CodeNavigationService::get_symbol_kind("method.definition"), "method");
-        assert_eq!(CodeNavigationService::get_symbol_kind("type.definition"), "type");
-        assert_eq!(CodeNavigationService::get_symbol_kind("const.definition"), "const");
-        assert_eq!(CodeNavigationService::get_symbol_kind("static.definition"), "static");
+        assert_eq!(
+            CodeNavigationService::get_symbol_kind("function.definition"),
+            "function"
+        );
+        assert_eq!(
+            CodeNavigationService::get_symbol_kind("class.definition"),
+            "class"
+        );
+        assert_eq!(
+            CodeNavigationService::get_symbol_kind("struct.definition"),
+            "struct"
+        );
+        assert_eq!(
+            CodeNavigationService::get_symbol_kind("enum.definition"),
+            "enum"
+        );
+        assert_eq!(
+            CodeNavigationService::get_symbol_kind("trait.definition"),
+            "trait"
+        );
+        assert_eq!(
+            CodeNavigationService::get_symbol_kind("interface.definition"),
+            "interface"
+        );
+        assert_eq!(
+            CodeNavigationService::get_symbol_kind("method.definition"),
+            "method"
+        );
+        assert_eq!(
+            CodeNavigationService::get_symbol_kind("type.definition"),
+            "type"
+        );
+        assert_eq!(
+            CodeNavigationService::get_symbol_kind("const.definition"),
+            "const"
+        );
+        assert_eq!(
+            CodeNavigationService::get_symbol_kind("static.definition"),
+            "static"
+        );
         assert_eq!(CodeNavigationService::get_symbol_kind("unknown"), "symbol");
     }
 
@@ -2133,7 +2225,10 @@ interface MyInterface {
 
         // Check interface
         let interface_defs = service.find_definition("MyInterface", "java");
-        assert!(!interface_defs.is_empty(), "Should find MyInterface in Java");
+        assert!(
+            !interface_defs.is_empty(),
+            "Should find MyInterface in Java"
+        );
         assert_eq!(interface_defs[0].kind, "interface");
     }
 
@@ -2287,14 +2382,32 @@ export function processAll(items: DataInput[]): void {
         .await
         .unwrap();
 
-        assert!(result.success, "Should successfully summarize TypeScript code");
-        assert!(result.summary.contains("[COMPRESSED:"), "Should have compression marker");
-        assert!(result.summary.contains("DataProcessor"), "Should include class name");
-        assert!(result.summary.contains("process("), "Should include method signature");
-        assert!(result.summary.contains("DataInput"), "Should include interface");
+        assert!(
+            result.success,
+            "Should successfully summarize TypeScript code"
+        );
+        assert!(
+            result.summary.contains("[COMPRESSED:"),
+            "Should have compression marker"
+        );
+        assert!(
+            result.summary.contains("DataProcessor"),
+            "Should include class name"
+        );
+        assert!(
+            result.summary.contains("process("),
+            "Should include method signature"
+        );
+        assert!(
+            result.summary.contains("DataInput"),
+            "Should include interface"
+        );
         assert!(result.summary.contains("MAX_SIZE"), "Should include const");
         // Function body should be replaced with { ... }
-        assert!(result.summary.contains("{ ... }"), "Function bodies should be summarized");
+        assert!(
+            result.summary.contains("{ ... }"),
+            "Function bodies should be summarized"
+        );
     }
 
     #[tokio::test]
@@ -2336,9 +2449,18 @@ const MAX_RETRIES: u32 = 3;
         .unwrap();
 
         assert!(result.success, "Should successfully summarize Rust code");
-        assert!(result.summary.contains("Config"), "Should include struct name");
-        assert!(result.summary.contains("process_data"), "Should include function name");
-        assert!(result.summary.contains("MAX_RETRIES"), "Should include const");
+        assert!(
+            result.summary.contains("Config"),
+            "Should include struct name"
+        );
+        assert!(
+            result.summary.contains("process_data"),
+            "Should include function name"
+        );
+        assert!(
+            result.summary.contains("MAX_RETRIES"),
+            "Should include const"
+        );
     }
 
     #[tokio::test]
@@ -2376,9 +2498,18 @@ MAX_SIZE = 1000
         .unwrap();
 
         assert!(result.success, "Should successfully summarize Python code");
-        assert!(result.summary.contains("DataProcessor"), "Should include class name");
-        assert!(result.summary.contains("process"), "Should include method name");
-        assert!(result.summary.contains("helper_function"), "Should include function name");
+        assert!(
+            result.summary.contains("DataProcessor"),
+            "Should include class name"
+        );
+        assert!(
+            result.summary.contains("process"),
+            "Should include method name"
+        );
+        assert!(
+            result.summary.contains("helper_function"),
+            "Should include function name"
+        );
     }
 
     #[tokio::test]
@@ -2402,7 +2533,10 @@ Some text content.
 
         // Should return success=false but not error, keeping original content
         assert!(!result.success, "Should indicate unsupported language");
-        assert_eq!(result.summary, markdown_code, "Should return original content for unsupported language");
+        assert_eq!(
+            result.summary, markdown_code,
+            "Should return original content for unsupported language"
+        );
     }
 
     #[tokio::test]
@@ -2433,17 +2567,23 @@ func (c *Config) Process() error {
 const MaxRetries = 3
 "#;
 
-        let result = summarize_code_content(
-            go_code.to_string(),
-            "go".to_string(),
-            "main.go".to_string(),
-        )
-        .await
-        .unwrap();
+        let result =
+            summarize_code_content(go_code.to_string(), "go".to_string(), "main.go".to_string())
+                .await
+                .unwrap();
 
         assert!(result.success, "Should successfully summarize Go code");
-        assert!(result.summary.contains("Config"), "Should include type name");
-        assert!(result.summary.contains("NewConfig"), "Should include function name");
-        assert!(result.summary.contains("Process"), "Should include method name");
+        assert!(
+            result.summary.contains("Config"),
+            "Should include type name"
+        );
+        assert!(
+            result.summary.contains("NewConfig"),
+            "Should include function name"
+        );
+        assert!(
+            result.summary.contains("Process"),
+            "Should include method name"
+        );
     }
 }

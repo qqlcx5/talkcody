@@ -66,7 +66,7 @@ export function useGlobalShortcuts(handlers: ShortcutHandlers = {}) {
 
   const handleNewWindow = useCallback(async () => {
     try {
-      await WindowManagerService.createProjectWindow();
+      await WindowManagerService.createProjectWindow(undefined, undefined, true);
       toast.success('New window created');
     } catch (error) {
       logger.error('Failed to create new window:', error);

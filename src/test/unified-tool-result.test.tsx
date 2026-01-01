@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 // Mock the repository store
-vi.mock('@/stores/repository-store', () => ({
+vi.mock('@/stores/window-scoped-repository-store', () => ({
   useRepositoryStore: vi.fn(() => null),
 }));
 

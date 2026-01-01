@@ -13,6 +13,7 @@ use std::collections::{HashMap, HashSet};
 use std::io::Read;
 use std::path::PathBuf;
 use std::process::Stdio;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
@@ -106,12 +107,20 @@ impl LspRegistry {
 
     /// Check if a creation is pending for the given language and root path
     pub fn is_creation_pending(&self, language: &str, root_path: &str) -> bool {
-        self.pending_creations.contains(&(language.to_string(), root_path.to_string()))
+        self.pending_creations
+            .contains(&(language.to_string(), root_path.to_string()))
     }
 
-    pub fn insert(&mut self, server_id: String, server: Arc<Mutex<LspServer>>, language: String, root_path: String) {
+    pub fn insert(
+        &mut self,
+        server_id: String,
+        server: Arc<Mutex<LspServer>>,
+        language: String,
+        root_path: String,
+    ) {
         // Update index first
-        self.server_index.insert((language, root_path), server_id.clone());
+        self.server_index
+            .insert((language, root_path), server_id.clone());
         self.servers.insert(server_id, server);
     }
 
@@ -131,7 +140,8 @@ impl LspRegistry {
 
     /// Check if a server exists for the given language and root path
     pub fn exists(&self, language: &str, root_path: &str) -> bool {
-        self.server_index.contains_key(&(language.to_string(), root_path.to_string()))
+        self.server_index
+            .contains_key(&(language.to_string(), root_path.to_string()))
     }
 }
 
@@ -204,7 +214,7 @@ pub struct LspMessageEvent {
 #[serde(rename_all = "camelCase")]
 pub struct LspDownloadProgress {
     pub language: String,
-    pub status: String, // "downloading", "extracting", "completed", "error"
+    pub status: String,        // "downloading", "extracting", "completed", "error"
     pub progress: Option<f32>, // 0.0 - 1.0
     pub message: Option<String>,
 }
@@ -308,7 +318,13 @@ async fn download_rust_analyzer(app: &AppHandle) -> Result<PathBuf, String> {
     log::info!("Downloading rust-analyzer from: {}", download_url);
 
     // Emit progress event
-    emit_download_progress(app, "rust", "downloading", None, Some("Starting download..."));
+    emit_download_progress(
+        app,
+        "rust",
+        "downloading",
+        None,
+        Some("Starting download..."),
+    );
 
     // Download the file
     let client = Client::new();
@@ -360,19 +376,21 @@ async fn download_rust_analyzer(app: &AppHandle) -> Result<PathBuf, String> {
     } else if download_url.ends_with(".zip") {
         // For Windows - extract zip
         let cursor = std::io::Cursor::new(&bytes[..]);
-        let mut archive = zip::ZipArchive::new(cursor)
-            .map_err(|e| format!("Failed to open zip: {}", e))?;
+        let mut archive =
+            zip::ZipArchive::new(cursor).map_err(|e| format!("Failed to open zip: {}", e))?;
 
         // Look for rust-analyzer executable in the zip
         for i in 0..archive.len() {
-            let mut file = archive.by_index(i)
+            let mut file = archive
+                .by_index(i)
                 .map_err(|e| format!("Failed to read zip entry: {}", e))?;
 
             let file_name = file.name().to_string();
             // Match rust-analyzer.exe or rust-analyzer (in case of different archive structures)
-            if file_name.ends_with("rust-analyzer.exe") ||
-               (file_name.ends_with("rust-analyzer") && !file_name.contains('/')) ||
-               file_name == "rust-analyzer" {
+            if file_name.ends_with("rust-analyzer.exe")
+                || (file_name.ends_with("rust-analyzer") && !file_name.contains('/'))
+                || file_name == "rust-analyzer"
+            {
                 let mut contents = Vec::new();
                 file.read_to_end(&mut contents)
                     .map_err(|e| format!("Failed to read file from zip: {}", e))?;
@@ -413,19 +431,136 @@ async fn download_rust_analyzer(app: &AppHandle) -> Result<PathBuf, String> {
             .map_err(|e| format!("Failed to set executable permission: {}", e))?;
     }
 
-    emit_download_progress(app, "rust", "completed", Some(1.0), Some("Download complete"));
+    emit_download_progress(
+        app,
+        "rust",
+        "completed",
+        Some(1.0),
+        Some("Download complete"),
+    );
 
-    log::info!("rust-analyzer downloaded to: {:?} ({} bytes)", output_path, metadata.len());
+    log::info!(
+        "rust-analyzer downloaded to: {:?} ({} bytes)",
+        output_path,
+        metadata.len()
+    );
     Ok(output_path)
+}
+
+/// Install Vue Language Server using bun/npm/pnpm
+async fn install_vue_language_server(app: &AppHandle) -> Result<String, String> {
+    emit_download_progress(
+        app,
+        "vue",
+        "installing",
+        Some(0.3),
+        Some("Installing Vue Language Server..."),
+    );
+
+    let (runner, install_args) =
+        get_global_install_command("@vue/language-server").map_err(|e| format!("{}", e))?;
+
+    log::info!("Installing Vue Language Server using {}", runner);
+
+    let child = tokio::process::Command::new(&runner)
+        .args(&install_args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Failed to spawn install process: {}", e))?;
+
+    let output = child
+        .wait_with_output()
+        .await
+        .map_err(|e| format!("Failed to wait for install process: {}", e))?;
+
+    emit_download_progress(
+        app,
+        "vue",
+        "installing",
+        Some(0.7),
+        Some("Verifying installation..."),
+    );
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("Failed to install Vue Language Server: {}", stderr));
+    }
+
+    emit_download_progress(
+        app,
+        "vue",
+        "completed",
+        Some(1.0),
+        Some("Vue Language Server installed successfully"),
+    );
+
+    log::info!("Vue Language Server installed successfully");
+    Ok("Vue Language Server installed successfully".to_string())
+}
+
+/// Install TypeScript Language Server using bun/npm/pnpm
+async fn install_typescript_language_server(app: &AppHandle) -> Result<String, String> {
+    emit_download_progress(
+        app,
+        "typescript",
+        "installing",
+        Some(0.3),
+        Some("Installing TypeScript Language Server..."),
+    );
+
+    let (runner, install_args) =
+        get_global_install_command("typescript-language-server").map_err(|e| format!("{}", e))?;
+
+    log::info!("Installing TypeScript Language Server using {}", runner);
+
+    let child = tokio::process::Command::new(&runner)
+        .args(&install_args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Failed to spawn install process: {}", e))?;
+
+    let output = child
+        .wait_with_output()
+        .await
+        .map_err(|e| format!("Failed to wait for install process: {}", e))?;
+
+    emit_download_progress(
+        app,
+        "typescript",
+        "installing",
+        Some(0.7),
+        Some("Verifying installation..."),
+    );
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!(
+            "Failed to install TypeScript Language Server: {}",
+            stderr
+        ));
+    }
+
+    emit_download_progress(
+        app,
+        "typescript",
+        "completed",
+        Some(1.0),
+        Some("TypeScript Language Server installed successfully"),
+    );
+
+    log::info!("TypeScript Language Server installed successfully");
+    Ok("TypeScript Language Server installed successfully".to_string())
 }
 
 // ============================================================================
 // TypeScript Language Server
 // ============================================================================
 
-/// Find bun or npm executable
+/// Find bunx or npx executable for running package binaries
 fn find_package_runner() -> Option<(String, Vec<String>)> {
-    // Prefer bun, then npx
+    // Prefer bunx, then npx
     if which::which("bunx").is_ok() {
         Some(("bunx".to_string(), vec![]))
     } else if which::which("npx").is_ok() {
@@ -435,16 +570,57 @@ fn find_package_runner() -> Option<(String, Vec<String>)> {
     }
 }
 
+fn has_global_installer() -> bool {
+    which::which("bun").is_ok() || which::which("npm").is_ok() || which::which("pnpm").is_ok()
+}
+
+fn get_global_install_command(package: &str) -> Result<(String, Vec<String>), String> {
+    if which::which("bun").is_ok() {
+        return Ok((
+            "bun".to_string(),
+            vec!["add".to_string(), "-g".to_string(), package.to_string()],
+        ));
+    }
+
+    if which::which("npm").is_ok() {
+        return Ok((
+            "npm".to_string(),
+            vec!["install".to_string(), "-g".to_string(), package.to_string()],
+        ));
+    }
+
+    if which::which("pnpm").is_ok() {
+        return Ok((
+            "pnpm".to_string(),
+            vec!["add".to_string(), "-g".to_string(), package.to_string()],
+        ));
+    }
+
+    Err(format!(
+        "Please install bun, npm, or pnpm to install {}",
+        package
+    ))
+}
+
 /// Get the command to run typescript-language-server
 fn get_typescript_server_command() -> Option<(String, Vec<String>)> {
     // First check if globally installed
     if which::which("typescript-language-server").is_ok() {
-        return Some(("typescript-language-server".to_string(), vec!["--stdio".to_string()]));
+        return Some((
+            "typescript-language-server".to_string(),
+            vec!["--stdio".to_string()],
+        ));
     }
 
     // Otherwise use bunx/npx
     if let Some((runner, _)) = find_package_runner() {
-        Some((runner, vec!["typescript-language-server".to_string(), "--stdio".to_string()]))
+        Some((
+            runner,
+            vec![
+                "typescript-language-server".to_string(),
+                "--stdio".to_string(),
+            ],
+        ))
     } else {
         None
     }
@@ -496,7 +672,10 @@ fn get_lsp_command(language: &str) -> Option<(String, Vec<String>)> {
         }
         "python" => {
             if which::which("pyright-langserver").is_ok() {
-                Some(("pyright-langserver".to_string(), vec!["--stdio".to_string()]))
+                Some((
+                    "pyright-langserver".to_string(),
+                    vec!["--stdio".to_string()],
+                ))
             } else {
                 None
             }
@@ -515,9 +694,30 @@ fn get_lsp_command(language: &str) -> Option<(String, Vec<String>)> {
                 None
             }
         }
+        "vue" => {
+            // Vue Language Server via @vue/language-server
+            // First check if globally installed
+            if which::which("vue-language-server").is_ok() {
+                return Some((
+                    "vue-language-server".to_string(),
+                    vec!["--stdio".to_string()],
+                ));
+            }
+            // Otherwise use bunx/npx to run @vue/language-server
+            if let Some((runner, _)) = find_package_runner() {
+                Some((
+                    runner,
+                    vec!["@vue/language-server".to_string(), "--stdio".to_string()],
+                ))
+            } else {
+                None
+            }
+        }
         _ => None,
     }
 }
+
+static SERVER_ID_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// Generate a unique server ID
 fn generate_server_id(language: &str) -> String {
@@ -525,7 +725,8 @@ fn generate_server_id(language: &str) -> String {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis();
-    format!("lsp_{}_{}", language, timestamp)
+    let counter = SERVER_ID_COUNTER.fetch_add(1, Ordering::Relaxed);
+    format!("lsp_{}_{}_{}", language, timestamp, counter)
 }
 
 /// Parse Content-Length header from LSP message
@@ -608,7 +809,8 @@ fn validate_root_path(root_path: &str) -> Result<PathBuf, String> {
     }
 
     // Canonicalize to resolve any symlinks or relative components
-    let canonical = path.canonicalize()
+    let canonical = path
+        .canonicalize()
         .map_err(|e| format!("Failed to resolve root_path: {}", e))?;
 
     Ok(canonical)
@@ -622,7 +824,11 @@ pub async fn lsp_start_server(
     language: String,
     root_path: String,
 ) -> Result<LspStartResponse, String> {
-    log::info!("Starting LSP server for language: {} in {}", language, root_path);
+    log::info!(
+        "Starting LSP server for language: {} in {}",
+        language,
+        root_path
+    );
 
     // Validate root_path
     let validated_root = validate_root_path(&root_path)?;
@@ -642,14 +848,22 @@ pub async fn lsp_start_server(
                 });
             }
             CreationReservation::AlreadyCreating => {
-                log::info!("LSP server for {} in {} is already being created by another request", language, root_path_str);
+                log::info!(
+                    "LSP server for {} in {} is already being created by another request",
+                    language,
+                    root_path_str
+                );
                 return Err(format!(
                     "LSP server for {} is already being created. Please wait and retry.",
                     language
                 ));
             }
             CreationReservation::Reserved => {
-                log::info!("Reserved creation slot for {} in {}", language, root_path_str);
+                log::info!(
+                    "Reserved creation slot for {} in {}",
+                    language,
+                    root_path_str
+                );
                 // Continue with creation
             }
         }
@@ -732,7 +946,12 @@ pub async fn lsp_start_server(
     // Complete the reservation by registering the server
     {
         let mut registry = state.0.lock().await;
-        registry.finish_creation(server_id.clone(), server_arc.clone(), language.clone(), root_path_str);
+        registry.finish_creation(
+            server_id.clone(),
+            server_arc.clone(),
+            language.clone(),
+            root_path_str,
+        );
     }
 
     // Spawn stdout reader task
@@ -780,7 +999,11 @@ pub async fn lsp_send_message(
     server_id: String,
     message: String,
 ) -> Result<(), String> {
-    log::debug!("Sending LSP message to {}: {} bytes", server_id, message.len());
+    log::debug!(
+        "Sending LSP message to {}: {} bytes",
+        server_id,
+        message.len()
+    );
 
     let server_arc = {
         let registry = state.0.lock().await;
@@ -824,7 +1047,8 @@ pub async fn lsp_stop_server(
     if let Some(mut child) = server.child.take() {
         // Send shutdown request first (graceful shutdown)
         if let Some(stdin) = server.stdin.as_mut() {
-            let shutdown_request = r#"{"jsonrpc":"2.0","id":999999,"method":"shutdown","params":null}"#;
+            let shutdown_request =
+                r#"{"jsonrpc":"2.0","id":999999,"method":"shutdown","params":null}"#;
             let _ = write_lsp_message(stdin, shutdown_request).await;
 
             // Wait a bit for graceful shutdown
@@ -889,6 +1113,12 @@ fn get_server_status(language: &str) -> LspServerStatus {
             let globally_installed = which::which("typescript-language-server").is_ok();
             (has_runner || globally_installed, None)
         }
+        "vue" => {
+            // Vue uses bunx/npx or global vue-language-server
+            let has_runner = find_package_runner().is_some();
+            let globally_installed = which::which("vue-language-server").is_ok();
+            (has_runner || globally_installed, None)
+        }
         _ => {
             // For other languages, check global installation
             if let Some((cmd, _)) = get_lsp_command(language) {
@@ -906,8 +1136,12 @@ fn get_server_status(language: &str) -> LspServerStatus {
             (url.is_some(), url)
         }
         "typescript" | "javascript" | "typescriptreact" | "javascriptreact" => {
-            // TypeScript uses bunx/npx, no direct download
-            (find_package_runner().is_some(), None)
+            // TypeScript Language Server can be installed via bun/npm/pnpm
+            (has_global_installer(), None)
+        }
+        "vue" => {
+            // Vue Language Server can be installed via bun/npm/pnpm
+            (has_global_installer(), None)
         }
         _ => (false, None),
     };
@@ -935,10 +1169,7 @@ pub fn lsp_get_server_status(language: String) -> Result<LspServerStatus, String
 
 /// Download and install an LSP server
 #[tauri::command]
-pub async fn lsp_download_server(
-    app: AppHandle,
-    language: String,
-) -> Result<String, String> {
+pub async fn lsp_download_server(app: AppHandle, language: String) -> Result<String, String> {
     log::info!("Downloading LSP server for: {}", language);
 
     match language.as_str() {
@@ -947,14 +1178,17 @@ pub async fn lsp_download_server(
             Ok(path.to_string_lossy().to_string())
         }
         "typescript" | "javascript" | "typescriptreact" | "javascriptreact" => {
-            // For TypeScript, we just need bunx/npx - no download needed
-            if find_package_runner().is_some() {
-                Ok("TypeScript language server will be run via bunx/npx".to_string())
-            } else {
-                Err("Please install bun or npm to use TypeScript language server".to_string())
-            }
+            // Install TypeScript Language Server
+            install_typescript_language_server(&app).await
         }
-        _ => Err(format!("Auto-download is not supported for language: {}", language)),
+        "vue" => {
+            // Install Vue Language Server
+            install_vue_language_server(&app).await
+        }
+        _ => Err(format!(
+            "Auto-download is not supported for language: {}",
+            language
+        )),
     }
 }
 
@@ -964,13 +1198,24 @@ pub fn lsp_get_server_config(language: String) -> Result<Option<LspServerConfig>
     let config = get_lsp_command(&language).map(|(command, args)| {
         let extensions = match language.as_str() {
             "typescript" | "javascript" | "typescriptreact" | "javascriptreact" => {
-                vec![".ts".to_string(), ".tsx".to_string(), ".js".to_string(), ".jsx".to_string()]
+                vec![
+                    ".ts".to_string(),
+                    ".tsx".to_string(),
+                    ".js".to_string(),
+                    ".jsx".to_string(),
+                ]
             }
             "rust" => vec![".rs".to_string()],
             "python" => vec![".py".to_string()],
             "go" => vec![".go".to_string()],
             "c" => vec![".c".to_string(), ".h".to_string()],
-            "cpp" => vec![".cpp".to_string(), ".hpp".to_string(), ".cc".to_string(), ".hh".to_string()],
+            "cpp" => vec![
+                ".cpp".to_string(),
+                ".hpp".to_string(),
+                ".cc".to_string(),
+                ".hh".to_string(),
+            ],
+            "vue" => vec![".vue".to_string()],
             _ => vec![],
         };
 
@@ -1136,7 +1381,12 @@ mod tests {
             "/test/path".to_string(),
         )));
 
-        registry.insert("test_id".to_string(), server.clone(), "rust".to_string(), "/test/path".to_string());
+        registry.insert(
+            "test_id".to_string(),
+            server.clone(),
+            "rust".to_string(),
+            "/test/path".to_string(),
+        );
 
         assert_eq!(registry.list().len(), 1);
         assert!(registry.list().contains(&"test_id".to_string()));
@@ -1203,7 +1453,10 @@ mod tests {
 
         // Reservation should return the existing server
         let result = registry.try_reserve_creation("rust", "/project");
-        assert_eq!(result, CreationReservation::ExistingServer("existing_server".to_string()));
+        assert_eq!(
+            result,
+            CreationReservation::ExistingServer("existing_server".to_string())
+        );
 
         // No pending creation should be set
         assert!(!registry.is_creation_pending("rust", "/project"));
@@ -1236,7 +1489,10 @@ mod tests {
 
         // Subsequent reservation should return existing server
         let result2 = registry.try_reserve_creation("rust", "/project");
-        assert_eq!(result2, CreationReservation::ExistingServer("new_server".to_string()));
+        assert_eq!(
+            result2,
+            CreationReservation::ExistingServer("new_server".to_string())
+        );
     }
 
     #[test]
@@ -1309,7 +1565,10 @@ mod tests {
 
         // Request 3: Should now get the existing server
         let result3 = registry.try_reserve_creation("typescript", "/app");
-        assert_eq!(result3, CreationReservation::ExistingServer("ts_server_1".to_string()));
+        assert_eq!(
+            result3,
+            CreationReservation::ExistingServer("ts_server_1".to_string())
+        );
     }
 
     #[test]
@@ -1373,5 +1632,12 @@ mod tests {
         let unknown_status = get_server_status("unknown_language");
         assert!(!unknown_status.can_download);
         assert!(!unknown_status.available);
+    }
+
+    #[test]
+    fn test_generate_server_id_unique() {
+        let first = generate_server_id("vue");
+        let second = generate_server_id("vue");
+        assert_ne!(first, second);
     }
 }

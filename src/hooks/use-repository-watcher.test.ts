@@ -70,7 +70,7 @@ const mockUseRepositoryStore = Object.assign(
   }
 );
 
-vi.mock('@/stores/repository-store', () => ({
+vi.mock('@/stores/window-scoped-repository-store', () => ({
   useRepositoryStore: mockUseRepositoryStore,
 }));
 
