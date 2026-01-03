@@ -850,6 +850,8 @@ const en: LocaleDefinition = {
     skillsTooltip: 'Discover and install skills',
     mcpServers: 'MCP Servers',
     mcpServersTooltip: 'Model Context Protocol servers',
+    usage: 'Usage',
+    usageTooltip: 'View Claude subscription usage',
     logs: 'Logs',
     logsTooltip: 'View application logs',
     settings: 'Settings',
@@ -1509,6 +1511,159 @@ const en: LocaleDefinition = {
       showDiagnosticsDesc: 'Display code diagnostics from language servers',
       severitySettings: 'Severity Settings',
       severitySettingsDesc: 'Select which severity levels to display',
+    },
+  },
+
+  usage: {
+    title: 'Usage Dashboard',
+    description: 'Monitor your Claude subscription usage',
+    notConnected: 'Not Connected',
+    connectPrompt: 'Connect your Claude account to view usage statistics',
+    connectButton: 'Connect Claude Account',
+    error: 'Error Loading Usage',
+    retry: 'Retry',
+    refresh: 'Refresh',
+    refreshing: 'Refreshing...',
+    noData: 'No Usage Data',
+    noDataDescription: 'Unable to load usage data. Please try refreshing.',
+    used: 'Used',
+    remaining: 'Remaining',
+    resetsIn: 'Resets in',
+    criticalWarning: 'Warning: You are approaching your usage limit!',
+
+    fiveHour: {
+      title: '5-Hour Session Usage',
+      description: 'Usage within your current 5-hour session window',
+    },
+
+    sevenDay: {
+      title: 'Weekly Usage',
+      description: 'Total usage across all models in the last 7 days',
+    },
+
+    sonnet: {
+      title: 'Sonnet Weekly Usage',
+      description: 'Claude Sonnet usage in the last 7 days',
+    },
+
+    opus: {
+      title: 'Opus Weekly Usage',
+      description: 'Claude Opus usage in the last 7 days',
+    },
+
+    extra: {
+      title: 'Extra Usage',
+      description: 'Additional usage beyond your subscription',
+      currentSpending: 'Current Spending',
+      budgetLimit: 'Budget Limit',
+    },
+
+    plan: {
+      title: 'Subscription Plan',
+    },
+  },
+
+  openaiUsage: {
+    title: 'OpenAI Usage Dashboard',
+    description: 'Monitor your ChatGPT subscription usage',
+    notConnected: 'Not Connected',
+    connectPrompt: 'Connect your OpenAI account to view usage statistics',
+    connectButton: 'Connect OpenAI Account',
+    error: 'Error Loading Usage',
+    retry: 'Retry',
+    refresh: 'Refresh',
+    refreshing: 'Refreshing...',
+    noData: 'No Usage Data',
+    noDataDescription: 'Unable to load usage data. Please try refreshing.',
+    used: 'Used',
+    remaining: 'Remaining',
+    resetsIn: 'Resets in',
+    criticalWarning: 'Warning: You are approaching your usage limit!',
+
+    fiveHour: {
+      title: '5-Hour Session Usage',
+      description: 'Usage within your current 5-hour session window',
+    },
+
+    sevenDay: {
+      title: 'Weekly Usage',
+      description: 'Total usage across all models in the last 7 days',
+    },
+
+    credits: {
+      title: 'Credits',
+      description: 'Your ChatGPT credits balance',
+      balance: 'Balance',
+      unlimited: 'Unlimited',
+    },
+
+    codeReview: {
+      title: 'Code Review Usage',
+      description: 'Code review feature utilization',
+    },
+
+    plan: {
+      title: 'Subscription Plan',
+    },
+  },
+
+  githubCopilotUsage: {
+    title: 'GitHub Copilot Usage Dashboard',
+    description: 'Monitor your GitHub Copilot subscription usage',
+    notConnected: 'Not Connected',
+    connectPrompt: 'Connect your GitHub account in settings to view usage statistics',
+    connectButton: 'Go to Settings',
+    error: 'Error Loading Usage',
+    retry: 'Retry',
+    refresh: 'Refresh',
+    refreshing: 'Refreshing...',
+    noData: 'No Usage Data',
+    noDataDescription: 'Unable to load usage data. Please try refreshing.',
+    used: 'Used',
+    remaining: 'Remaining',
+    total: 'Total',
+    resetsOn: 'Resets on',
+    criticalWarning: 'Warning: You are approaching your usage limit!',
+    usage: {
+      title: 'Copilot Usage',
+      description: 'Your current GitHub Copilot usage',
+    },
+
+    plan: {
+      title: 'Subscription Plan',
+    },
+  },
+
+  zhipuUsage: {
+    title: 'Zhipu AI Coding Plan Usage',
+    description: 'Monitor your Zhipu AI Coding Plan usage',
+    notConfigured: 'API Key Not Configured',
+    configurePrompt: 'Add your Zhipu API key in settings to view usage statistics',
+    configureButton: 'Go to Settings',
+    error: 'Error Loading Usage',
+    retry: 'Retry',
+    refresh: 'Refresh',
+    refreshing: 'Refreshing...',
+    noData: 'No Usage Data',
+    noDataDescription: 'Unable to load usage data. Please try refreshing.',
+    used: 'Used',
+    remaining: 'Remaining',
+    limit: 'Limit',
+    resetsIn: 'Resets in',
+    criticalWarning: 'Warning: You are approaching your usage limit!',
+
+    fiveHour: {
+      title: '5-Hour Session Usage',
+      description: 'Usage within your current 5-hour coding plan window',
+    },
+
+    plan: {
+      title: 'Coding Plan',
+    },
+
+    modelUsage: {
+      title: 'Model-Specific Usage',
+      description: 'Usage breakdown by individual models',
     },
   },
 };

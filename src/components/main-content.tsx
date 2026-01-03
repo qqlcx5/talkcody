@@ -5,6 +5,7 @@ import { MCPServersPage } from '@/pages/mcp-servers-page';
 import { ProjectsPage } from '@/pages/projects-page';
 import { SettingsPage } from '@/pages/settings-page';
 import { SkillsMarketplacePage } from '@/pages/skills-marketplace-page';
+import { UsageDashboardPage } from '@/pages/usage-dashboard-page';
 import { NavigationView } from '@/types/navigation';
 
 interface MainContentProps {
@@ -27,6 +28,8 @@ export function MainContent({ activeView }: MainContentProps) {
       {activeView === NavigationView.SKILLS_MARKETPLACE && <SkillsMarketplacePage />}
 
       {activeView === NavigationView.MCP_SERVERS && <MCPServersPage />}
+
+      {activeView === NavigationView.USAGE && <UsageDashboardPage />}
 
       {activeView === NavigationView.LOGS && <LogsPage />}
 

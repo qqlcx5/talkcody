@@ -1,5 +1,15 @@
 import { open } from '@tauri-apps/plugin-shell';
-import { Bot, Files, FileText, FolderOpen, Github, Server, Settings, Zap } from 'lucide-react';
+import {
+  Activity,
+  Bot,
+  Files,
+  FileText,
+  FolderOpen,
+  Github,
+  Server,
+  Settings,
+  Zap,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useLocale } from '@/hooks/use-locale';
@@ -45,6 +55,12 @@ export function NavigationSidebar({ activeView, onViewChange }: NavigationSideba
       icon: Server,
       label: t.Navigation.mcpServers,
       tooltip: `${t.Navigation.mcpServersTooltip}`,
+    },
+    {
+      id: NavigationView.USAGE,
+      icon: Activity,
+      label: t.Navigation.usage,
+      tooltip: `${t.Navigation.usageTooltip}`,
     },
   ];
 

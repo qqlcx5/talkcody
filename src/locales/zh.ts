@@ -824,6 +824,8 @@ const zh: LocaleDefinition = {
     skillsTooltip: '发现和安装技能',
     mcpServers: 'MCP 服务器',
     mcpServersTooltip: '模型上下文协议服务器',
+    usage: '使用情况',
+    usageTooltip: '查看 Claude 订阅使用情况',
     logs: '日志',
     logsTooltip: '查看应用程序日志',
     settings: '设置',
@@ -1470,6 +1472,159 @@ const zh: LocaleDefinition = {
       showDiagnosticsDesc: '显示来自语言服务器的代码诊断信息',
       severitySettings: '严重级别设置',
       severitySettingsDesc: '选择要显示的诊断严重级别',
+    },
+  },
+
+  usage: {
+    title: '使用情况仪表板',
+    description: '监控您的 Claude 订阅使用情况',
+    notConnected: '未连接',
+    connectPrompt: '连接您的 Claude 账户以查看使用统计',
+    connectButton: '连接 Claude 账户',
+    error: '加载使用情况时出错',
+    retry: '重试',
+    refresh: '刷新',
+    refreshing: '刷新中...',
+    noData: '无使用数据',
+    noDataDescription: '无法加载使用数据，请尝试刷新。',
+    used: '已使用',
+    remaining: '剩余',
+    resetsIn: '重置时间',
+    criticalWarning: '警告：您即将达到使用限制！',
+
+    fiveHour: {
+      title: '5 小时会话使用量',
+      description: '当前 5 小时会话窗口内的使用情况',
+    },
+
+    sevenDay: {
+      title: '每周使用量',
+      description: '过去 7 天所有模型的总使用量',
+    },
+
+    sonnet: {
+      title: 'Sonnet 每周使用量',
+      description: '过去 7 天 Claude Sonnet 的使用量',
+    },
+
+    opus: {
+      title: 'Opus 每周使用量',
+      description: '过去 7 天 Claude Opus 的使用量',
+    },
+
+    extra: {
+      title: '额外使用量',
+      description: '超出订阅计划的额外使用量',
+      currentSpending: '当前支出',
+      budgetLimit: '预算限额',
+    },
+
+    plan: {
+      title: '订阅计划',
+    },
+  },
+
+  openaiUsage: {
+    title: 'OpenAI 使用情况仪表板',
+    description: '监控您的 ChatGPT 订阅使用情况',
+    notConnected: '未连接',
+    connectPrompt: '连接您的 OpenAI 账户以查看使用统计',
+    connectButton: '连接 OpenAI 账户',
+    error: '加载使用情况时出错',
+    retry: '重试',
+    refresh: '刷新',
+    refreshing: '刷新中...',
+    noData: '无使用数据',
+    noDataDescription: '无法加载使用数据，请尝试刷新。',
+    used: '已使用',
+    remaining: '剩余',
+    resetsIn: '重置时间',
+    criticalWarning: '警告：您即将达到使用限制！',
+
+    fiveHour: {
+      title: '5 小时会话使用量',
+      description: '当前 5 小时会话窗口内的使用情况',
+    },
+
+    sevenDay: {
+      title: '每周使用量',
+      description: '过去 7 天所有模型的总使用量',
+    },
+
+    credits: {
+      title: '积分',
+      description: '您的 ChatGPT 积分余额',
+      balance: '余额',
+      unlimited: '无限',
+    },
+
+    codeReview: {
+      title: '代码审查使用量',
+      description: '代码审查功能使用情况',
+    },
+
+    plan: {
+      title: '订阅计划',
+    },
+  },
+
+  githubCopilotUsage: {
+    title: 'GitHub Copilot 使用情况仪表板',
+    description: '监控您的 GitHub Copilot 订阅使用情况',
+    notConnected: '未连接',
+    connectPrompt: '请在设置中连接您的 GitHub 账户以查看使用统计',
+    connectButton: '前往设置',
+    error: '加载使用情况时出错',
+    retry: '重试',
+    refresh: '刷新',
+    refreshing: '刷新中...',
+    noData: '无使用数据',
+    noDataDescription: '无法加载使用数据，请尝试刷新。',
+    used: '已使用',
+    remaining: '剩余',
+    total: '总量',
+    resetsOn: '重置日期',
+    criticalWarning: '警告：您即将达到使用限制！',
+    usage: {
+      title: 'Copilot 使用量',
+      description: '您当前的 GitHub Copilot 使用情况',
+    },
+
+    plan: {
+      title: '订阅计划',
+    },
+  },
+
+  zhipuUsage: {
+    title: '智谱 AI Coding Plan 使用情况',
+    description: '监控您的智谱 AI Coding Plan 使用情况',
+    notConfigured: 'API 密钥未配置',
+    configurePrompt: '请在设置中添加您的智谱 API 密钥以查看使用统计',
+    configureButton: '前往设置',
+    error: '加载使用情况时出错',
+    retry: '重试',
+    refresh: '刷新',
+    refreshing: '刷新中...',
+    noData: '无使用数据',
+    noDataDescription: '无法加载使用数据，请尝试刷新。',
+    used: '已使用',
+    remaining: '剩余',
+    limit: '限额',
+    resetsIn: '重置时间',
+    criticalWarning: '警告：您即将达到使用限制！',
+
+    fiveHour: {
+      title: '5 小时会话使用量',
+      description: '当前 5 小时编码计划窗口内的使用情况',
+    },
+
+    plan: {
+      title: '编码计划',
+    },
+
+    modelUsage: {
+      title: '模型使用详情',
+      description: '按单个模型划分的使用情况',
     },
   },
 };

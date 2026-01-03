@@ -813,6 +813,8 @@ export interface LocaleDefinition {
     skillsTooltip: string;
     mcpServers: string;
     mcpServersTooltip: string;
+    usage: string;
+    usageTooltip: string;
     logs: string;
     logsTooltip: string;
     settings: string;
@@ -1432,6 +1434,163 @@ export interface LocaleDefinition {
       editorNotReady: string;
       editorModelNotReady: string;
       unknownFixType: (fixId: string) => string;
+    };
+  };
+
+  // Claude Usage Dashboard
+  usage: {
+    title: string;
+    description: string;
+    notConnected: string;
+    connectPrompt: string;
+    connectButton: string;
+    error: string;
+    refreshing: string;
+    retry: string;
+    noData: string;
+    noDataDescription: string;
+    refresh: string;
+    used: string;
+    remaining: string;
+    resetsIn: string;
+    criticalWarning: string;
+
+    fiveHour: {
+      title: string;
+      description: string;
+    };
+
+    sevenDay: {
+      title: string;
+      description: string;
+    };
+
+    sonnet: {
+      title: string;
+      description: string;
+    };
+
+    opus: {
+      title: string;
+      description: string;
+    };
+
+    extra: {
+      title: string;
+      description: string;
+      currentSpending: string;
+      budgetLimit: string;
+    };
+
+    plan: {
+      title: string;
+    };
+  };
+
+  // OpenAI Usage Dashboard
+  openaiUsage: {
+    title: string;
+    description: string;
+    notConnected: string;
+    connectPrompt: string;
+    connectButton: string;
+    error: string;
+    refreshing: string;
+    retry: string;
+    noData: string;
+    noDataDescription: string;
+    refresh: string;
+    used: string;
+    remaining: string;
+    resetsIn: string;
+    criticalWarning: string;
+
+    fiveHour: {
+      title: string;
+      description: string;
+    };
+
+    sevenDay: {
+      title: string;
+      description: string;
+    };
+
+    credits: {
+      title: string;
+      description: string;
+      balance: string;
+      unlimited: string;
+    };
+
+    codeReview: {
+      title: string;
+      description: string;
+    };
+
+    plan: {
+      title: string;
+    };
+  };
+
+  // GitHub Copilot Usage Dashboard
+  githubCopilotUsage: {
+    title: string;
+    description: string;
+    notConnected: string;
+    connectPrompt: string;
+    connectButton: string;
+    error: string;
+    refreshing: string;
+    retry: string;
+    noData: string;
+    noDataDescription: string;
+    refresh: string;
+    used: string;
+    remaining: string;
+    total: string;
+    resetsOn: string;
+    criticalWarning: string;
+
+    usage: {
+      title: string;
+      description: string;
+    };
+
+    plan: {
+      title: string;
+    };
+  };
+
+  zhipuUsage: {
+    title: string;
+    description: string;
+    notConfigured: string;
+    configurePrompt: string;
+    configureButton: string;
+    error: string;
+    refreshing: string;
+    retry: string;
+    noData: string;
+    noDataDescription: string;
+    refresh: string;
+    used: string;
+    remaining: string;
+    limit: string;
+    resetsIn: string;
+    criticalWarning: string;
+
+    fiveHour: {
+      title: string;
+      description: string;
+    };
+
+    plan: {
+      title: string;
+    };
+
+    modelUsage: {
+      title: string;
+      description: string;
     };
   };
 
