@@ -345,6 +345,31 @@ function AppContent() {
     };
   }, []);
 
+  // Prevent Shift+Esc from triggering WebView2's browser task manager on Windows
+  // This is a WebView2/Chromium built-in shortcut that cannot be disabled at the WebView level
+  // We intercept it at the JavaScript level to prevent it from bubbling to the WebView
+  useEffect(() => {
+    const preventShiftEsc = (e: KeyboardEvent) => {
+      // Check if it's Shift+Esc
+      if (e.key === 'Escape' && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        logger.debug('Prevented Shift+Esc browser task manager shortcut');
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+      }
+    };
+
+    // Use capture phase to intercept before any other handlers
+    document.addEventListener('keydown', preventShiftEsc, true);
+
+    logger.info('Global Shift+Esc preventDefault handler registered');
+
+    return () => {
+      document.removeEventListener('keydown', preventShiftEsc, true);
+      logger.info('Global Shift+Esc preventDefault handler unregistered');
+    };
+  }, []);
+
   // Show initialization screen while loading or if there's an error
   if (isInitializing || initError) {
     return <InitializationScreen error={initError} />;

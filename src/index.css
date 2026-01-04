@@ -184,3 +184,18 @@
   color: rgba(239, 68, 68, 0.9);
   font-size: 8px;
 }
+
+/* Fix Monaco Find Widget close button hover issue */
+body.find-widget-open .monaco-hover,
+body.find-widget-open .context-view {
+  pointer-events: none !important;
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+}
+
+/* Ensure buttons in find widget are always clickable */
+.monaco-editor .find-widget .button {
+  position: relative;
+  z-index: 10 !important;
+}
