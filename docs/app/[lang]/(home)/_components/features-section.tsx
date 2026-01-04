@@ -15,27 +15,27 @@ const translations = {
   en: {
     badge: "Features",
     sectionTitle: "Engineered for Performance",
-    sectionSubtitle: "A complete toolkit for the modern developer.",
+    sectionSubtitle: "A complete toolkit for the modern developer. Everything you need to code faster, smarter, and more efficiently.",
     features: {
       multiModel: {
-        title: "Multi-Model Freedom",
-        desc: "Switch between OpenAI, Anthropic, and Local models instantly.",
+        title: "Any Model, Any Provider",
+        desc: "Switch between OpenAI, Anthropic, Google, or local models instantly. No vendor lock-in. Use what works best for each task.",
       },
       multiModal: {
-        title: "Multi-Modal Input",
-        desc: "Voice, Images, Text. Code naturally.",
+        title: "Multimodal Input",
+        desc: "Text, voice, images, and files work seamlessly together. Code naturally with the input method that suits you.",
       },
       mcp: {
-        title: "MCP Support",
-        desc: "Extend capabilities with Model Context Protocol.",
+        title: "MCP Server Support",
+        desc: "Extend capabilities infinitely through Model Context Protocol. Connect to any tool or service.",
       },
       marketplace: {
-        title: "Agent Marketplace",
-        desc: "Discover and share specialized AI agents.",
+        title: "Agents & Skills Marketplace",
+        desc: "Download and share community workflows and specialized agents. Stand on the shoulders of giants.",
       },
       skills: {
-        title: "Skills System",
-        desc: "Modular skills to enhance agent capabilities.",
+        title: "Fully Customizable",
+        desc: "System prompts, agents, tools, MCP servers—everything is configurable. Make it truly yours.",
       },
       local: {
         title: "Privacy First",
@@ -50,27 +50,27 @@ const translations = {
   zh: {
     badge: "产品特性",
     sectionTitle: "为性能而生",
-    sectionSubtitle: "现代开发者的完整工具箱。",
+    sectionSubtitle: "现代开发者的完整工具箱。帮助您更快、更智能、更高效地编写代码所需的一切。",
     features: {
       multiModel: {
-        title: "多模型自由",
-        desc: "在 OpenAI、Anthropic 和本地模型之间即时切换。",
+        title: "任意模型，任意提供商",
+        desc: "在 OpenAI、Anthropic、Google 或本地模型之间即时切换。无供应商锁定。为每个任务使用最合适的工具。",
       },
       multiModal: {
         title: "多模态输入",
-        desc: "语音、图像、文本。自然地编写代码。",
+        desc: "文本、语音、图像和文件无缝协作。用最适合您的输入方式自然编码。",
       },
       mcp: {
-        title: "MCP 支持",
-        desc: "通过模型上下文协议扩展功能。",
+        title: "MCP 服务器支持",
+        desc: "通过模型上下文协议无限扩展能力。连接到任何工具或服务。",
       },
       marketplace: {
-        title: "Agent 市场",
-        desc: "发现并分享专业的 AI 代理。",
+        title: "代理和技能市场",
+        desc: "下载和分享社区工作流和专业代理。站在巨人的肩膀上。",
       },
       skills: {
-        title: "技能系统",
-        desc: "模块化技能，增强 Agent 能力。",
+        title: "完全可定制",
+        desc: "系统提示、代理、工具、MCP 服务器——一切都可配置。让它真正属于您。",
       },
       local: {
         title: "隐私至上",

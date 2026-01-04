@@ -4,62 +4,62 @@ const translations = {
   en: {
     badge: "Benefits",
     title: "Why Choose TalkCody",
-    subtitle: "The AI coding agent that respects your freedom and privacy",
+    subtitle: "Built by developers, for developers who value speed, cost, control, and privacy",
     benefits: [
       {
         icon: Code,
-        title: "Full Open Source",
+        title: "Blazing Fast Development",
         description:
-          "100% open source codebase. Audit the code, contribute improvements, or fork for your needs. Complete transparency.",
+          "Four-Level Parallelism runs project, task, agent, and tool levels simultaneously—complete complex projects in a fraction of the time. Work the way you actually code: in parallel.",
       },
       {
         icon: DollarSign,
-        title: "No Inference Markup",
+        title: "Maximum Flexibility, Minimum Cost",
         description:
-          "BYOK - Bring Your Own Keys. Pay providers directly at your negotiated rates. Predictable costs, zero lock-in.",
+          "9 ways to use completely free. Leverage your existing Claude Pro/ChatGPT Plus/GitHub Copilot subscriptions. Or use any AI model from any provider—OpenAI, Anthropic, Google, or local models. Zero vendor lock-in.",
       },
       {
         icon: Layers,
-        title: "Model Freedom",
+        title: "Professional-Grade Features",
         description:
-          "Choose any provider and any model. OpenAI, Anthropic, Google, Ollama, or your own. Switch freely anytime.",
+          "Multimodal input (text, voice, images), MCP Server support, Agents & Skills Marketplace, built-in terminal, and fully customizable workflows. Everything you need in one native app.",
       },
       {
         icon: Shield,
-        title: "Privacy First",
+        title: "Privacy You Can Trust",
         description:
-          "All your data is stored locally. Your code, conversations, and settings never leave your machine.",
+          "100% local storage—your code never leaves your machine. Works completely offline with Ollama or LM Studio. You own everything. Fully auditable open-source code.",
       },
     ],
   },
   zh: {
-    badge: "核心功能",
+    badge: "核心优势",
     title: "为什么选择 TalkCody",
-    subtitle: "尊重您的自由和隐私的 AI 编码助手",
+    subtitle: "由开发者打造，为重视速度、成本、控制权和隐私的开发者服务",
     benefits: [
       {
         icon: Code,
-        title: "完全开源",
+        title: "极速开发体验",
         description:
-          "100% 开源代码。审计代码、贡献改进或根据需要分叉。完全透明。",
+          "四级并行机制同时运行项目、任务、代理和工具层面——以极短时间完成复杂项目。像您真正编码的方式那样工作：并行处理。",
       },
       {
         icon: DollarSign,
-        title: "无推理加价",
+        title: "灵活性最大，成本最低",
         description:
-          "BYOK - 自带密钥。直接以您的协商费率向提供商付款。可预测的成本，零锁定。",
+          "9 种完全免费的使用方式。充分利用您现有的 Claude Pro/ChatGPT Plus/GitHub Copilot 订阅。或使用任何提供商的任何 AI 模型——OpenAI、Anthropic、Google 或本地模型。零供应商锁定。",
       },
       {
         icon: Layers,
-        title: "模型自由",
+        title: "专业级功能",
         description:
-          "选择任何提供商和任何模型。OpenAI、Anthropic、Google、Ollama 或您自己的。随时自由切换。",
+          "多模态输入（文本、语音、图像）、MCP 服务器支持、代理和技能市场、内置终端以及完全可定制的工作流。一个原生应用满足您的所有需求。",
       },
       {
         icon: Shield,
-        title: "隐私优先",
+        title: "值得信赖的隐私保护",
         description:
-          "所有数据本地存储。您的代码、对话和设置永远不会离开您的设备。",
+          "100% 本地存储——您的代码永不离开您的机器。使用 Ollama 或 LM Studio 完全离线工作。您拥有一切。完全可审计的开源代码。",
       },
     ],
   },
