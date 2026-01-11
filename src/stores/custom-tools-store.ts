@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { logger } from '@/lib/logger';
 import { replaceCustomToolsCache } from '@/lib/tools';
+import { agentRegistry } from '@/services/agents/agent-registry';
 import type { CustomToolLoadResult, CustomToolSource } from '@/services/tools/custom-tool-loader';
 import { loadCustomTools } from '@/services/tools/custom-tool-loader';
 import { refreshCustomTools } from '@/services/tools/custom-tool-refresh';
@@ -65,6 +66,9 @@ export const useCustomToolsStore = create<CustomToolsStore>((set) => ({
 
       const refreshed = await refreshCustomTools(options);
       replaceCustomToolsCache(refreshed);
+
+      // Refresh agent tool references to pick up new custom tool definitions
+      await agentRegistry.refreshCustomTools();
     } catch (error) {
       logger.error('[CustomToolsStore] Failed to refresh custom tools', error);
       set({ isLoading: false });

@@ -234,3 +234,13 @@ export function getAvailableToolsForUISync(): Array<{
 }> {
   return getToolsForUISync();
 }
+
+/**
+ * Clear the tool registry cache
+ * This should be called when custom tools are refreshed to ensure
+ * the next getToolRegistry() call returns the latest tool definitions
+ */
+export function clearToolRegistryCache(): void {
+  registryCache = null;
+  registryPromise = null;
+}

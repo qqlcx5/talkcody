@@ -727,6 +727,37 @@ class AgentRegistry {
       logger.error('refreshMCPTools: Failed to refresh MCP tools:', error);
     }
   }
+
+  /**
+   * Refresh custom tools in system agents
+   * Called when custom tools are refreshed to update tool references
+   */
+  async refreshCustomTools(): Promise<void> {
+    logger.info('refreshCustomTools: Refreshing custom tools in system agents...');
+
+    try {
+      // Rebuild planner tools with fresh custom tool definitions
+      const plannerTools = await this.buildPlannerTools();
+
+      // Update PlannerAgent's tools
+      const plannerAgent = this.systemAgents.get('planner');
+      if (plannerAgent) {
+        const convertedTools = convertToolsForAI(plannerTools);
+        this.systemAgents.set('planner', { ...plannerAgent, tools: convertedTools });
+        logger.info('refreshCustomTools: Updated PlannerAgent tools');
+      }
+
+      // Note: Other system agents (coding, explore, etc.) use getToolSync() to load tools
+      // Since toolsCache is already updated in replaceCustomToolsCache(),
+      // they will get the latest custom tools on their next tool execution.
+      // PlannerAgent is the only agent that caches tool references at load time,
+      // so we only need to update it here.
+
+      logger.info('refreshCustomTools: Custom tools refreshed successfully');
+    } catch (error) {
+      logger.error('refreshCustomTools: Failed to refresh custom tools:', error);
+    }
+  }
 }
 
 export const agentRegistry = new AgentRegistry();

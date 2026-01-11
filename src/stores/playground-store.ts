@@ -3,6 +3,7 @@ import { exists, mkdir } from '@tauri-apps/plugin-fs';
 import { create } from 'zustand';
 import { logger } from '@/lib/logger';
 import { replaceCustomToolsCache } from '@/lib/tools';
+import { agentRegistry } from '@/services/agents/agent-registry';
 import { refreshCustomTools } from '@/services/tools/custom-tool-refresh';
 import { toolPlaygroundService } from '@/services/tools/tool-playground-service';
 import { getEffectiveWorkspaceRoot } from '@/services/workspace-root-service';
@@ -505,6 +506,9 @@ export const usePlaygroundStore = create<PlaygroundState>()((set, get) => ({
 
       const refreshed = await refreshCustomTools(options);
       replaceCustomToolsCache(refreshed);
+
+      // Refresh agent tool references to pick up new custom tool definitions
+      await agentRegistry.refreshCustomTools();
 
       return true;
     } catch (error) {

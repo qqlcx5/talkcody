@@ -9,6 +9,7 @@
  * That's it! The tool will be automatically registered and available.
  */
 
+import { clearToolRegistryCache } from '@/services/agents/tool-registry';
 import { loadCustomToolsForRegistry } from '@/services/tools/custom-tool-service';
 import { getEffectiveWorkspaceRoot } from '@/services/workspace-root-service';
 import { settingsManager } from '@/stores/settings-store';
@@ -389,6 +390,8 @@ export function replaceCustomToolsCache(tools: Record<string, ToolWithUI>) {
   if (toolsCache) {
     toolsCache = { ...toolsCache, ...customToolsCache };
   }
+  // Clear tool registry cache to ensure agents get the latest tool definitions
+  clearToolRegistryCache();
 }
 
 /**
