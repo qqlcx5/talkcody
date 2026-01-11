@@ -34,7 +34,6 @@ const setTodos = async (todos: TodoItem[]): Promise<void> => {
 
     const fileTodos = todos.map(convertToolTodoToFileTodo);
     await fileTodoService.saveTodos(taskId, fileTodos);
-    // logger.info(`Saved ${todos.length} todos for task ${taskId}`);
   } catch (error) {
     logger.error('Error setting todos:', error);
     throw error;

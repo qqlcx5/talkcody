@@ -209,9 +209,6 @@ describe('todoWriteTool', () => {
       ]);
 
       expect(result).toEqual(input.todos);
-      expect(mockLogger.info).toHaveBeenCalledWith(
-        'Saved 2 todos for task test-task-id'
-      );
     });
 
     it('should handle empty todos list', async () => {
@@ -406,26 +403,6 @@ describe('todoWriteTool', () => {
           id: 'test-id',
         },
       ]);
-    });
-
-    it('should log appropriate messages on success', async () => {
-      mockFileTodoService.saveTodos.mockResolvedValue(undefined);
-
-      const input = {
-        todos: [
-          {
-            content: 'Test todo',
-            status: 'pending' as const,
-            id: 'test-id',
-          },
-        ],
-      };
-
-      await todoWriteTool.execute?.(input);
-
-      expect(mockLogger.info).toHaveBeenCalledWith(
-        'Saved 1 todos for task test-task-id'
-      );
     });
   });
 });

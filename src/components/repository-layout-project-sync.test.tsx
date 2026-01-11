@@ -108,6 +108,13 @@ const mockTranslations = {
   },
   RepositoryStore: { success: {}, errors: {} },
   Settings: { search: { searchFiles: 'Search Files' } },
+  RepositoryLayout: {
+    deleteTaskWithChangesTitle: 'Delete Task With Changes',
+    deleteAnyway: 'Delete Anyway',
+    maxConcurrentTasksReached: 'Max concurrent tasks reached',
+    fullscreen: 'Fullscreen',
+    exitFullscreen: 'Exit Fullscreen',
+  },
   Repository: {
     emptyState: {
       title: 'No Repository Open',
@@ -143,6 +150,7 @@ const mockTranslations = {
     send: 'Send',
     stop: 'Stop',
     newChat: 'New Chat',
+    searchTasks: 'Search tasks...',
     emptyState: {
       title: 'AI Assistant',
       description: 'Start chatting',
@@ -363,12 +371,15 @@ vi.mock('@/stores/worktree-store', () => ({
 }));
 
 vi.mock('@/stores/lint-store', () => ({
-  useLintStore: vi.fn(() => ({
-    settings: {
-      enabled: false,
-      showInProblemsPanel: false,
-    },
-  })),
+  useLintStore: vi.fn((selector: any) => {
+    const state = {
+      settings: {
+        enabled: false,
+        showInProblemsPanel: false,
+      },
+    };
+    return selector ? selector(state) : state;
+  }),
 }));
 
 vi.mock('@/hooks/use-repository-watcher', () => ({
@@ -518,8 +529,11 @@ describe('RepositoryLayout - Project Sync Bug Fix', () => {
     const firstSelector = projectSelectorCalls[0]?.[0];
     if (firstSelector) {
       const result = firstSelector(mockState);
-      // The selector should return the project ID
-      expect(result).toBe('test-project-id');
+      // The selector should return the derived settings slice
+      expect(result).toEqual({
+        currentProjectId: 'test-project-id',
+        isDefaultProject: false,
+      });
     }
   });
 
@@ -625,7 +639,7 @@ describe('RepositoryLayout - Project Sync Bug Fix', () => {
     render(<RepositoryLayout />);
 
     expect(screen.queryByText('No Repository Open')).not.toBeInTheDocument();
-    expect(screen.getByPlaceholderText('Search tasks...')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(mockTranslations.Chat.searchTasks)).toBeInTheDocument();
   });
 
   it('should keep sidebar and chat panel sizing consistent between default and repository projects', () => {
