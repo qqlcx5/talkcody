@@ -448,10 +448,10 @@ mod tests {
         let config = WalkerConfig::for_content_search(); // This doesn't allow .github
         let walker = WorkspaceWalker::new(temp_dir.path().to_str().unwrap(), config);
 
-        let mut found_github = false;
+        let mut _found_github = false;
         for entry in walker.build().flatten() {
             if entry.path().to_string_lossy().contains(".github") {
-                found_github = true;
+                _found_github = true;
                 break;
             }
         }
