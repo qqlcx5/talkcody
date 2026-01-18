@@ -13,6 +13,7 @@ import { parseModelIdentifier } from '@/providers/core/provider-utils';
 import { modelService } from '@/providers/stores/provider-store';
 import { agentRegistry } from '@/services/agents/agent-registry';
 import { commandExecutor } from '@/services/commands/command-executor';
+import { commandRegistry } from '@/services/commands/command-registry';
 import { databaseService } from '@/services/database-service';
 import { executionService } from '@/services/execution-service';
 import { messageService } from '@/services/message-service';
@@ -29,6 +30,14 @@ import { FileChangesSummary } from './chat/file-changes-summary';
 import { MessageList } from './chat/message-list';
 import { TalkCodyFreeLoginDialog } from './talkcody-free-login-dialog';
 import { Button } from './ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from './ui/dialog';
 
 interface ChatBoxProps {
   onMessageSent?: (message: string) => void;
@@ -71,6 +80,14 @@ export const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(
   ) => {
     const [input, setInput] = useState('');
     const [showTalkCodyFreeLoginDialog, setShowTalkCodyFreeLoginDialog] = useState(false);
+    const [isCompactionDialogOpen, setIsCompactionDialogOpen] = useState(false);
+    const [isCompacting, setIsCompacting] = useState(false);
+    const [compactionStats, setCompactionStats] = useState<{
+      originalMessageCount: number | null;
+      compressedMessageCount: number | null;
+      reductionPercent: number | null;
+      compressionRatio: number | null;
+    } | null>(null);
     const chatInputRef = useRef<ChatInputRef>(null);
     const language = useSettingsStore((state) => state.language);
     const t = useMemo(() => getLocale((language || 'en') as SupportedLocale), [language]);
@@ -413,6 +430,28 @@ export const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(
       const userMessage = input.trim();
       setInput('');
 
+      if (userMessage.startsWith('/')) {
+        try {
+          await commandRegistry.initialize();
+        } catch (error) {
+          logger.warn('Failed to initialize command registry:', error);
+        }
+      }
+
+      if (/^\/compact(\s|$)/.test(userMessage)) {
+        const parsedCommand = commandExecutor.parseCommand('/compact');
+        if (parsedCommand.command) {
+          setIsCompactionDialogOpen(true);
+          setIsCompacting(true);
+          setCompactionStats(null);
+          await executeCommand(parsedCommand.command, parsedCommand.rawArgs);
+          return;
+        }
+
+        toast.error(t.Chat.commands.unknownCommand('compact'));
+        return;
+      }
+
       // Check if the message is a command (starts with '/')
       if (userMessage.startsWith('/')) {
         const parsedCommand = commandExecutor.parseCommand(userMessage);
@@ -421,6 +460,14 @@ export const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(
           await executeCommand(parsedCommand.command, parsedCommand.rawArgs);
           return;
         }
+
+        const commandName = userMessage.slice(1).trim().split(/\s+/)[0];
+        if (commandName) {
+          toast.error(t.Chat.commands.unknownCommand(commandName));
+        } else {
+          toast.error(t.Chat.commands.invalidCommand);
+        }
+        return;
       }
 
       // If not a command, process as a normal message
@@ -472,9 +519,32 @@ export const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(
         const args: Record<string, unknown> = rawArgs ? { _raw: rawArgs } : {};
         const result: CommandResult = await command.executor(args, context);
 
+        if (result.data && typeof result.data === 'object') {
+          const payload = result.data as {
+            type?: string;
+            stats?: {
+              originalMessageCount?: number;
+              compressedMessageCount?: number;
+              reductionPercent?: number;
+              compressionRatio?: number;
+            };
+          };
+
+          if (payload.type === 'compaction') {
+            setIsCompactionDialogOpen(true);
+            setIsCompacting(false);
+            setCompactionStats({
+              originalMessageCount: payload.stats?.originalMessageCount ?? null,
+              compressedMessageCount: payload.stats?.compressedMessageCount ?? null,
+              reductionPercent: payload.stats?.reductionPercent ?? null,
+              compressionRatio: payload.stats?.compressionRatio ?? null,
+            });
+          }
+        }
+
         // Handle the result
         if (result.success) {
-          if (result.message) {
+          if (result.message && command.name !== 'compact') {
             toast.success(result.message);
           }
 
@@ -492,17 +562,86 @@ export const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(
         } else {
           // Show error
           if (result.error) {
+            if (command.name === 'compact') {
+              setIsCompacting(false);
+              setIsCompactionDialogOpen(true);
+            }
             toast.error(result.error);
           }
         }
       } catch (error) {
         logger.error('Command execution failed:', error);
         toast.error(`Command execution failed: ${error}`);
+        setIsCompacting(false);
+        setIsCompactionDialogOpen(false);
       }
     };
 
     return (
       <div className="flex h-full w-full min-w-0 flex-col">
+        <Dialog open={isCompactionDialogOpen} onOpenChange={setIsCompactionDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>{t.Chat.compaction.dialogTitle}</DialogTitle>
+              <DialogDescription>{t.Chat.compaction.dialogDescription}</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              {isCompacting ? (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <LoaderCircle className="size-4 animate-spin" />
+                  <span>{t.Chat.compaction.compacting}</span>
+                </div>
+              ) : (
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">
+                      {t.Chat.compaction.stats.originalMessages}
+                    </span>
+                    <span>{compactionStats?.originalMessageCount ?? '-'}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">
+                      {t.Chat.compaction.stats.compactedMessages}
+                    </span>
+                    <span>{compactionStats?.compressedMessageCount ?? '-'}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">
+                      {t.Chat.compaction.stats.reductionPercent}
+                    </span>
+                    <span>
+                      {compactionStats?.reductionPercent !== null &&
+                      compactionStats?.reductionPercent !== undefined
+                        ? `${compactionStats.reductionPercent}%`
+                        : '-'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">
+                      {t.Chat.compaction.stats.compressionRatio}
+                    </span>
+                    <span>
+                      {compactionStats?.compressionRatio !== null &&
+                      compactionStats?.compressionRatio !== undefined
+                        ? compactionStats.compressionRatio.toFixed(2)
+                        : '-'}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsCompactionDialogOpen(false)}
+                disabled={isCompacting}
+              >
+                {t.Common.close}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
         <Task className="flex min-h-0 w-full flex-1 flex-col">
           <TaskContent className="w-full min-w-0">
             <MessageList

@@ -9,6 +9,7 @@ const mockGetTask = vi.hoisted(() => vi.fn());
 const mockSetMessages = vi.hoisted(() => vi.fn());
 const mockGetEffectiveWorkspaceRoot = vi.hoisted(() => vi.fn());
 const mockWriteFile = vi.hoisted(() => vi.fn());
+const mockGetLocale = vi.hoisted(() => vi.fn());
 
 vi.mock('@/services/ai/ai-context-compaction', () => ({
   aiContextCompactionService: {
@@ -36,6 +37,18 @@ vi.mock('@/stores/task-store', () => ({
   },
 }));
 
+vi.mock('@/stores/settings-store', () => ({
+  useSettingsStore: {
+    getState: () => ({
+      language: 'en',
+    }),
+  },
+}));
+
+vi.mock('@/locales', () => ({
+  getLocale: mockGetLocale,
+}));
+
 vi.mock('@/services/task-file-service', () => ({
   taskFileService: {
     writeFile: mockWriteFile,
@@ -48,6 +61,21 @@ describe('compactTaskContext', () => {
     mockGetEffectiveWorkspaceRoot.mockResolvedValue('/repo');
     mockResolveModelTypeSync.mockReturnValue('google/gemini-2.5-flash-lite');
     mockWriteFile.mockResolvedValue('/path/to/file');
+    mockGetLocale.mockReturnValue({
+      Chat: {
+        compaction: {
+          errors: {
+            noTask: 'No active task - cannot compact context',
+            taskNotFound: 'Task not found',
+            noMessages: 'No messages to compact',
+            noChange: 'No compression needed - context is already compact',
+            failed: (message: string) => `Failed to compact context: ${message}`,
+          },
+          successMessage: (count: number, reduction: number) =>
+            `Context compacted successfully. Reduced to ${count} messages (${reduction}% reduction)`,
+        },
+      },
+    });
   });
 
   it('preserves tool-call and tool-result content when compacting', async () => {
@@ -128,6 +156,9 @@ describe('compactTaskContext', () => {
     expect(toolResultContent?.toolCallId).toBe('call-1');
     expect(toolResultContent?.toolName).toBe('readFile');
     expect(toolResultContent?.output).toEqual({ type: 'text', value: '{"type":"text","value":"hello"}' });
+    expect(result.originalMessageCount).toBe(messages.length);
+    expect(result.compressedMessageCount).toBeGreaterThan(0);
+    expect(result.reductionPercent).not.toBeUndefined();
   });
 
   it('returns no compression needed when summary is empty', async () => {
@@ -145,8 +176,15 @@ describe('compactTaskContext', () => {
     const result = await compactTaskContext(taskId);
 
     expect(result.success).toBe(false);
-    expect(result.message).toContain('No compression needed');
+    expect(result.message).toContain('No compression needed - context is already compact');
     expect(mockSetMessages).not.toHaveBeenCalled();
     expect(mockWriteFile).not.toHaveBeenCalled();
+  });
+
+  it('returns localized error when task is missing', async () => {
+    const result = await compactTaskContext('');
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe('No active task - cannot compact context');
   });
 });

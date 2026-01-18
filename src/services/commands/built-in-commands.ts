@@ -268,6 +268,15 @@ async function executeCompactCommand(context: CommandContext) {
       message: 'No active task - cannot compact context',
       error: 'No active task - cannot compact context',
       continueProcessing: false,
+      data: {
+        type: 'compaction',
+        stats: {
+          originalMessageCount: null,
+          compressedMessageCount: null,
+          reductionPercent: null,
+          compressionRatio: null,
+        },
+      },
     };
   }
 
