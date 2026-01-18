@@ -21,9 +21,6 @@ export class KeepAwakeService {
   private static instance: KeepAwakeService | null = null;
   private refCount = 0;
   private isPreventing = false;
-  private releaseTimeout: ReturnType<typeof setTimeout> | null = null;
-  private releasePromise: Promise<boolean> | null = null;
-  private releaseResolve: ((value: boolean) => void) | null = null;
   private currentPlatform: string | null = null;
   private platformDetected = false;
 
@@ -108,20 +105,14 @@ export class KeepAwakeService {
       const wasFirst = await invoke<boolean>('keep_awake_acquire');
 
       // Update local state
-      this.refCount++;
+      this.refCount += 1;
+      this.isPreventing = this.refCount > 0;
       if (wasFirst) {
-        this.isPreventing = true;
         const t = this.getTranslations().KeepAwake;
         this.showToast('success', t.enabled);
         logger.info('[KeepAwakeService] Sleep prevention enabled', {
           refCount: this.refCount,
         });
-
-        // Clear any pending release timeout
-        if (this.releaseTimeout) {
-          clearTimeout(this.releaseTimeout);
-          this.releaseTimeout = null;
-        }
       }
 
       return wasFirst;
@@ -138,8 +129,6 @@ export class KeepAwakeService {
    *
    * Returns true if sleep prevention can now be disabled (last release)
    * Returns false if other tasks are still active
-   *
-   * Uses debouncing (500ms) to prevent rapid toggle when tasks start/stop quickly
    */
   public async release(): Promise<boolean> {
     try {
@@ -148,52 +137,24 @@ export class KeepAwakeService {
         return false;
       }
 
-      // Create a shared promise for all callers during debounce
-      if (!this.releasePromise) {
-        this.releasePromise = new Promise((resolve) => {
-          this.releaseResolve = resolve;
+      // Call Rust backend to decrement reference count
+      const wasLast = await invoke<boolean>('keep_awake_release');
+
+      if (this.refCount > 0) {
+        this.refCount -= 1;
+      }
+
+      this.isPreventing = this.refCount > 0;
+
+      if (wasLast) {
+        const t = this.getTranslations().KeepAwake;
+        this.showToast('success', t.disabled);
+        logger.info('[KeepAwakeService] Sleep prevention disabled', {
+          refCount: this.refCount,
         });
       }
 
-      // Clear any existing timeout and schedule a new one
-      if (this.releaseTimeout) {
-        clearTimeout(this.releaseTimeout);
-      }
-
-      // Debounce release to prevent rapid toggling
-      this.releaseTimeout = setTimeout(async () => {
-        try {
-          // Call Rust backend to decrement reference count
-          const wasLast = await invoke<boolean>('keep_awake_release');
-
-          // Update local state
-          if (this.refCount > 0) {
-            this.refCount--;
-          }
-
-          if (wasLast) {
-            this.isPreventing = false;
-            const t = this.getTranslations().KeepAwake;
-            this.showToast('success', t.disabled);
-            logger.info('[KeepAwakeService] Sleep prevention disabled', {
-              refCount: this.refCount,
-            });
-          }
-
-          this.releaseResolve?.(wasLast);
-        } catch (error) {
-          const t = this.getTranslations().KeepAwake;
-          logger.error('[KeepAwakeService] Failed to release sleep prevention:', error);
-          this.showToast('error', t.error);
-          this.releaseResolve?.(false);
-        } finally {
-          this.releaseTimeout = null;
-          this.releasePromise = null;
-          this.releaseResolve = null;
-        }
-      }, 500); // 500ms debounce delay
-
-      return this.releasePromise;
+      return wasLast;
     } catch (error) {
       const t = this.getTranslations().KeepAwake;
       logger.error('[KeepAwakeService] Failed to release sleep prevention:', error);
@@ -212,6 +173,7 @@ export class KeepAwakeService {
       }
       const count = await invoke<number>('keep_awake_get_ref_count');
       this.refCount = count;
+      this.isPreventing = count > 0;
       return count;
     } catch (error) {
       logger.error('[KeepAwakeService] Failed to get ref count:', error);

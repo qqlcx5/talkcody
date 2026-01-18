@@ -49,13 +49,11 @@ describe('KeepAwakeService', () => {
 
   beforeEach(() => {
     service = KeepAwakeService.getInstance();
-    // Reset all mocks
     vi.clearAllMocks();
   });
 
   afterEach(() => {
-    // Reset instance for clean tests
-    (KeepAwakeService as any).instance = null;
+    (KeepAwakeService as unknown as { instance: KeepAwakeService | null }).instance = null;
   });
 
   describe('getInstance', () => {
@@ -70,7 +68,7 @@ describe('KeepAwakeService', () => {
     it('should call keep_awake_acquire and return true on first acquire', async () => {
       vi.mocked(invoke).mockResolvedValue(true);
       vi.mocked(platform).mockResolvedValue('macos');
-      vi.clearAllMocks(); // Clear mock calls
+      vi.clearAllMocks();
 
       const result = await service.acquire();
 
@@ -85,7 +83,7 @@ describe('KeepAwakeService', () => {
     it('should return false on subsequent acquire calls', async () => {
       vi.mocked(invoke).mockResolvedValue(false);
       vi.mocked(platform).mockResolvedValue('macos');
-      vi.clearAllMocks(); // Clear mock calls from previous tests
+      vi.clearAllMocks();
 
       const result = await service.acquire();
 
@@ -108,51 +106,22 @@ describe('KeepAwakeService', () => {
 
     it('should return false for unsupported platforms', async () => {
       vi.mocked(platform).mockResolvedValue('android');
-      vi.clearAllMocks(); // Clear mock calls
+      vi.clearAllMocks();
 
       const result = await service.acquire();
 
       expect(result).toBe(false);
       expect(invoke).not.toHaveBeenCalled();
     });
-
-    it('should clear release timeout on acquire', async () => {
-      vi.useFakeTimers();
-      vi.mocked(invoke).mockResolvedValue(true);
-      vi.mocked(platform).mockResolvedValue('macos');
-      vi.clearAllMocks(); // Clear mock calls from previous tests
-
-      // First acquire
-      await service.acquire();
-
-      // Second acquire should also return true since each invoke returns true
-      const result = await service.acquire();
-      expect(result).toBe(true);
-      
-      vi.useRealTimers();
-    });
   });
 
   describe('release', () => {
-    beforeEach(() => {
-      vi.useFakeTimers();
-    });
-
-    afterEach(() => {
-      vi.useRealTimers();
-    });
-
     it('should call keep_awake_release and return true on last release', async () => {
       vi.mocked(invoke).mockResolvedValue(true);
       vi.mocked(platform).mockResolvedValue('macos');
-      vi.clearAllMocks(); // Clear mock calls from previous tests
+      vi.clearAllMocks();
 
-      const resultPromise = service.release();
-
-      // Fast-forward past debounce delay
-      await vi.advanceTimersByTimeAsync(500);
-
-      const result = await resultPromise;
+      const result = await service.release();
 
       expect(invoke).toHaveBeenCalledWith('keep_awake_release');
       expect(result).toBe(true);
@@ -161,49 +130,20 @@ describe('KeepAwakeService', () => {
     it('should return false when other tasks are still active', async () => {
       vi.mocked(invoke).mockResolvedValue(false);
       vi.mocked(platform).mockResolvedValue('macos');
-      vi.clearAllMocks(); // Clear mock calls from previous tests
+      vi.clearAllMocks();
 
-      const resultPromise = service.release();
-
-      // Fast-forward past debounce delay
-      await vi.advanceTimersByTimeAsync(500);
-
-      const result = await resultPromise;
+      const result = await service.release();
 
       expect(result).toBe(false);
       expect(toast).not.toHaveBeenCalled();
     });
 
-    it('should debounce release calls', async () => {
-      vi.mocked(invoke).mockResolvedValue(true);
-      vi.mocked(platform).mockResolvedValue('macos');
-      vi.clearAllMocks(); // Clear mock calls
-
-      // Multiple rapid releases
-      const promise1 = service.release();
-      const promise2 = service.release();
-      const promise3 = service.release();
-
-      // Fast-forward time past debounce delay
-      await vi.advanceTimersByTimeAsync(500);
-
-      await Promise.all([promise1, promise2, promise3]);
-
-      // Should only call invoke once
-      expect(invoke).toHaveBeenCalledTimes(1);
-    });
-
     it('should handle errors gracefully', async () => {
       vi.mocked(invoke).mockRejectedValue(new Error('Plugin error'));
       vi.mocked(platform).mockResolvedValue('macos');
-      vi.clearAllMocks(); // Clear mock calls from previous tests
+      vi.clearAllMocks();
 
-      const resultPromise = service.release();
-
-      // Fast-forward past debounce delay
-      await vi.advanceTimersByTimeAsync(500);
-
-      const result = await resultPromise;
+      const result = await service.release();
 
       expect(result).toBe(false);
       expect(toast).toHaveBeenCalledWith(
@@ -214,7 +154,7 @@ describe('KeepAwakeService', () => {
 
     it('should return false for unsupported platforms', async () => {
       vi.mocked(platform).mockResolvedValue('ios');
-      vi.clearAllMocks(); // Clear mock calls
+      vi.clearAllMocks();
 
       const result = await service.release();
 
@@ -227,7 +167,7 @@ describe('KeepAwakeService', () => {
     it('should return current reference count', async () => {
       vi.mocked(invoke).mockResolvedValue(3);
       vi.mocked(platform).mockResolvedValue('macos');
-      vi.clearAllMocks(); // Clear mock calls
+      vi.clearAllMocks();
 
       const count = await service.getRefCount();
 
@@ -241,7 +181,6 @@ describe('KeepAwakeService', () => {
 
       const count = await service.getRefCount();
 
-      // Should return local count (0 in this case)
       expect(count).toBe(0);
     });
   });
@@ -272,20 +211,11 @@ describe('KeepAwakeService', () => {
 
       const preventing = await service.isPreventingSleep();
 
-      // Should return local state (false in this case)
       expect(preventing).toBe(false);
     });
   });
 
   describe('forceReleaseAll', () => {
-    beforeEach(() => {
-      vi.useFakeTimers();
-    });
-
-    afterEach(() => {
-      vi.useRealTimers();
-    });
-
     it('should release all sleep prevention', async () => {
       vi.mocked(platform).mockResolvedValue('macos');
       vi.mocked(invoke).mockImplementation((cmd) => {
@@ -293,23 +223,16 @@ describe('KeepAwakeService', () => {
           return Promise.resolve(3);
         }
         if (cmd === 'keep_awake_release') {
-          return Promise.resolve(false); // Not last
+          return Promise.resolve(false);
         }
         return Promise.reject(new Error('Unknown command'));
       });
-      vi.clearAllMocks(); // Clear mock calls from previous tests
+      vi.clearAllMocks();
 
-      const releasePromise = service.forceReleaseAll();
-      
-      // Fast-forward past debounce delays (3 releases * 500ms)
-      await vi.advanceTimersByTimeAsync(500 * 3);
+      await service.forceReleaseAll();
 
-      await releasePromise;
-
-      // Should call get_ref_count once
       expect(invoke).toHaveBeenCalledWith('keep_awake_get_ref_count');
-      // Should call release 3 times
-      expect(invoke).toHaveBeenCalledTimes(4); // 1 get + 3 releases
+      expect(invoke).toHaveBeenCalledTimes(4);
     });
 
     it('should handle zero ref count', async () => {
@@ -318,9 +241,7 @@ describe('KeepAwakeService', () => {
 
       await service.forceReleaseAll();
 
-      // Should call get_ref_count once
       expect(invoke).toHaveBeenCalledWith('keep_awake_get_ref_count');
-      // Should not call release
       expect(invoke).toHaveBeenCalledTimes(1);
     });
 
@@ -328,7 +249,6 @@ describe('KeepAwakeService', () => {
       vi.mocked(platform).mockResolvedValue('macos');
       vi.mocked(invoke).mockRejectedValue(new Error('Plugin error'));
 
-      // Should not throw
       await expect(service.forceReleaseAll()).resolves.not.toThrow();
     });
   });
