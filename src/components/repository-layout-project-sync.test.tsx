@@ -204,6 +204,15 @@ const mockTranslations = {
       disabledTooltip: 'Manual review: AI will ask for approval before applying edits',
       toggleFailed: 'Failed to update auto-approve setting',
     },
+    autoApprovePlan: {
+      title: 'Auto-approve plan',
+      description: 'When enabled, plans will be approved automatically without review',
+      enabled: 'Enabled',
+      disabled: 'Disabled',
+      enabledTooltip: 'Auto-approve: AI will apply plans without asking for approval',
+      disabledTooltip: 'Manual review: AI will ask for approval before applying plans',
+      toggleFailed: 'Failed to update auto-approve setting',
+    },
     reasoningEffort: {
       title: 'Reasoning Effort',
       description: 'Control how much reasoning the model performs before responding. Higher effort uses more tokens for thinking.',
@@ -510,13 +519,38 @@ describe('RepositoryLayout - Project Sync Bug Fix', () => {
     // Trigger re-render (simulating store update)
     rerender(<RepositoryLayout />);
 
-    // Verify that useSettingsStore selector was called to get updated project
+    // Verify that useSettingsStore selector is reactive and reads project
     await waitFor(() => {
       expect(useSettingsStore).toHaveBeenCalled();
-      const projectSelectorCalls = vi.mocked(useSettingsStore).mock.calls.filter(
-        call => call[0] && call[0].toString().includes('state.project')
+      const selectorCalls = vi.mocked(useSettingsStore).mock.calls.filter(
+        (call) => typeof call[0] === 'function'
       );
-      expect(projectSelectorCalls.length).toBeGreaterThan(0);
+      expect(selectorCalls.length).toBeGreaterThan(0);
+
+      const selector = selectorCalls
+        .map((call) => call[0])
+        .find((candidate) => {
+          try {
+            const result = candidate({ project: currentProject, language: 'en' });
+            return (
+              typeof result === 'object' &&
+              result !== null &&
+              'currentProjectId' in result &&
+              'isDefaultProject' in result
+            );
+          } catch {
+            return false;
+          }
+        });
+
+      expect(selector).toBeDefined();
+      if (selector) {
+        const result = selector({ project: currentProject, language: 'en' });
+        expect(result).toEqual({
+          currentProjectId: currentProject,
+          isDefaultProject: false,
+        });
+      }
     });
   });
 
@@ -526,17 +560,31 @@ describe('RepositoryLayout - Project Sync Bug Fix', () => {
 
     // Verify that useSettingsStore is called with a selector function
     // that reads state.project (reactive approach)
-    const projectSelectorCalls = vi.mocked(useSettingsStore).mock.calls.filter(
-      call => call[0] && typeof call[0] === 'function'
+    const selectorCalls = vi.mocked(useSettingsStore).mock.calls.filter(
+      (call) => typeof call[0] === 'function'
     );
 
-    expect(projectSelectorCalls.length).toBeGreaterThan(0);
-    
-    // Verify the selector extracts the 'project' field
-    const mockState = { project: 'test-project-id' };
-    const firstSelector = projectSelectorCalls[0]?.[0];
-    if (firstSelector) {
-      const result = firstSelector(mockState);
+    expect(selectorCalls.length).toBeGreaterThan(0);
+
+    const selector = selectorCalls
+      .map((call) => call[0])
+      .find((candidate) => {
+        try {
+          const result = candidate({ project: 'test-project-id', language: 'en' });
+          return (
+            typeof result === 'object' &&
+            result !== null &&
+            'currentProjectId' in result &&
+            'isDefaultProject' in result
+          );
+        } catch {
+          return false;
+        }
+      });
+
+    expect(selector).toBeDefined();
+    if (selector) {
+      const result = selector({ project: 'test-project-id', language: 'en' });
       // The selector should return the derived settings slice
       expect(result).toEqual({
         currentProjectId: 'test-project-id',

@@ -15,7 +15,7 @@ import { useSettingsStore } from '@/stores/settings-store';
 import { useTaskStore } from '@/stores/task-store';
 import type { TaskSettings } from '@/types/task';
 
-export function AutoApproveEditsButton() {
+export function AutoApproveButton() {
   const { t } = useLocale();
   const [isLoading, setIsLoading] = useState(false);
   const currentTaskId = useTaskStore((state) => state.currentTaskId);
@@ -133,11 +133,6 @@ export function AutoApproveEditsButton() {
                 </span>
               </p>
             </div>
-            {/* <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
-              {editsEnabled
-                ? t.Chat.autoApproveEdits.enabledTooltip
-                : t.Chat.autoApproveEdits.disabledTooltip}
-            </div> */}
           </div>
         </HoverCardContent>
         <PopoverContent side="top" align="end" className="w-80 p-3">

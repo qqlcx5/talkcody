@@ -164,7 +164,7 @@ async function executeHookCommand(
       rawStdout: result.output,
       rawStderr: result.error,
       exitCode: result.exit_code ?? 0,
-      output: result.output ? parseJsonOutput(result.output) : null,
+      output: result.output ? (parseJsonOutput(result.output) ?? undefined) : undefined,
     };
   } finally {
     try {

@@ -628,7 +628,6 @@ export interface LocaleDefinition {
       disabledToast: string;
       blockedPrompt: string;
     };
-    hooksScopeHint: string;
   };
 
   Agents: {

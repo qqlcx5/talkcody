@@ -3,7 +3,7 @@ import { exists, mkdir, readTextFile, writeTextFile } from '@tauri-apps/plugin-f
 import { logger } from '@/lib/logger';
 import { DEFAULT_HOOKS_CONFIG } from '@/services/hooks/hook-config-default';
 import { getValidatedWorkspaceRoot } from '@/services/workspace-root-service';
-import type { HookConfigScope, HookRule, HooksConfigFile } from '@/types/hooks';
+import type { HookConfigScope, HookEventName, HookRule, HooksConfigFile } from '@/types/hooks';
 
 const HOOKS_SETTINGS_FILE = 'settings.json';
 const HOOKS_SETTINGS_LOCAL_FILE = 'settings.local.json';
@@ -49,15 +49,15 @@ async function readConfig(path: string, scope: HookConfigScope): Promise<Resolve
   }
 }
 
-function mergeRules(
-  base: HooksConfigFile['hooks'],
-  next: HooksConfigFile['hooks']
-): HooksConfigFile['hooks'] {
-  if (!next) return base;
-  const merged: HooksConfigFile['hooks'] = { ...(base || {}) };
-  for (const [eventName, rules] of Object.entries(next)) {
-    const existing = merged[eventName as keyof HooksConfigFile['hooks']] || [];
-    merged[eventName as keyof HooksConfigFile['hooks']] = [...existing, ...(rules || [])];
+type HookMap = NonNullable<HooksConfigFile['hooks']>;
+
+function mergeRules(base: HookMap | undefined, next: HookMap | undefined): HookMap {
+  const merged: HookMap = { ...(base ?? {}) };
+  if (!next) return merged;
+  for (const [eventName, rules] of Object.entries(next) as [HookEventName, HookRule[]][]) {
+    const existing = merged[eventName] ?? [];
+    const safeRules = Array.isArray(rules) ? rules : [];
+    merged[eventName] = [...existing, ...safeRules];
   }
   return merged;
 }

@@ -1,6 +1,6 @@
 // src/components/chat/chat-input-tools-bar.tsx
 
-import { AutoApproveEditsButton } from './auto-approve-button';
+import { AutoApproveButton } from './auto-approve-button';
 import { CurrentFileButton } from './current-file-button';
 import { McpSelectorButton } from './mcp-selector-button';
 import { ModelSelectorButton } from './model-selector-button';
@@ -22,7 +22,7 @@ export function ChatInputToolsBar({ taskId, disabled, onAddCurrentFile }: ChatIn
       <McpSelectorButton />
       <ModelSelectorButton />
       <ReasoningEffortButton />
-      <AutoApproveEditsButton />
+      <AutoApproveButton />
       {onAddCurrentFile && <CurrentFileButton disabled={disabled} onAddFile={onAddCurrentFile} />}
     </div>
   );

@@ -5,6 +5,7 @@ import { render, screen } from '@testing-library/react';
 vi.mock('@/services/notification-service', () => ({
   notificationService: {
     notifyReviewRequired: vi.fn(),
+    notifyHooked: vi.fn(),
   },
 }));
 

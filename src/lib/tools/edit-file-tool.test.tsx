@@ -5,6 +5,7 @@ import { render, screen } from '@testing-library/react';
 vi.mock('@/services/notification-service', () => ({
   notificationService: {
     notifyReviewRequired: vi.fn(),
+    notifyHooked: vi.fn(),
   },
 }));
 
@@ -1089,7 +1090,7 @@ describe('editFile tool', () => {
       const fileContent = 'const value = "test";\n';
       mockRepositoryService.readFileWithCache.mockResolvedValue(fileContent);
       mockTaskService.getTaskSettings.mockResolvedValue(null);
-      mockNotificationService.notifyReviewRequired.mockResolvedValue(undefined);
+      mockNotificationService.notifyHooked.mockResolvedValue(undefined);
 
       // Mock setPendingEdit to immediately resolve
       const mockSetPendingEdit = vi.fn();
@@ -1106,7 +1107,12 @@ describe('editFile tool', () => {
         review_mode: true,
       }, testContext);
 
-      expect(mockNotificationService.notifyReviewRequired).toHaveBeenCalled();
+      expect(mockNotificationService.notifyHooked).toHaveBeenCalledWith(
+        'conv-123',
+        'Review Required',
+        'File edit needs your approval',
+        'review_required'
+      );
     });
 
     it('should calculate total occurrences correctly', async () => {

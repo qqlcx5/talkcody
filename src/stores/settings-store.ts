@@ -117,7 +117,6 @@ interface SettingsActions {
   setHooksEnabled: (enabled: boolean) => Promise<void>;
   getAutoApproveEditsGlobal: () => boolean;
   getAutoApprovePlanGlobal: () => boolean;
-  getHooksEnabled: () => boolean;
 
   // Project Settings
   setProject: (project: string) => Promise<void>;
