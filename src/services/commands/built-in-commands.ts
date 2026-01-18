@@ -154,6 +154,54 @@ export async function getBuiltInCommands(): Promise<Command[]> {
       createdAt: new Date(),
       updatedAt: new Date(),
     },
+
+    // /create-agent - Create a custom agent
+    {
+      id: 'create-agent',
+      name: 'create-agent',
+      description: 'Create and register a custom local agent',
+      category: CommandCategory.PROJECT,
+      type: CommandType.AI_PROMPT,
+      parameters: [
+        {
+          name: 'name',
+          description: 'Agent name or short description',
+          required: false,
+          type: 'string',
+        },
+      ],
+      parametersSchema: z.object({
+        name: z.string().optional(),
+        _raw: z.string().optional(),
+      }),
+      executor: async (args, _context) => {
+        const agentHint = args.name || args._raw || '';
+
+        let aiMessage =
+          'Please help create a custom TalkCody agent. Gather requirements (name, purpose, tools, model type, rules, output format, dynamic context) and implement a local agent definition file. ' +
+          'The agent should be created as a new file under src/services/agents (kebab-case, end with -agent.ts) and registered in src/services/agents/agent-registry.ts. ' +
+          'Ensure the agent is visible in the local agents list after refresh. ';
+
+        if (agentHint) {
+          aiMessage += `The agent request is: ${agentHint}. `;
+        }
+
+        return {
+          success: true,
+          message: 'Custom agent creation started',
+          continueProcessing: true,
+          aiMessage,
+        };
+      },
+      isBuiltIn: true,
+      enabled: true,
+      icon: 'Bot',
+      preferredAgentId: 'create-agent',
+      aliases: ['new-agent', 'agent'],
+      examples: ['/create-agent', '/create-agent code reviewer'],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
   ];
 
   return commands;

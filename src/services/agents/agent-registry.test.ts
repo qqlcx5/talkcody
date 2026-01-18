@@ -218,6 +218,14 @@ describe('Agent Registry - Auto-load Behavior', () => {
     expect(agent?.hidden).toBe(true);
   });
 
+  it('should auto-load create-agent agent', async () => {
+    const agent = await agentRegistry.get('create-agent');
+
+    expect(agent).toBeDefined();
+    expect(agent?.id).toBe('create-agent');
+    expect(agent?.hidden).toBe(true);
+  });
+
   it('should auto-load agents when getWithResolvedTools() is called before loadAllAgents()', async () => {
     // Don't call loadAllAgents() explicitly
     // The registry should auto-load when we call getWithResolvedTools()

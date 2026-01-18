@@ -68,6 +68,7 @@ class AgentRegistry {
     const { CodingAgent } = await import('./coding-agent');
     const { InitProjectAgent } = await import('./init-project-agent');
     const { CreateToolAgent } = await import('./create-tool-agent');
+    const { CreateAgentAgent } = await import('./create-agent-agent');
     const { ImageGeneratorAgent } = await import('./image-generator-agent');
 
     // Build planner tools (includes MCP integration)
@@ -85,6 +86,7 @@ class AgentRegistry {
       CodingAgent.getDefinition(),
       InitProjectAgent.getDefinition(),
       CreateToolAgent.getDefinition(),
+      CreateAgentAgent.getDefinition(),
       ImageGeneratorAgent.getDefinition(),
     ];
 
