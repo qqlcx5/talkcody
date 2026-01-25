@@ -33,7 +33,8 @@ describe('getBuiltInCommands', () => {
     expect(result?.success).toBe(true);
     expect(result?.continueProcessing).toBe(true);
     expect(result?.aiMessage).toContain('custom TalkCody agent');
-    expect(result?.aiMessage).toContain('createAgent tool');
+    expect(result?.aiMessage).toContain('.talkcody/agents');
+    expect(result?.aiMessage).toContain('writeFile tool');
   });
 
   it('includes create-skill command with preferred agent and skill guidance', async () => {

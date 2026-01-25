@@ -21,7 +21,6 @@ import { bashTool } from './bash-tool';
 
 import { callAgent } from './call-agent-tool';
 import { codeSearch } from './code-search-tool';
-import { createAgentTool } from './create-agent-tool';
 import { editFile } from './edit-file-tool';
 import { exitPlanModeTool } from './exit-plan-mode-tool';
 import { githubPRTool } from './github-pr-tool';
@@ -153,16 +152,6 @@ export const TOOL_DEFINITIONS = {
     label: 'Ask User Questions',
     metadata: {
       category: 'other' as ToolCategory,
-      canConcurrent: false,
-      fileOperation: false,
-      renderDoingUI: true,
-    },
-  },
-  createAgent: {
-    tool: createAgentTool,
-    label: 'Create Agent',
-    metadata: {
-      category: 'write' as ToolCategory,
       canConcurrent: false,
       fileOperation: false,
       renderDoingUI: true,
