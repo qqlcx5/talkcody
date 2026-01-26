@@ -61,19 +61,19 @@ export function WebdavSettings() {
           // 连接成功但路径不存在
           setTestResult({
             success: true,
-            message: result.error || '连接成功！同步路径不存在，保存配置时会自动创建。',
+            message: result.error || t.Settings.webdav.messages.testSuccessPathNotExists,
           });
         } else {
           setTestResult({
             success: true,
-            message: '连接测试成功！WebDAV 服务器可以正常访问，同步路径已存在。',
+            message: t.Settings.webdav.messages.testSuccess,
           });
         }
         logger.info('WebDAV connection test successful');
       } else {
         setTestResult({
           success: false,
-          message: `连接测试失败：${result.error || '未知错误'}`,
+          message: t.Settings.webdav.messages.testFailed(result.error || '未知错误'),
         });
         logger.error('WebDAV connection test failed:', result.error);
       }
@@ -81,7 +81,7 @@ export function WebdavSettings() {
       const errorMessage = error instanceof Error ? error.message : String(error);
       setTestResult({
         success: false,
-        message: `连接测试失败：${errorMessage}`,
+        message: t.Settings.webdav.messages.testFailed(errorMessage),
       });
       logger.error('WebDAV connection test failed:', error);
     } finally {
@@ -116,7 +116,7 @@ export function WebdavSettings() {
       if (!testResult.success) {
         setTestResult({
           success: false,
-          message: `连接失败：${testResult.error || '未知错误'}`,
+          message: t.Settings.webdav.messages.connectFailed(testResult.error || '未知错误'),
         });
         return;
       }
@@ -131,7 +131,7 @@ export function WebdavSettings() {
           const errorMessage = error instanceof Error ? error.message : String(error);
           setTestResult({
             success: false,
-            message: `创建同步目录失败：${errorMessage}`,
+            message: t.Settings.webdav.messages.createPathFailed(errorMessage),
           });
           logger.error('Failed to create sync path:', error);
           return;
@@ -153,14 +153,14 @@ export function WebdavSettings() {
 
       setTestResult({
         success: true,
-        message: '配置保存成功！WebDAV 同步已启用。',
+        message: t.Settings.webdav.messages.saveSuccess,
       });
       logger.info('WebDAV config saved successfully');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       setTestResult({
         success: false,
-        message: `配置保存失败：${errorMessage}`,
+        message: t.Settings.webdav.messages.saveFailed(errorMessage),
       });
       logger.error('Failed to save WebDAV config:', error);
     } finally {
@@ -177,14 +177,14 @@ export function WebdavSettings() {
       setAutoSync(false);
       setTestResult({
         success: true,
-        message: '配置已清除。',
+        message: t.Settings.webdav.messages.clearSuccess,
       });
       logger.info('WebDAV config cleared');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       setTestResult({
         success: false,
-        message: `清除配置失败：${errorMessage}`,
+        message: t.Settings.webdav.messages.clearFailed(errorMessage),
       });
       logger.error('Failed to clear WebDAV config:', error);
     }
@@ -201,13 +201,13 @@ export function WebdavSettings() {
       );
       setTestResult({
         success: true,
-        message: '同步完成！',
+        message: t.Settings.webdav.messages.syncSuccess,
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       setTestResult({
         success: false,
-        message: `同步失败：${errorMessage}`,
+        message: t.Settings.webdav.messages.syncFailed(errorMessage),
       });
     }
   };
@@ -219,31 +219,29 @@ export function WebdavSettings() {
         <CardHeader>
           <div className="flex items-center gap-2">
             <Cloud className="h-5 w-5" />
-            <CardTitle className="text-lg">WebDAV 同步设置</CardTitle>
+            <CardTitle className="text-lg">{t.Settings.webdav.title}</CardTitle>
           </div>
-          <CardDescription>
-            配置 WebDAV 服务器以同步您的数据。支持坚果云、Nextcloud 等支持 WebDAV 协议的云存储服务。
-          </CardDescription>
+          <CardDescription>{t.Settings.webdav.description}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Status Section */}
           {isInitialized && (
             <div className="rounded-lg border p-4">
-              <h3 className="mb-2 font-medium">同步状态</h3>
+              <h3 className="mb-2 font-medium">{t.Settings.webdav.status.title}</h3>
               <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
                 <div className="flex items-center justify-between">
-                  <span>已配置:</span>
-                  <span className="font-medium">{isEnabled ? '是' : '否'}</span>
+                  <span>{t.Settings.webdav.status.configured}:</span>
+                  <span className="font-medium">{isEnabled ? t.Common.yes : t.Common.no}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span>状态:</span>
+                  <span>{t.Settings.webdav.status.status}:</span>
                   <span className="font-medium">
-                    {isSyncing ? '同步中...' : syncState.status}
+                    {isSyncing ? t.Settings.webdav.status.syncing : syncState.status}
                   </span>
                 </div>
                 {syncState.lastSyncTime && (
                   <div className="flex items-center justify-between">
-                    <span>最后同步:</span>
+                    <span>{t.Settings.webdav.status.lastSync}:</span>
                     <span className="font-medium">
                       {new Date(syncState.lastSyncTime).toLocaleString()}
                     </span>
@@ -258,76 +256,69 @@ export function WebdavSettings() {
                 disabled={isSyncing}
               >
                 <RefreshCw className={`mr-2 h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
-                立即同步
+                {t.Settings.webdav.syncNow}
               </Button>
             </div>
           )}
 
           {/* WebDAV URL */}
           <div className="space-y-2">
-            <Label htmlFor="webdav-url">WebDAV 服务器地址</Label>
+            <Label htmlFor="webdav-url">{t.Settings.webdav.serverUrl}</Label>
             <Input
               id="webdav-url"
-              placeholder="https://dav.jianguoyun.com/dav/"
+              placeholder={t.Settings.webdav.serverUrlPlaceholder}
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               disabled={isSyncing}
             />
-            <p className="text-xs text-gray-500">
-              例如：坚果云 https://dav.jianguoyun.com/dav/，Nextcloud
-              https://your-domain.com/remote.php/webdav/
-            </p>
+            <p className="text-xs text-gray-500">{t.Settings.webdav.serverUrlHint}</p>
           </div>
 
           {/* Username */}
           <div className="space-y-2">
-            <Label htmlFor="webdav-username">用户名</Label>
+            <Label htmlFor="webdav-username">{t.Settings.webdav.username}</Label>
             <Input
               id="webdav-username"
-              placeholder="your-email@example.com"
+              placeholder={t.Settings.webdav.usernamePlaceholder}
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               disabled={isSyncing}
             />
-            <p className="text-xs text-gray-500">通常是您的邮箱地址或用户名</p>
+            <p className="text-xs text-gray-500">{t.Settings.webdav.usernameHint}</p>
           </div>
 
           {/* Password */}
           <div className="space-y-2">
-            <Label htmlFor="webdav-password">密码</Label>
+            <Label htmlFor="webdav-password">{t.Settings.webdav.password}</Label>
             <Input
               id="webdav-password"
               type="password"
-              placeholder="应用密码"
+              placeholder={t.Settings.webdav.passwordPlaceholder}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               disabled={isSyncing}
             />
-            <p className="text-xs text-gray-500">
-              建议使用应用密码而非账户主密码。坚果云用户请在账户安全选项中生成应用密码。
-            </p>
+            <p className="text-xs text-gray-500">{t.Settings.webdav.passwordHint}</p>
           </div>
 
           {/* Sync Path */}
           <div className="space-y-2">
-            <Label htmlFor="webdav-path">同步路径</Label>
+            <Label htmlFor="webdav-path">{t.Settings.webdav.syncPath}</Label>
             <Input
               id="webdav-path"
-              placeholder="/talkcody"
+              placeholder={t.Settings.webdav.syncPathPlaceholder}
               value={syncPath}
               onChange={(e) => setSyncPath(e.target.value)}
               disabled={isSyncing}
             />
-            <p className="text-xs text-gray-500">
-              WebDAV 服务器上的存储路径，以 / 开头。确保该路径有写入权限。
-            </p>
+            <p className="text-xs text-gray-500">{t.Settings.webdav.syncPathHint}</p>
           </div>
 
           {/* Auto Sync */}
           <div className="flex items-center justify-between rounded-lg border p-4">
             <div className="space-y-0.5">
-              <Label htmlFor="auto-sync">自动同步</Label>
-              <p className="text-xs text-gray-500">启用后将定期自动同步数据</p>
+              <Label htmlFor="auto-sync">{t.Settings.webdav.autoSync}</Label>
+              <p className="text-xs text-gray-500">{t.Settings.webdav.autoSyncDescription}</p>
             </div>
             <div className="flex items-center gap-4">
               <Input
@@ -339,7 +330,7 @@ export function WebdavSettings() {
                 disabled={isSyncing || !autoSync}
                 className="w-20"
               />
-              <span className="text-sm text-gray-600">分钟</span>
+              <span className="text-sm text-gray-600">{t.Settings.webdav.syncIntervalUnit}</span>
               <Switch
                 id="auto-sync"
                 checked={autoSync}
@@ -357,13 +348,13 @@ export function WebdavSettings() {
               variant="outline"
             >
               <TestTube className={`mr-2 h-4 w-4 ${testing ? 'animate-pulse' : ''}`} />
-              {testing ? '测试中...' : '测试连接'}
+              {testing ? t.Settings.webdav.testing : t.Settings.webdav.testConnection}
             </Button>
             <Button
               onClick={handleSaveConfig}
               disabled={saving || isSyncing || !url || !username || !password}
             >
-              {saving ? '保存中...' : '保存配置'}
+              {saving ? t.Settings.webdav.saving : t.Settings.webdav.saveConfig}
             </Button>
             {isInitialized && (
               <Button
@@ -372,7 +363,7 @@ export function WebdavSettings() {
                 variant="destructive"
               >
                 <Trash2 className="mr-2 h-4 w-4" />
-                清除配置
+                {t.Settings.webdav.clearConfig}
               </Button>
             )}
           </div>
@@ -398,12 +389,12 @@ export function WebdavSettings() {
 
           {/* Help Section */}
           <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-950">
-            <h4 className="mb-2 font-medium text-blue-900 dark:text-blue-100">使用帮助</h4>
+            <h4 className="mb-2 font-medium text-blue-900 dark:text-blue-100">{t.Settings.webdav.help.title}</h4>
             <ul className="space-y-1 text-xs text-blue-800 dark:text-blue-200">
-              <li>• 坚果云：账户信息 → 安全选项 → 添加应用密码</li>
-              <li>• Nextcloud：设置 → 安全 → 设备与会话 → 添加应用密码</li>
-              <li>• 确保您的网络可以访问 WebDAV 服务器</li>
-              <li>• 首次使用建议先测试连接，确保配置正确</li>
+              <li>{t.Settings.webdav.help.jianguoyun}</li>
+              <li>{t.Settings.webdav.help.nextcloud}</li>
+              <li>{t.Settings.webdav.help.network}</li>
+              <li>{t.Settings.webdav.help.firstTime}</li>
             </ul>
           </div>
         </CardContent>
