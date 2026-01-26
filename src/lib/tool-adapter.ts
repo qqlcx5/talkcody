@@ -22,6 +22,10 @@ export function registerToolUIRenderers(toolWithUI: ToolWithUI, keyName: string)
   });
 }
 
+export function unregisterToolUIRenderers(keyName: string) {
+  toolUIRegistry.delete(keyName);
+}
+
 /**
  * Convert ToolWithUI to ai library compatible tool and register UI renderers
  */

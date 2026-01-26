@@ -15,7 +15,7 @@ import { getEffectiveWorkspaceRoot } from '@/services/workspace-root-service';
 import { settingsManager } from '@/stores/settings-store';
 import type { ToolWithUI } from '@/types/tool';
 import { logger } from '../logger';
-import { registerToolUIRenderers } from '../tool-adapter';
+import { registerToolUIRenderers, unregisterToolUIRenderers } from '../tool-adapter';
 import { askUserQuestionsTool } from './ask-user-questions-tool';
 import { bashTool } from './bash-tool';
 
@@ -421,8 +421,24 @@ export function getAllToolNamesWithCustom(): string[] {
 }
 
 export function replaceCustomToolsCache(tools: Record<string, ToolWithUI>) {
+  const previousToolNames = Object.keys(customToolsCache);
   customToolsCache = { ...tools };
+
+  for (const toolName of previousToolNames) {
+    if (!(toolName in customToolsCache)) {
+      unregisterToolUIRenderers(toolName);
+    }
+  }
+
+  for (const [toolName, tool] of Object.entries(customToolsCache)) {
+    registerToolUIRenderers(tool, toolName);
+  }
   if (toolsCache) {
+    for (const toolName of previousToolNames) {
+      if (!(toolName in customToolsCache)) {
+        delete toolsCache[toolName];
+      }
+    }
     toolsCache = { ...toolsCache, ...customToolsCache };
   }
   // Clear tool registry cache to ensure agents get the latest tool definitions
