@@ -255,6 +255,7 @@ const zh: LocaleDefinition = {
       language: '语言',
       customTools: '自定义工具',
       hooks: 'Hooks',
+      webdav: 'WebDAV',
     },
     account: {
       title: '账户设置',

@@ -261,6 +261,7 @@ const en: LocaleDefinition = {
       language: 'Language',
       customTools: 'Custom Tools',
       hooks: 'Hooks',
+      webdav: 'WebDAV',
     },
     account: {
       title: 'Account Settings',
