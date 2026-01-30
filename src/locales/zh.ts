@@ -680,7 +680,8 @@ const zh: LocaleDefinition = {
     },
     webdav: {
       title: 'WebDAV 同步设置',
-      description: '配置 WebDAV 服务器以同步您的数据。支持坚果云、Nextcloud 等支持 WebDAV 协议的云存储服务。',
+      description:
+        '配置 WebDAV 服务器以同步您的数据。支持坚果云、Nextcloud 等支持 WebDAV 协议的云存储服务。',
       status: {
         title: '同步状态',
         configured: '已配置',
@@ -690,7 +691,8 @@ const zh: LocaleDefinition = {
       },
       serverUrl: 'WebDAV 服务器地址',
       serverUrlPlaceholder: 'https://dav.jianguoyun.com/dav/',
-      serverUrlHint: '例如：坚果云 https://dav.jianguoyun.com/dav/，Nextcloud https://your-domain.com/remote.php/webdav/',
+      serverUrlHint:
+        '例如：坚果云 https://dav.jianguoyun.com/dav/，Nextcloud https://your-domain.com/remote.php/webdav/',
       username: '用户名',
       usernamePlaceholder: 'your-email@example.com',
       usernameHint: '通常是您的邮箱地址或用户名',

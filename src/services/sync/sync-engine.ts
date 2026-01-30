@@ -5,20 +5,20 @@
  */
 
 import { logger } from '@/lib/logger';
-import { WebDAVClient } from './webdav-client';
-import { ChunkStorage } from './chunk-storage';
-import type {
-  ChunkMetadata,
-  SyncConfig,
-  SyncDirection,
-  SyncResult,
-  SyncState,
-  SyncStatus,
-  SyncEvent,
-  SyncProgress,
+import {
+  type ChunkMetadata,
   ConflictResolution,
+  type SyncConfig,
+  SyncDirection,
+  type SyncEvent,
+  SyncEventType,
+  type SyncProgress,
+  type SyncResult,
+  type SyncState,
+  SyncStatus,
 } from '@/types';
-import { SyncEventType } from '@/types';
+import { ChunkStorage } from './chunk-storage';
+import { WebDAVClient } from './webdav-client';
 
 /**
  * 事件监听器类型
@@ -84,14 +84,14 @@ export class SyncEngine {
 
       this.emitEvent({
         type: SyncEventType.STATUS_CHANGED,
-        data: { status: 'idle' },
+        data: { status: SyncStatus.IDLE },
         timestamp: Date.now(),
       });
 
       logger.info('Sync engine initialized successfully');
     } catch (error) {
       this.state.lastError = error instanceof Error ? error.message : String(error);
-      this.state.status = 'error';
+      this.state.status = SyncStatus.ERROR;
       logger.error('Failed to initialize sync engine:', error);
       throw error;
     }
@@ -168,7 +168,7 @@ export class SyncEngine {
         throw new Error('Sync engine not initialized');
       }
 
-      this.updateStatus('syncing');
+      this.updateStatus(SyncStatus.SYNCING);
 
       // 阶段 1: 连接
       this.emitProgress({
@@ -230,7 +230,7 @@ export class SyncEngine {
 
           const data = await getLocalData(id);
           const metadata = localChunks[id];
-          await this.storage!.uploadChunk(id, data, metadata.dataType || 'unknown');
+          await this.storage?.uploadChunk(id, data, metadata?.dataType || 'unknown');
           uploadedChunks++;
           processedChunks++;
         }
@@ -254,7 +254,7 @@ export class SyncEngine {
             totalChunks,
           });
 
-          const chunkData = await this.storage!.downloadChunk(id);
+          const chunkData = await this.storage?.downloadChunk(id);
           if (chunkData) {
             await saveLocalData(id, chunkData.data);
             downloadedChunks++;
@@ -326,7 +326,7 @@ export class SyncEngine {
       this.state.pendingDownloads = 0;
       this.state.conflicts = conflicts.length;
 
-      this.updateStatus(conflicts.length > 0 ? 'conflict' : 'success');
+      this.updateStatus(conflicts.length > 0 ? SyncStatus.CONFLICT : SyncStatus.SUCCESS);
 
       this.emitProgress({
         phase: 'completed',
@@ -369,7 +369,7 @@ export class SyncEngine {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       this.state.lastError = errorMessage;
-      this.updateStatus('error');
+      this.updateStatus(SyncStatus.ERROR);
 
       this.emitEvent({
         type: SyncEventType.ERROR,
@@ -381,7 +381,7 @@ export class SyncEngine {
 
       return {
         success: false,
-        status: 'error',
+        status: SyncStatus.ERROR,
         uploadedChunks,
         downloadedChunks,
         deletedChunks,
@@ -399,10 +399,10 @@ export class SyncEngine {
    */
   private async resolveConflict(
     id: string,
-    localVersion: number,
-    remoteVersion: number,
+    _localVersion: number,
+    _remoteVersion: number,
     getLocalData: (id: string) => Promise<unknown>,
-    saveLocalData: (id: string) => Promise<unknown>
+    saveLocalData: (id: string, data: unknown) => Promise<void>
   ): Promise<void> {
     if (!this.storage) {
       throw new Error('Sync engine not initialized');
@@ -411,14 +411,14 @@ export class SyncEngine {
     const resolution = this.config.conflictResolution;
 
     switch (resolution) {
-      case 'local': {
+      case ConflictResolution.LOCAL: {
         // 本地优先:上传本地版本
         const data = await getLocalData(id);
         await this.storage.uploadChunk(id, data, 'unknown');
         logger.info(`Resolved conflict (local wins): ${id}`);
         break;
       }
-      case 'remote': {
+      case ConflictResolution.REMOTE: {
         // 远程优先:下载远程版本
         const chunkData = await this.storage.downloadChunk(id);
         if (chunkData) {
@@ -427,7 +427,7 @@ export class SyncEngine {
         logger.info(`Resolved conflict (remote wins): ${id}`);
         break;
       }
-      case 'timestamp': {
+      case ConflictResolution.TIMESTAMP: {
         // 基于时间戳
         const localMeta = await this.storage.getChunkMetadata(id);
         const chunkData = await this.storage.downloadChunk(id);
@@ -444,7 +444,7 @@ export class SyncEngine {
         }
         break;
       }
-      case 'manual': {
+      case ConflictResolution.MANUAL: {
         // 手动解决:抛出错误
         throw new Error(`Conflict for chunk ${id}, manual resolution required`);
       }

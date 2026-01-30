@@ -262,6 +262,7 @@ export interface LocaleDefinition {
       language: string;
       customTools: string;
       hooks: string;
+      webdav: string;
     };
     hooksScopeHint: string;
     account: {

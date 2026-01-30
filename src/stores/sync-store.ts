@@ -6,13 +6,14 @@
 
 import { create } from 'zustand';
 import { logger } from '@/lib/logger';
-import { SyncEngine, generateDeviceId } from '@/services/sync';
-import type {
-  SyncConfig,
-  SyncState,
-  SyncEvent,
-  SyncProgress,
-  ChunkMetadata,
+import { generateDeviceId, SyncEngine } from '@/services/sync';
+import {
+  type ChunkMetadata,
+  type SyncConfig,
+  type SyncEvent,
+  type SyncProgress,
+  type SyncState,
+  SyncStatus,
 } from '@/types';
 
 /**
@@ -93,7 +94,7 @@ export const useSyncStore = create<SyncStoreState>((set, get) => ({
   isEnabled: false,
   isSyncing: false,
   syncState: {
-    status: 'idle',
+    status: SyncStatus.IDLE,
     lastSyncTime: null,
     lastError: null,
     pendingUploads: 0,
@@ -126,35 +127,36 @@ export const useSyncStore = create<SyncStoreState>((set, get) => ({
             });
             break;
 
-          case 'progress':
+          case 'progress': {
             const progress = event.data as SyncProgress;
             set({
               isSyncing: progress.phase !== 'completed',
               syncState: {
                 ...state.syncState,
-                status: progress.phase === 'completed' ? 'success' : 'syncing',
+                status: progress.phase === 'completed' ? SyncStatus.SUCCESS : SyncStatus.SYNCING,
               },
             });
             break;
+          }
 
           case 'error':
             set({
               lastError: (event.data as any).error,
               syncState: {
                 ...state.syncState,
-                status: 'error',
+                status: SyncStatus.ERROR,
                 lastError: (event.data as any).error,
               },
             });
             break;
 
-          case 'completed':
+          case 'completed': {
             const result = event.data as any;
             set({
               isSyncing: false,
               syncState: {
                 ...state.syncState,
-                status: result.conflicts > 0 ? 'conflict' : 'success',
+                status: result.conflicts > 0 ? SyncStatus.CONFLICT : SyncStatus.SUCCESS,
                 lastSyncTime: Date.now(),
                 conflicts: result.conflicts,
                 pendingUploads: 0,
@@ -162,6 +164,7 @@ export const useSyncStore = create<SyncStoreState>((set, get) => ({
               },
             });
             break;
+          }
         }
       });
 
@@ -185,7 +188,7 @@ export const useSyncStore = create<SyncStoreState>((set, get) => ({
         lastError: errorMessage,
         syncState: {
           ...get().syncState,
-          status: 'error',
+          status: SyncStatus.ERROR,
           lastError: errorMessage,
         },
       });
@@ -229,12 +232,7 @@ export const useSyncStore = create<SyncStoreState>((set, get) => ({
   /**
    * 执行同步
    */
-  performSync: async (
-    getLocalChunks,
-    getLocalData,
-    saveLocalData,
-    deleteLocalData
-  ) => {
+  performSync: async (getLocalChunks, getLocalData, saveLocalData, deleteLocalData) => {
     const { engine, isEnabled } = get();
 
     if (!engine) {
@@ -354,7 +352,7 @@ export const useSyncStore = create<SyncStoreState>((set, get) => ({
       isEnabled: false,
       isSyncing: false,
       syncState: {
-        status: 'idle',
+        status: SyncStatus.IDLE,
         lastSyncTime: null,
         lastError: null,
         pendingUploads: 0,

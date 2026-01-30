@@ -743,7 +743,8 @@ const en: LocaleDefinition = {
         jianguoyun: '• Jianguoyun: Account Info → Security → Add App Password',
         nextcloud: '• Nextcloud: Settings → Security → Devices & Sessions → Add App Password',
         network: '• Ensure your network can access the WebDAV server',
-        firstTime: '• For first-time use, test the connection first to ensure correct configuration',
+        firstTime:
+          '• For first-time use, test the connection first to ensure correct configuration',
       },
       messages: {
         testSuccess:

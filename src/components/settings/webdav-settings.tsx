@@ -1,15 +1,16 @@
 import { Cloud, RefreshCw, TestTube, Trash2 } from 'lucide-react';
 import { useState } from 'react';
-import { WebDAVClient } from '@/services/sync';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { useLocale } from '@/hooks/use-locale';
-import { useSyncStore } from '@/stores/sync-store';
 import { logger } from '@/lib/logger';
+import { WebDAVClient } from '@/services/sync';
+import { useSyncStore } from '@/stores/sync-store';
 import type { SyncConfig } from '@/types';
+import { ConflictResolution, SyncDirection } from '@/types';
 
 export function WebdavSettings() {
   const { t } = useLocale();
@@ -47,8 +48,8 @@ export function WebdavSettings() {
           syncPath: syncPath.trim(),
           timeout: 10000,
         },
-        direction: 'bidirectional',
-        conflictResolution: 'timestamp',
+        direction: SyncDirection.BIDIRECTIONAL,
+        conflictResolution: ConflictResolution.TIMESTAMP,
         autoSync: false,
       };
 
@@ -103,8 +104,8 @@ export function WebdavSettings() {
           syncPath: syncPath.trim(),
           timeout: 30000,
         },
-        direction: 'bidirectional',
-        conflictResolution: 'timestamp',
+        direction: SyncDirection.BIDIRECTIONAL,
+        conflictResolution: ConflictResolution.TIMESTAMP,
         autoSync: autoSync,
         autoSyncInterval: parseInt(syncInterval, 10) * 1000,
       };
@@ -195,9 +196,9 @@ export function WebdavSettings() {
     try {
       await syncStore.performSync(
         async () => ({}),
-        async (id) => ({ data: 'value' }),
-        async (id, data) => {},
-        async (id) => {}
+        async (_id) => ({ data: 'value' }),
+        async (_id, _data) => {},
+        async (_id) => {}
       );
       setTestResult({
         success: true,
@@ -357,11 +358,7 @@ export function WebdavSettings() {
               {saving ? t.Settings.webdav.saving : t.Settings.webdav.saveConfig}
             </Button>
             {isInitialized && (
-              <Button
-                onClick={handleClearConfig}
-                disabled={isSyncing}
-                variant="destructive"
-              >
+              <Button onClick={handleClearConfig} disabled={isSyncing} variant="destructive">
                 <Trash2 className="mr-2 h-4 w-4" />
                 {t.Settings.webdav.clearConfig}
               </Button>
@@ -379,7 +376,9 @@ export function WebdavSettings() {
             >
               <p
                 className={`text-sm ${
-                  testResult.success ? 'text-green-800 dark:text-green-200' : 'text-red-800 dark:text-red-200'
+                  testResult.success
+                    ? 'text-green-800 dark:text-green-200'
+                    : 'text-red-800 dark:text-red-200'
                 }`}
               >
                 {testResult.message}
@@ -389,7 +388,9 @@ export function WebdavSettings() {
 
           {/* Help Section */}
           <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-950">
-            <h4 className="mb-2 font-medium text-blue-900 dark:text-blue-100">{t.Settings.webdav.help.title}</h4>
+            <h4 className="mb-2 font-medium text-blue-900 dark:text-blue-100">
+              {t.Settings.webdav.help.title}
+            </h4>
             <ul className="space-y-1 text-xs text-blue-800 dark:text-blue-200">
               <li>{t.Settings.webdav.help.jianguoyun}</li>
               <li>{t.Settings.webdav.help.nextcloud}</li>

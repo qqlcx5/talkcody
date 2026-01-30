@@ -19,7 +19,7 @@ export class WebDAVClient {
     this.config = config;
     // 使用浏览器兼容的 base64 编码方法
     const authString = `${config.username}:${config.password}`;
-    this.authHeader = 'Basic ' + this.base64Encode(authString);
+    this.authHeader = `Basic ${this.base64Encode(authString)}`;
   }
 
   /**
@@ -29,13 +29,17 @@ export class WebDAVClient {
     try {
       // 方法1: 尝试直接使用 btoa (适用于 ASCII 字符)
       return btoa(str);
-    } catch (e) {
+    } catch (_e) {
       // 方法2: 处理 Unicode 字符
       const encoder = new TextEncoder();
       const data = encoder.encode(str);
       let binary = '';
       for (let i = 0; i < data.byteLength; i++) {
-        binary += String.fromCharCode(data[i]);
+        const byte = data[i];
+        if (byte === undefined) {
+          continue;
+        }
+        binary += String.fromCharCode(byte);
       }
       return btoa(binary);
     }
@@ -83,7 +87,7 @@ export class WebDAVClient {
       url = `${url}/`;
     }
 
-    const requestTimeout = timeout ?? this.config.timeout ?? 30000;
+    const _requestTimeout = timeout ?? this.config.timeout ?? 30000;
 
     logger.debug(`WebDAV ${method} ${url}`);
 
@@ -153,7 +157,12 @@ export class WebDAVClient {
    * 上传文件
    */
   async putFile(path: string, content: string): Promise<void> {
-    const response = await this.request('PUT', path, { 'Content-Type': 'application/json' }, content);
+    const response = await this.request(
+      'PUT',
+      path,
+      { 'Content-Type': 'application/json' },
+      content
+    );
 
     if (!response.ok && response.status !== 201 && response.status !== 204) {
       throw new Error(`Failed to put file: ${path}`);
@@ -270,6 +279,9 @@ export class WebDAVClient {
 
     for (const match of hrefs) {
       const href = match[1];
+      if (!href) {
+        continue;
+      }
       // 解码 URL
       const decodedHref = decodeURIComponent(href);
 
@@ -356,7 +368,12 @@ export class WebDAVClient {
           };
         }
 
-        if (!headResponse.ok && headResponse.status !== 404 && headResponse.status !== 200 && headResponse.status !== 207) {
+        if (
+          !headResponse.ok &&
+          headResponse.status !== 404 &&
+          headResponse.status !== 200 &&
+          headResponse.status !== 207
+        ) {
           const errorText = await headResponse.text().catch(() => 'Unknown error');
           return {
             success: false,
@@ -427,7 +444,7 @@ export class WebDAVClient {
         return {
           success: true,
           pathExists: false,
-          error: '连接成功！但同步路径不存在，保存配置时会自动创建。'
+          error: '连接成功！但同步路径不存在，保存配置时会自动创建。',
         };
       } else {
         const errorText = await syncPathResponse.text().catch(() => 'Unknown error');

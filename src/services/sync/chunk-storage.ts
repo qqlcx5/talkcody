@@ -5,14 +5,14 @@
  */
 
 import { logger } from '@/lib/logger';
-import { WebDAVClient } from './webdav-client';
-import type {
-  ChunkData,
-  ChunkMetadata,
-  ChunkDiff,
+import {
+  type ChunkData,
+  type ChunkDiff,
+  type ChunkMetadata,
+  type ConflictResolution,
   SyncDirection,
-  ConflictResolution,
 } from '@/types';
+import type { WebDAVClient } from './webdav-client';
 
 /**
  * Chunk 存储索引
@@ -91,7 +91,7 @@ export class ChunkStorage {
       const indexData = await this.client.getFile(this.getIndexPath());
       this.indexCache = JSON.parse(indexData) as ChunkIndex;
       logger.debug(`Loaded chunk index with ${Object.keys(this.indexCache.chunks).length} chunks`);
-    } catch (error) {
+    } catch (_error) {
       // 索引不存在,创建新索引
       logger.info('Chunk index not found, creating new index');
       this.indexCache = {
@@ -174,7 +174,9 @@ export class ChunkStorage {
     if (!this.indexCache) {
       await this.loadIndex();
     }
-    this.indexCache!.chunks[id] = metadata;
+    if (this.indexCache) {
+      this.indexCache.chunks[id] = metadata;
+    }
     await this.saveIndex();
 
     logger.info(`Saved chunk: ${id} (${metadata.size} bytes)`);
@@ -221,8 +223,8 @@ export class ChunkStorage {
       await this.loadIndex();
     }
 
-    if (this.indexCache!.chunks[id]) {
-      delete this.indexCache!.chunks[id];
+    if (this.indexCache?.chunks[id]) {
+      delete this.indexCache?.chunks[id];
       await this.saveIndex();
     }
 
@@ -238,7 +240,7 @@ export class ChunkStorage {
       await this.loadIndex();
     }
 
-    const existingMetadata = this.indexCache!.chunks[id];
+    const existingMetadata = this.indexCache?.chunks[id];
     if (!existingMetadata) {
       throw new Error(`Chunk not found: ${id}`);
     }
@@ -270,7 +272,9 @@ export class ChunkStorage {
     await this.client.putFile(this.getChunkPath(id), chunkJson);
 
     // 更新索引
-    this.indexCache!.chunks[id] = metadata;
+    if (this.indexCache) {
+      this.indexCache.chunks[id] = metadata;
+    }
     await this.saveIndex();
 
     logger.info(`Updated chunk: ${id} (version ${metadata.version})`);
@@ -285,7 +289,7 @@ export class ChunkStorage {
       await this.loadIndex();
     }
 
-    return this.indexCache!.chunks[id] || null;
+    return this.indexCache?.chunks[id] || null;
   }
 
   /**
@@ -296,7 +300,7 @@ export class ChunkStorage {
       await this.loadIndex();
     }
 
-    return Object.values(this.indexCache!.chunks);
+    return this.indexCache ? Object.values(this.indexCache.chunks) : [];
   }
 
   /**
@@ -307,7 +311,7 @@ export class ChunkStorage {
       await this.loadIndex();
     }
 
-    const remoteChunks = this.indexCache!.chunks;
+    const remoteChunks = this.indexCache?.chunks || {};
     const localOnly: string[] = [];
     const remoteOnly: string[] = [];
     const versionMismatch: Array<{
@@ -318,13 +322,17 @@ export class ChunkStorage {
 
     // 检查本地独有的 Chunk
     for (const id of Object.keys(localChunks)) {
-      if (!remoteChunks[id]) {
-        localOnly.push(id);
-      } else if (localChunks[id].version !== remoteChunks[id].version) {
+      const remoteChunk = remoteChunks[id];
+      const localChunk = localChunks[id];
+      if (!remoteChunk || !localChunk) {
+        if (!remoteChunk) {
+          localOnly.push(id);
+        }
+      } else if (localChunk.version !== remoteChunk.version) {
         versionMismatch.push({
           id,
-          localVersion: localChunks[id].version,
-          remoteVersion: remoteChunks[id].version,
+          localVersion: localChunk.version,
+          remoteVersion: remoteChunk.version,
         });
       }
     }
@@ -371,7 +379,9 @@ export class ChunkStorage {
       const chunkJson = JSON.stringify(chunkData);
       await this.client.putFile(this.getChunkPath(id), chunkJson);
 
-      this.indexCache!.chunks[id] = metadata;
+      if (this.indexCache) {
+        this.indexCache.chunks[id] = metadata;
+      }
       await this.saveIndex();
 
       logger.info(`Uploaded chunk update: ${id} (version ${metadata.version})`);
@@ -452,8 +462,8 @@ export class ChunkStorage {
    */
   private async resolveConflict(
     id: string,
-    localVersion: number,
-    remoteVersion: number,
+    _localVersion: number,
+    _remoteVersion: number,
     resolution: ConflictResolution,
     getLocalData: (id: string) => Promise<unknown>,
     saveLocalData: (id: string, data: unknown) => Promise<void>
@@ -512,9 +522,12 @@ export class ChunkStorage {
 
     try {
       const files = await this.client.listDirectory('chunks');
-      const indexedIds = new Set(Object.keys(this.indexCache!.chunks));
+      const indexedIds = new Set(Object.keys(this.indexCache?.chunks || {}));
 
       for (const file of files) {
+        if (!file) {
+          continue; // 跳过空值
+        }
         if (file.endsWith('/')) {
           continue; // 跳过目录
         }
@@ -522,7 +535,7 @@ export class ChunkStorage {
         const match = file.match(/^chunks\/(.+)\.json$/);
         if (match) {
           const chunkId = match[1];
-          if (!indexedIds.has(chunkId)) {
+          if (chunkId && !indexedIds.has(chunkId)) {
             // 这个文件不在索引中,删除
             await this.client.deleteFile(file);
             logger.info(`Cleaned up orphaned chunk file: ${chunkId}`);
