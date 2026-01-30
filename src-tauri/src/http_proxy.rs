@@ -7,7 +7,7 @@ use std::net::{IpAddr, ToSocketAddrs};
 use std::str::FromStr;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
 use tokio::time::{timeout, Instant};
 use url::Url;
 
@@ -152,7 +152,7 @@ pub struct ChunkPayload {
     pub chunk: Vec<u8>,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct EndPayload {
     pub request_id: u32,
     pub status: u16,
@@ -185,6 +185,19 @@ where
             Err(_) => break,
         }
     }
+}
+
+fn emit_to_window<R: tauri::Runtime, S: Serialize>(
+    app_handle: &tauri::AppHandle<R>,
+    window_label: &str,
+    event_name: &str,
+    payload: &S,
+) -> Result<(), tauri::Error> {
+    app_handle.emit_to(
+        tauri::EventTarget::webview_window(window_label),
+        event_name,
+        payload,
+    )
 }
 
 #[tauri::command]
@@ -304,9 +317,8 @@ pub async fn proxy_fetch(request: ProxyRequest) -> Result<ProxyResponse, String>
 
 /// Real streaming fetch that emits chunks via Tauri events
 /// This enables true streaming in the JavaScript side
-#[tauri::command]
-pub async fn stream_fetch(
-    window: tauri::Window,
+async fn stream_fetch_inner<R: tauri::Runtime>(
+    window: tauri::Window<R>,
     request: ProxyRequest,
 ) -> Result<StreamResponse, String> {
     let request_id = request
@@ -314,14 +326,16 @@ pub async fn stream_fetch(
         .unwrap_or_else(|| REQUEST_COUNTER.fetch_add(1, Ordering::SeqCst));
     // Use request-specific event name to avoid global event broadcasting
     let event_name = format!("stream-response-{}", request_id);
-    let window_clone = window.clone();
-    let event_name_clone = event_name.clone();
+    let window_label = window.label().to_string();
+    let app_handle = window.app_handle().clone();
 
     // Helper to emit end event before returning error
     let emit_end = |status: u16, error_msg: Option<String>| {
-        let _ = window_clone.emit(
-            &event_name_clone,
-            EndPayload {
+        let _ = emit_to_window(
+            &app_handle,
+            &window_label,
+            &event_name,
+            &EndPayload {
                 request_id,
                 status,
                 error: error_msg,
@@ -434,6 +448,9 @@ pub async fn stream_fetch(
 
     // Spawn async task to stream chunks
     let status_for_spawn = status;
+    let app_handle_clone = app_handle.clone();
+    let window_label_clone = window_label.clone();
+    let event_name_clone = event_name.clone();
     tauri::async_runtime::spawn(async move {
         let mut stream = response.bytes_stream();
         let chunk_timeout = Duration::from_secs(300);
@@ -469,9 +486,11 @@ pub async fn stream_fetch(
                     chunk_count += 1;
 
                     // Emit chunk to frontend using request-specific event
-                    if let Err(e) = window_clone.emit(
+                    if let Err(e) = emit_to_window(
+                        &app_handle_clone,
+                        &window_label_clone,
                         &event_name_clone,
-                        ChunkPayload {
+                        &ChunkPayload {
                             request_id,
                             chunk: chunk.to_vec(),
                         },
@@ -566,9 +585,11 @@ pub async fn stream_fetch(
         }
 
         // Emit end signal with actual status and error information
-        if let Err(e) = window_clone.emit(
+        if let Err(e) = emit_to_window(
+            &app_handle_clone,
+            &window_label_clone,
             &event_name_clone,
-            EndPayload {
+            &EndPayload {
                 request_id,
                 status: status_for_spawn,
                 error: error_msg,
@@ -589,10 +610,23 @@ pub async fn stream_fetch(
     })
 }
 
+/// Real streaming fetch that emits chunks via Tauri events
+/// This enables true streaming in the JavaScript side
+#[tauri::command]
+pub async fn stream_fetch(
+    window: tauri::Window,
+    request: ProxyRequest,
+) -> Result<StreamResponse, String> {
+    stream_fetch_inner(window, request).await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
     use std::net::{Ipv4Addr, Ipv6Addr};
+    use std::sync::mpsc::{self, RecvTimeoutError};
+    use tauri::Listener;
 
     #[test]
     fn test_validate_url_valid_https() {
@@ -1156,5 +1190,115 @@ mod tests {
                 assert!(json.contains(&format!("\"error\":\"{}\"", err)));
             }
         }
+    }
+
+    /// This test uses Tauri test infrastructure that may not work on Windows CI
+    #[test]
+    #[cfg(not(target_os = "windows"))]
+    fn test_emit_to_window_uses_webview_window_target() {
+        let app = tauri::test::mock_app();
+        let target_window = tauri::WebviewWindowBuilder::new(
+            &app,
+            "stream-test-target",
+            tauri::WebviewUrl::App("index.html".into()),
+        )
+        .build()
+        .unwrap();
+        let other_window = tauri::WebviewWindowBuilder::new(
+            &app,
+            "stream-test-other",
+            tauri::WebviewUrl::App("index.html".into()),
+        )
+        .build()
+        .unwrap();
+
+        let payload = ChunkPayload {
+            request_id: 42,
+            chunk: vec![1, 2, 3],
+        };
+
+        let (target_tx, target_rx) = mpsc::channel();
+        target_window.listen("stream-response-42", move |event| {
+            let _ = target_tx.send(event.payload().to_string());
+        });
+
+        let (other_tx, other_rx) = mpsc::channel();
+        other_window.listen("stream-response-42", move |event| {
+            let _ = other_tx.send(event.payload().to_string());
+        });
+
+        emit_to_window(
+            &app.handle(),
+            target_window.label(),
+            "stream-response-42",
+            &payload,
+        )
+        .unwrap();
+
+        assert!(target_rx
+            .recv_timeout(std::time::Duration::from_secs(1))
+            .is_ok());
+        assert!(matches!(
+            other_rx.recv_timeout(std::time::Duration::from_millis(200)),
+            Err(RecvTimeoutError::Timeout)
+        ));
+    }
+
+    /// This test uses Tauri test infrastructure that may not work on Windows CI
+    #[tokio::test]
+    #[cfg(not(target_os = "windows"))]
+    async fn test_stream_fetch_emits_end_event_on_invalid_url() {
+        let app = tauri::test::mock_app();
+        let target_window = tauri::WebviewWindowBuilder::new(
+            &app,
+            "stream-test-invalid",
+            tauri::WebviewUrl::App("index.html".into()),
+        )
+        .build()
+        .unwrap();
+        let other_window = tauri::WebviewWindowBuilder::new(
+            &app,
+            "stream-test-invalid-other",
+            tauri::WebviewUrl::App("index.html".into()),
+        )
+        .build()
+        .unwrap();
+
+        let request_id = 777;
+        let event_name = format!("stream-response-{}", request_id);
+
+        let (target_tx, target_rx) = mpsc::channel();
+        target_window.listen(event_name.clone(), move |event| {
+            let _ = target_tx.send(event.payload().to_string());
+        });
+
+        let (other_tx, other_rx) = mpsc::channel();
+        other_window.listen(event_name.clone(), move |event| {
+            let _ = other_tx.send(event.payload().to_string());
+        });
+
+        let request = ProxyRequest {
+            url: "invalid-url".to_string(),
+            method: "GET".to_string(),
+            headers: HashMap::new(),
+            body: None,
+            request_id: Some(request_id),
+            allow_private_ip: None,
+        };
+
+        let window = target_window.as_ref().window();
+        let result = stream_fetch_inner(window, request).await;
+        assert!(result.is_err());
+
+        let payload = target_rx
+            .recv_timeout(std::time::Duration::from_secs(1))
+            .expect("expected end payload");
+        let end_payload: EndPayload = serde_json::from_str(&payload).unwrap();
+        assert_eq!(end_payload.request_id, request_id);
+        assert!(end_payload.error.is_some());
+        assert!(matches!(
+            other_rx.recv_timeout(std::time::Duration::from_millis(200)),
+            Err(RecvTimeoutError::Timeout)
+        ));
     }
 }
