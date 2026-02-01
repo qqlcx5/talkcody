@@ -130,10 +130,7 @@ export function SettingsPage() {
               <Zap className="size-4" />
               {t.Settings.tabs.hooks}
             </TabsTrigger>
-            <TabsTrigger
-              value="webdav"
-              className="w-full justify-start gap-2 rounded-md px-3 py-2"
-            >
+            <TabsTrigger value="webdav" className="w-full justify-start gap-2 rounded-md px-3 py-2">
               <Cloud className="size-4" />
               WebDAV
             </TabsTrigger>
