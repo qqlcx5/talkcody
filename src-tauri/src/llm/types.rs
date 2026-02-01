@@ -267,9 +267,10 @@ pub struct CustomProviderConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
 pub enum CustomProviderType {
+    #[serde(rename = "openai-compatible")]
     OpenAiCompatible,
+    #[serde(rename = "anthropic")]
     Anthropic,
 }
 
@@ -277,4 +278,83 @@ pub enum CustomProviderType {
 pub struct CustomProvidersConfiguration {
     pub version: String,
     pub providers: HashMap<String, CustomProviderConfig>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn custom_provider_type_serializes_to_openai_compatible() {
+        let provider_type = CustomProviderType::OpenAiCompatible;
+        let serialized = serde_json::to_string(&provider_type).unwrap();
+        assert_eq!(serialized, "\"openai-compatible\"");
+    }
+
+    #[test]
+    fn custom_provider_type_serializes_to_anthropic() {
+        let provider_type = CustomProviderType::Anthropic;
+        let serialized = serde_json::to_string(&provider_type).unwrap();
+        assert_eq!(serialized, "\"anthropic\"");
+    }
+
+    #[test]
+    fn custom_provider_type_deserializes_from_openai_compatible() {
+        let deserialized: CustomProviderType =
+            serde_json::from_str("\"openai-compatible\"").unwrap();
+        assert!(matches!(deserialized, CustomProviderType::OpenAiCompatible));
+    }
+
+    #[test]
+    fn custom_provider_type_deserializes_from_anthropic() {
+        let deserialized: CustomProviderType = serde_json::from_str("\"anthropic\"").unwrap();
+        assert!(matches!(deserialized, CustomProviderType::Anthropic));
+    }
+
+    #[test]
+    fn custom_provider_config_parses_correctly() {
+        let json = r#"{
+            "id": "test-provider",
+            "name": "Test Provider",
+            "type": "openai-compatible",
+            "baseUrl": "https://api.test.com",
+            "apiKey": "test-key",
+            "enabled": true
+        }"#;
+        let config: CustomProviderConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.id, "test-provider");
+        assert_eq!(config.name, "Test Provider");
+        assert!(matches!(
+            config.provider_type,
+            CustomProviderType::OpenAiCompatible
+        ));
+        assert_eq!(config.base_url, "https://api.test.com");
+        assert_eq!(config.api_key, "test-key");
+        assert!(config.enabled);
+    }
+
+    #[test]
+    fn custom_providers_configuration_parses_correctly() {
+        let json = r#"{
+            "version": "1.0.0",
+            "providers": {
+                "test-provider": {
+                    "id": "test-provider",
+                    "name": "Test Provider",
+                    "type": "openai-compatible",
+                    "baseUrl": "https://api.test.com",
+                    "apiKey": "test-key",
+                    "enabled": true
+                }
+            }
+        }"#;
+        let config: CustomProvidersConfiguration = serde_json::from_str(json).unwrap();
+        assert_eq!(config.version, "1.0.0");
+        assert!(config.providers.contains_key("test-provider"));
+        let provider = config.providers.get("test-provider").unwrap();
+        assert!(matches!(
+            provider.provider_type,
+            CustomProviderType::OpenAiCompatible
+        ));
+    }
 }

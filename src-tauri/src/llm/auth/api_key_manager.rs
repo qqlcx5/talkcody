@@ -1,13 +1,16 @@
 use crate::llm::types::CustomProvidersConfiguration;
-use crate::llm::types::{AuthType, ProviderConfig};
+use crate::llm::types::{AuthType, ModelsConfiguration, ProviderConfig};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 use tauri::State;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, RwLock};
 
 use crate::database::Database;
+
+const MODELS_CACHE_TTL: Duration = Duration::from_secs(300); // 5 minutes
 
 const SETTINGS_SELECT: &str = "SELECT value FROM settings WHERE key = $1";
 const CUSTOM_PROVIDERS_FILENAME: &str = "custom-providers.json";
@@ -15,11 +18,68 @@ const CUSTOM_PROVIDERS_FILENAME: &str = "custom-providers.json";
 pub struct ApiKeyManager {
     db: Arc<Database>,
     app_data_dir: PathBuf,
+    models_cache: RwLock<Option<(ModelsConfiguration, Instant)>>,
+}
+
+impl Clone for ApiKeyManager {
+    fn clone(&self) -> Self {
+        Self {
+            db: self.db.clone(),
+            app_data_dir: self.app_data_dir.clone(),
+            models_cache: RwLock::new(None),
+        }
+    }
 }
 
 impl ApiKeyManager {
     pub fn new(db: Arc<Database>, app_data_dir: PathBuf) -> Self {
-        Self { db, app_data_dir }
+        Self {
+            db,
+            app_data_dir,
+            models_cache: RwLock::new(None),
+        }
+    }
+
+    /// Load models configuration with caching (5 minutes TTL)
+    pub async fn load_models_config(&self) -> Result<ModelsConfiguration, String> {
+        // Check cache first
+        {
+            let cache = self.models_cache.read().await;
+            if let Some((config, timestamp)) = cache.as_ref() {
+                if timestamp.elapsed() < MODELS_CACHE_TTL {
+                    return Ok(config.clone());
+                }
+            }
+        }
+
+        // Cache miss or expired - load from database or default
+        let config = self.load_models_config_from_source().await?;
+
+        // Update cache
+        let mut cache = self.models_cache.write().await;
+        *cache = Some((config.clone(), Instant::now()));
+
+        Ok(config)
+    }
+
+    async fn load_models_config_from_source(&self) -> Result<ModelsConfiguration, String> {
+        if let Some(raw) = self.get_setting("models_config_json").await? {
+            let parsed: ModelsConfiguration = serde_json::from_str(&raw)
+                .map_err(|e| format!("Failed to parse models config: {}", e))?;
+            return Ok(parsed);
+        }
+
+        let default_config =
+            include_str!("../../../../packages/shared/src/data/models-config.json");
+        let parsed: ModelsConfiguration = serde_json::from_str(default_config)
+            .map_err(|e| format!("Failed to parse bundled models config: {}", e))?;
+        Ok(parsed)
+    }
+
+    /// Clear the models configuration cache
+    pub async fn clear_models_cache(&self) {
+        let mut cache = self.models_cache.write().await;
+        *cache = None;
     }
 
     fn custom_providers_path(&self) -> PathBuf {
@@ -130,6 +190,9 @@ impl ApiKeyManager {
         tokio::fs::write(&path, raw)
             .await
             .map_err(|e| format!("Failed to write custom providers file: {}", e))?;
+
+        // Clear models cache since custom providers changed
+        self.clear_models_cache().await;
 
         Ok(())
     }
@@ -296,6 +359,39 @@ mod tests {
             _dir: dir,
             api_keys: ApiKeyManager::new(db, std::path::PathBuf::from("/tmp")),
         }
+    }
+
+    #[tokio::test]
+    async fn load_models_config_uses_cache() {
+        let ctx = setup().await;
+
+        // First call - should load from source and populate cache
+        let config1 = ctx
+            .api_keys
+            .load_models_config()
+            .await
+            .expect("load config");
+
+        // Second call - should return cached version
+        let config2 = ctx
+            .api_keys
+            .load_models_config()
+            .await
+            .expect("load config from cache");
+
+        assert_eq!(config1.version, config2.version);
+
+        // Clear cache and verify it loads again
+        ctx.api_keys.clear_models_cache().await;
+
+        // After clearing cache, should load from source again
+        let config3 = ctx
+            .api_keys
+            .load_models_config()
+            .await
+            .expect("load config after clear");
+
+        assert_eq!(config1.version, config3.version);
     }
 
     fn provider_config(id: &str, auth_type: AuthType, supports_oauth: bool) -> ProviderConfig {

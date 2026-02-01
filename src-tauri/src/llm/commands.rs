@@ -10,9 +10,14 @@ pub async fn llm_stream_text(
     request: StreamTextRequest,
     state: State<'_, LlmState>,
 ) -> Result<StreamResponse, String> {
-    let registry = state.registry.lock().await;
-    let api_keys = state.api_keys.lock().await;
-    let handler = StreamHandler::new(&registry, &api_keys);
+    // Clone data within lock scope to minimize lock duration
+    let (registry, api_keys) = {
+        let registry = state.registry.lock().await;
+        let api_keys = state.api_keys.lock().await;
+        (registry.clone(), api_keys.clone())
+    }; // Locks released here before long-running stream operation
+
+    let handler = StreamHandler::new(registry, api_keys);
     // Use provided request_id if available, otherwise generate one
     let request_id = request.request_id.unwrap_or(0);
     let request_id = handler

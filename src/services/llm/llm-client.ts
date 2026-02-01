@@ -174,11 +174,11 @@ export class LlmClient {
     await invoke('llm_set_setting', { key, value });
   }
 
-  async startClaudeOAuth(): Promise<{ url: string; verifier: string }> {
+  async startClaudeOAuth(): Promise<{ url: string; verifier: string; state: string }> {
     return invoke('llm_claude_oauth_start');
   }
 
-  async completeClaudeOAuth(params: { code: string; verifier: string }): Promise<{
+  async completeClaudeOAuth(params: { code: string; verifier: string; state: string }): Promise<{
     accessToken: string;
     refreshToken: string;
     expiresAt: number;
@@ -260,25 +260,19 @@ export class LlmClient {
 
   async getOAuthStatus(): Promise<{
     anthropic?: {
-      accessToken?: string | null;
-      refreshToken?: string | null;
       expiresAt?: number | null;
+      isConnected?: boolean | null;
     } | null;
     openai?: {
-      accessToken?: string | null;
-      refreshToken?: string | null;
       expiresAt?: number | null;
       accountId?: string | null;
+      isConnected?: boolean | null;
     } | null;
     qwen?: {
-      accessToken?: string | null;
-      tokenPath?: string | null;
       isConnected?: boolean | null;
     } | null;
     githubCopilot?: {
-      accessToken?: string | null;
-      copilotToken?: string | null;
-      enterpriseUrl?: string | null;
+      isConnected?: boolean | null;
     } | null;
   } | null> {
     return invoke('llm_oauth_status');

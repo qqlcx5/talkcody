@@ -18,6 +18,7 @@ export interface ClaudeOAuthTokens {
 export interface OAuthFlowResult {
   url: string;
   verifier: string;
+  state: string;
 }
 
 export interface TokenExchangeResult {
@@ -37,10 +38,14 @@ export async function startOAuthFlow(): Promise<OAuthFlowResult> {
 /**
  * Exchange authorization code for tokens via Rust.
  */
-export async function exchangeCode(code: string, verifier: string): Promise<TokenExchangeResult> {
+export async function exchangeCode(
+  code: string,
+  verifier: string,
+  state: string
+): Promise<TokenExchangeResult> {
   try {
     logger.info('[ClaudeOAuth] Exchanging code via Rust');
-    const tokens = await llmClient.completeClaudeOAuth({ code, verifier });
+    const tokens = await llmClient.completeClaudeOAuth({ code, verifier, state });
     return { type: 'success', tokens };
   } catch (error) {
     logger.error('[ClaudeOAuth] Token exchange error:', error);

@@ -195,13 +195,11 @@ async function loadOAuthConfig(): Promise<OAuthConfig> {
   try {
     const snapshot = await llmClient.getOAuthStatus();
     return {
-      anthropicAccessToken: snapshot?.anthropic?.accessToken || null,
-      openaiAccessToken: snapshot?.openai?.accessToken || null,
+      anthropicIsConnected: snapshot?.anthropic?.isConnected || false,
+      openaiIsConnected: snapshot?.openai?.isConnected || false,
       openaiAccountId: snapshot?.openai?.accountId || null,
-      qwenAccessToken: snapshot?.qwen?.accessToken || null,
-      githubCopilotAccessToken: snapshot?.githubCopilot?.accessToken || null,
-      githubCopilotCopilotToken: snapshot?.githubCopilot?.copilotToken || null,
-      githubCopilotEnterpriseUrl: snapshot?.githubCopilot?.enterpriseUrl || null,
+      qwenIsConnected: snapshot?.qwen?.isConnected || false,
+      githubCopilotIsConnected: snapshot?.githubCopilot?.isConnected || false,
     };
   } catch (error) {
     logger.warn('Failed to load OAuth config:', error);
@@ -293,7 +291,7 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
         baseUrlCount: baseUrls.size,
         customProviderCount: customProviders.length,
         customModelCount: Object.keys(customModels).length,
-        hasOAuth: !!oauthConfig.anthropicAccessToken,
+        hasOAuth: !!oauthConfig.anthropicIsConnected,
       });
 
       const providerConfigs = mapRustProviderConfigs(await llmClient.getProviderConfigs());
@@ -542,7 +540,7 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
       logger.info('[ProviderStore] Refresh complete', {
         providerCount: providers.size,
         availableModelCount: availableModels.length,
-        hasOAuth: !!oauthConfig.anthropicAccessToken,
+        hasOAuth: !!oauthConfig.anthropicIsConnected,
       });
 
       set({

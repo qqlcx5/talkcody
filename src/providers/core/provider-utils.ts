@@ -2,7 +2,7 @@
 // Pure utility functions for provider/model operations - no state management
 
 import { getProvidersForModel, MODEL_CONFIGS } from '@/providers/config/model-config';
-import { getOAuthToken } from '@/providers/config/oauth-config';
+import { isOAuthConnected } from '@/providers/config/oauth-config';
 import { isLocalProvider } from '@/providers/custom/custom-model-service';
 import type { ProviderDefinition } from '@/types';
 import type { AvailableModel } from '@/types/api-keys';
@@ -12,13 +12,11 @@ import { PROVIDER_CONFIGS } from '../config/provider-config';
 
 // OAuth configuration for provider creation
 export interface OAuthConfig {
-  anthropicAccessToken?: string | null;
-  openaiAccessToken?: string | null;
+  anthropicIsConnected?: boolean | null;
+  openaiIsConnected?: boolean | null;
   openaiAccountId?: string | null;
-  qwenAccessToken?: string | null;
-  githubCopilotAccessToken?: string | null;
-  githubCopilotCopilotToken?: string | null;
-  githubCopilotEnterpriseUrl?: string | null;
+  qwenIsConnected?: boolean | null;
+  githubCopilotIsConnected?: boolean | null;
 }
 
 // Type for provider factory function (returns a function that creates model instances)
@@ -74,8 +72,7 @@ export function hasApiKeyForProvider(
   }
 
   // Check OAuth for providers that support it (unified check using configuration)
-  const oauthToken = getOAuthToken(providerId, oauthConfig);
-  if (oauthToken) {
+  if (isOAuthConnected(providerId, oauthConfig)) {
     return true;
   }
 

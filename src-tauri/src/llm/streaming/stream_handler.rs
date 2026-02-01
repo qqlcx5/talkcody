@@ -17,13 +17,13 @@ use tokio::time::timeout;
 
 static REQUEST_COUNTER: AtomicU32 = AtomicU32::new(1000);
 
-pub struct StreamHandler<'a> {
-    registry: &'a ProviderRegistry,
-    api_keys: &'a ApiKeyManager,
+pub struct StreamHandler {
+    registry: ProviderRegistry,
+    api_keys: ApiKeyManager,
 }
 
-impl<'a> StreamHandler<'a> {
-    pub fn new(registry: &'a ProviderRegistry, api_keys: &'a ApiKeyManager) -> Self {
+impl StreamHandler {
+    pub fn new(registry: ProviderRegistry, api_keys: ApiKeyManager) -> Self {
         Self { registry, api_keys }
     }
 
@@ -47,7 +47,8 @@ impl<'a> StreamHandler<'a> {
             request.model
         );
 
-        let (model_key, provider_id) = self.resolve_model_and_provider(&request.model).await?;
+        let (model_key, provider_id, provider_model_name) =
+            self.resolve_model_info(&request.model).await?;
         log::info!(
             "[LLM Stream {}] Resolved model: {}, provider: {}",
             request_id,
@@ -82,9 +83,6 @@ impl<'a> StreamHandler<'a> {
             base_url
         );
 
-        let provider_model_name = self
-            .resolve_provider_model_name(&model_key, &provider_id)
-            .await?;
         log::info!(
             "[LLM Stream {}] Provider model name: {}",
             request_id,
@@ -770,39 +768,31 @@ impl<'a> StreamHandler<'a> {
         Ok(request_id)
     }
 
-    async fn resolve_model_and_provider(
+    async fn resolve_model_info(
         &self,
         model_identifier: &str,
-    ) -> Result<(String, String), String> {
+    ) -> Result<(String, String, String), String> {
+        let models = self.api_keys.load_models_config().await?;
         let api_keys = self.api_keys.load_api_keys().await?;
         let custom_providers = self.api_keys.load_custom_providers().await?;
-        let models =
-            crate::llm::models::model_registry::ModelRegistry::load_models_config(self.api_keys)
-                .await?;
-        crate::llm::models::model_registry::ModelRegistry::get_model_provider(
-            model_identifier,
-            &api_keys,
-            self.registry,
-            &custom_providers,
-            &models,
-        )
-    }
 
-    async fn resolve_provider_model_name(
-        &self,
-        model_key: &str,
-        provider_id: &str,
-    ) -> Result<String, String> {
-        let models =
-            crate::llm::models::model_registry::ModelRegistry::load_models_config(self.api_keys)
-                .await?;
-        Ok(
-            crate::llm::models::model_registry::ModelRegistry::resolve_provider_model_name(
-                model_key,
-                provider_id,
+        let (model_key, provider_id) =
+            crate::llm::models::model_registry::ModelRegistry::get_model_provider(
+                model_identifier,
+                &api_keys,
+                &self.registry,
+                &custom_providers,
                 &models,
-            ),
-        )
+            )?;
+
+        let provider_model_name =
+            crate::llm::models::model_registry::ModelRegistry::resolve_provider_model_name(
+                &model_key,
+                &provider_id,
+                &models,
+            );
+
+        Ok((model_key, provider_id, provider_model_name))
     }
 
     async fn resolve_base_url(
@@ -1014,13 +1004,48 @@ impl<'a> StreamHandler<'a> {
             }
         }
 
+        fn to_output_content(content: &crate::llm::types::MessageContent) -> Vec<Value> {
+            match content {
+                crate::llm::types::MessageContent::Text(text) => {
+                    if text.trim().is_empty() {
+                        Vec::new()
+                    } else {
+                        vec![json!({ "type": "output_text", "text": text })]
+                    }
+                }
+                crate::llm::types::MessageContent::Parts(parts) => {
+                    let mut mapped = Vec::new();
+                    for part in parts {
+                        match part {
+                            crate::llm::types::ContentPart::Text { text } => {
+                                if !text.trim().is_empty() {
+                                    mapped.push(json!({ "type": "output_text", "text": text }));
+                                }
+                            }
+                            crate::llm::types::ContentPart::Reasoning { text, .. } => {
+                                if !text.trim().is_empty() {
+                                    mapped.push(json!({ "type": "output_text", "text": text }));
+                                }
+                            }
+                            crate::llm::types::ContentPart::Image { .. } => {
+                                // Assistant messages don't typically include images in input
+                            }
+                            crate::llm::types::ContentPart::ToolCall { .. } => {}
+                            crate::llm::types::ContentPart::ToolResult { .. } => {}
+                        }
+                    }
+                    mapped
+                }
+            }
+        }
+
         fn append_assistant_items(
             content: &crate::llm::types::MessageContent,
             input_items: &mut Vec<Value>,
         ) {
             match content {
                 crate::llm::types::MessageContent::Text(_) => {
-                    let content_parts = to_input_content(content);
+                    let content_parts = to_output_content(content);
                     if !content_parts.is_empty() {
                         input_items.push(json!({
                             "type": "message",
@@ -1037,13 +1062,13 @@ impl<'a> StreamHandler<'a> {
                             crate::llm::types::ContentPart::Text { text } => {
                                 if !text.trim().is_empty() {
                                     pending_parts
-                                        .push(json!({ "type": "input_text", "text": text }));
+                                        .push(json!({ "type": "output_text", "text": text }));
                                 }
                             }
                             crate::llm::types::ContentPart::Reasoning { text, .. } => {
                                 if !text.trim().is_empty() {
                                     pending_parts
-                                        .push(json!({ "type": "input_text", "text": text }));
+                                        .push(json!({ "type": "output_text", "text": text }));
                                 }
                             }
                             crate::llm::types::ContentPart::Image { image } => {
@@ -1678,7 +1703,7 @@ mod tests {
         db.connect().await.expect("db connect");
         let api_keys = ApiKeyManager::new(db, std::path::PathBuf::from("/tmp"));
         let registry = ProviderRegistry::new(builtin_providers());
-        let handler = StreamHandler::new(&registry, &api_keys);
+        let handler = StreamHandler::new(registry, api_keys);
 
         let request = StreamTextRequest {
             model: "gpt-5.2-codex".to_string(),
@@ -1941,7 +1966,7 @@ mod tests {
             .expect("zhipu provider")
             .clone();
         let registry = ProviderRegistry::new(providers);
-        let handler = StreamHandler::new(&registry, &api_keys);
+        let handler = StreamHandler::new(registry, api_keys);
 
         let base_url = handler
             .resolve_base_url(&provider)
@@ -1982,7 +2007,7 @@ mod tests {
             .expect("moonshot provider")
             .clone();
         let registry = ProviderRegistry::new(providers);
-        let handler = StreamHandler::new(&registry, &api_keys);
+        let handler = StreamHandler::new(registry.clone(), api_keys.clone());
 
         let base_url = handler
             .resolve_base_url(&provider)
@@ -2047,6 +2072,148 @@ mod tests {
                 assert_eq!(finish_reason, None);
             }
             _ => panic!("Unexpected event"),
+        }
+    }
+
+    #[tokio::test]
+    async fn build_openai_oauth_request_uses_correct_content_types() {
+        // Test that user/developer messages use input_text and assistant messages use output_text
+        // This is required by the ChatGPT Codex API
+        let dir = TempDir::new().expect("temp dir");
+        let db_path = dir.path().join("talkcody-test.db");
+        let db = Arc::new(Database::new(db_path.to_string_lossy().to_string()));
+        db.connect().await.expect("db connect");
+        let api_keys = ApiKeyManager::new(db, std::path::PathBuf::from("/tmp"));
+        let registry = ProviderRegistry::new(builtin_providers());
+        let handler = StreamHandler::new(registry, api_keys);
+
+        let request = StreamTextRequest {
+            model: "gpt-5.2-codex".to_string(),
+            messages: vec![
+                Message::System {
+                    content: "You are a helpful assistant.".to_string(),
+                    provider_options: None,
+                },
+                Message::User {
+                    content: MessageContent::Text("Hello!".to_string()),
+                    provider_options: None,
+                },
+                Message::Assistant {
+                    content: MessageContent::Text("Hi there! How can I help you?".to_string()),
+                    provider_options: None,
+                },
+                Message::User {
+                    content: MessageContent::Parts(vec![ContentPart::Text {
+                        text: "What's the weather?".to_string(),
+                    }]),
+                    provider_options: None,
+                },
+                Message::Assistant {
+                    content: MessageContent::Parts(vec![
+                        ContentPart::Text {
+                            text: "Let me check that for you.".to_string(),
+                        },
+                        ContentPart::Reasoning {
+                            text: "The user wants weather info.".to_string(),
+                            provider_options: None,
+                        },
+                    ]),
+                    provider_options: None,
+                },
+            ],
+            tools: None,
+            stream: Some(true),
+            temperature: None,
+            max_tokens: None,
+            top_p: None,
+            top_k: None,
+            provider_options: None,
+            request_id: None,
+            trace_context: None,
+        };
+
+        let body = handler
+            .build_openai_oauth_request(&request, "gpt-5.2-codex")
+            .expect("request body");
+        let input = body
+            .get("input")
+            .and_then(|value| value.as_array())
+            .expect("input array");
+
+        // Find messages by role
+        let developer_msg = input
+            .iter()
+            .find(|item| {
+                item.get("role")
+                    .and_then(|value| value.as_str())
+                    .is_some_and(|value| value == "developer")
+            })
+            .expect("developer message");
+        let user_msg = input
+            .iter()
+            .find(|item| {
+                item.get("role")
+                    .and_then(|value| value.as_str())
+                    .is_some_and(|value| value == "user")
+            })
+            .expect("user message");
+        let assistant_msgs: Vec<_> = input
+            .iter()
+            .filter(|item| {
+                item.get("role")
+                    .and_then(|value| value.as_str())
+                    .is_some_and(|value| value == "assistant")
+            })
+            .collect();
+
+        // Developer message should use input_text
+        let dev_content = developer_msg
+            .get("content")
+            .and_then(|value| value.as_array())
+            .expect("developer content array")
+            .first()
+            .expect("first content item");
+        assert_eq!(
+            dev_content.get("type").and_then(|value| value.as_str()),
+            Some("input_text"),
+            "Developer message should use input_text"
+        );
+
+        // User message should use input_text
+        let user_content = user_msg
+            .get("content")
+            .and_then(|value| value.as_array())
+            .expect("user content array")
+            .first()
+            .expect("first content item");
+        assert_eq!(
+            user_content.get("type").and_then(|value| value.as_str()),
+            Some("input_text"),
+            "User message should use input_text"
+        );
+
+        // Assistant messages should use output_text
+        assert_eq!(assistant_msgs.len(), 2, "Should have 2 assistant messages");
+        for (index, assistant_msg) in assistant_msgs.iter().enumerate() {
+            let content_array = assistant_msg
+                .get("content")
+                .and_then(|value| value.as_array())
+                .expect(&format!("assistant {} content array", index));
+            for (content_index, content_item) in content_array.iter().enumerate() {
+                let content_type = content_item
+                    .get("type")
+                    .and_then(|value| value.as_str())
+                    .expect(&format!(
+                        "content type at assistant {} content {}",
+                        index, content_index
+                    ));
+                // Assistant messages should only contain output_text (not input_text)
+                assert_eq!(
+                    content_type, "output_text",
+                    "Assistant message {} content {} should use output_text, not {}",
+                    index, content_index, content_type
+                );
+            }
         }
     }
 }
