@@ -319,10 +319,16 @@ const en: LocaleDefinition = {
         `${provider} connection test failed. Please check your configuration.`,
       customBaseUrl: 'Custom Base URL (Optional)',
       useCodingPlan: 'Use Coding Plan',
+      useInternational: 'Use International API',
       loadFailed: 'Failed to load API keys settings',
       codingPlanEnabled: (provider) => `${provider} Coding Plan enabled`,
       codingPlanDisabled: (provider) => `${provider} Coding Plan disabled`,
       codingPlanUpdateFailed: (provider) => `Failed to update ${provider} Coding Plan setting`,
+      internationalEnabled: (provider) => `${provider} International API enabled`,
+      internationalDisabled: (provider) => `${provider} International API disabled`,
+      internationalUpdateFailed: (provider) =>
+        `Failed to update ${provider} International API setting`,
+
       tooltipTitle: 'API Keys',
       tooltipDescription:
         'API keys are required to access AI models from different providers. Configure your API keys here to enable model access.',
@@ -1094,6 +1100,8 @@ const en: LocaleDefinition = {
     toolsPlaygroundTooltip: 'Test and develop custom tools',
     usage: 'Usage',
     usageTooltip: 'View subscription and coding plan usage',
+    tracing: 'Tracing',
+    tracingTooltip: 'Inspect LLM traces and spans',
     logs: 'Logs',
     logsTooltip: 'View application logs',
     settings: 'Settings',
@@ -1132,6 +1140,24 @@ const en: LocaleDefinition = {
     latestEntriesDescription:
       'Most recent application logs. Logs are automatically written by the application.',
     noLogsFound: 'No logs found.',
+  },
+
+  Tracing: {
+    title: 'Tracing',
+    description: 'Inspect LLM traces, spans, and request/response metadata.',
+    listTitle: 'Traces',
+    detailTitle: 'Trace Details',
+    spansTitle: 'Spans',
+    eventsTitle: 'Events',
+    attributesLabel: 'Attributes',
+    startedAtLabel: 'Started',
+    durationLabel: 'Duration',
+    spanCountLabel: 'Span Count',
+    loadError: 'Failed to load trace data',
+    emptyDescription: 'No traces recorded yet. Run an agent to capture traces.',
+    selectTrace: 'Select a trace to view details.',
+    noSpans: 'No spans found for this trace.',
+    noEvents: 'No events recorded.',
   },
 
   Initialization: {
@@ -1820,6 +1846,10 @@ const en: LocaleDefinition = {
       success: (operation, location) => `LSP ${operation} completed for ${location}`,
       failed: (operation, message) => `Failed to run LSP ${operation}: ${message}`,
       unknownError: 'Unknown error',
+    },
+    Bash: {
+      outputSaved: (path) => `Full stdout saved to: ${path}`,
+      errorSaved: (path) => `Full stderr saved to: ${path}`,
     },
   },
 

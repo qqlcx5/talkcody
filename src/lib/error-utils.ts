@@ -1,5 +1,5 @@
-import { InvalidToolInputError, NoSuchToolError } from 'ai';
-import { useProviderStore } from '@/providers/stores/provider-store';
+import { parseModelIdentifier } from '@/providers/core/provider-utils';
+import { InvalidToolInputError, NoSuchToolError } from '@/services/llm/errors';
 
 // HTTP status codes for error handling
 export const HTTP_STATUS = {
@@ -292,12 +292,6 @@ export function formatErrorForLogging(errorInfo: DetailedErrorInfo): string {
   if (errorInfo.stack) {
     formatted += `\n\nStack Trace:\n${errorInfo.stack}`;
   }
-
-  // Add raw error for debugging if available
-  if (errorInfo.rawError) {
-    formatted += `\n\nRaw Error Object:\n${errorInfo.rawError}`;
-  }
-
   return formatted;
 }
 
@@ -309,9 +303,9 @@ export function getProviderErrorContext(model: string): {
   model?: string;
 } {
   try {
-    const providerModel = useProviderStore.getState().getProviderModel(model);
+    const { providerId } = parseModelIdentifier(model);
     return {
-      provider: providerModel?.provider || 'unknown',
+      provider: providerId || 'unknown',
       model,
     };
   } catch {
