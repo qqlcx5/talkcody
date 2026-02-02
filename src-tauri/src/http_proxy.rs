@@ -1093,12 +1093,34 @@ mod tests {
     #[test]
     fn test_stream_fetch_validates_unsupported_methods() {
         // Test that only supported methods are allowed
-        let valid_methods = ["GET", "POST", "PUT", "DELETE", "PATCH", "PROPFIND", "MKCOL", "MOVE", "COPY"];
+        let valid_methods = [
+            "GET",
+            "POST",
+            "PUT",
+            "DELETE",
+            "PATCH",
+            "PROPFIND",
+            "MKCOL",
+            "MOVE",
+            "COPY",
+            "LOCK",
+            "UNLOCK",
+        ];
         for method in valid_methods {
             let upper = method.to_uppercase();
             assert!(matches!(
                 upper.as_str(),
-                "GET" | "POST" | "PUT" | "DELETE" | "PATCH"
+                "GET"
+                    | "POST"
+                    | "PUT"
+                    | "DELETE"
+                    | "PATCH"
+                    | "PROPFIND"
+                    | "MKCOL"
+                    | "MOVE"
+                    | "COPY"
+                    | "LOCK"
+                    | "UNLOCK"
             ));
         }
     }
