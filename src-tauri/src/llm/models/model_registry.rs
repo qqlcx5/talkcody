@@ -2,6 +2,7 @@ use crate::llm::auth::api_key_manager::ApiKeyManager;
 use crate::llm::providers::provider_registry::ProviderRegistry;
 use crate::llm::types::{AvailableModel, CustomProvidersConfiguration, ModelsConfiguration};
 use std::collections::HashMap;
+use std::sync::Arc;
 
 pub struct ModelRegistry;
 
@@ -9,17 +10,29 @@ impl ModelRegistry {
     pub async fn load_models_config(
         api_keys: &ApiKeyManager,
     ) -> Result<ModelsConfiguration, String> {
-        if let Some(raw) = api_keys.get_setting("models_config_json").await? {
-            let parsed: ModelsConfiguration = serde_json::from_str(&raw)
-                .map_err(|e| format!("Failed to parse models config: {}", e))?;
-            return Ok(parsed);
-        }
+        // Use the cached version from ApiKeyManager if available
+        // This avoids redundant parsing and uses the 5-minute cache
+        api_keys.load_models_config().await
+    }
 
+    /// Load models configuration from raw JSON string using spawn_blocking
+    /// to avoid blocking the async runtime during JSON parsing
+    async fn parse_models_config(raw: String) -> Result<ModelsConfiguration, String> {
+        let raw = Arc::new(raw);
+        let result = tokio::task::spawn_blocking(move || {
+            serde_json::from_str::<ModelsConfiguration>(&raw)
+                .map_err(|e| format!("Failed to parse models config: {}", e))
+        })
+        .await
+        .map_err(|e| format!("Failed to spawn blocking task: {}", e))?;
+        result
+    }
+
+    /// Load default models configuration using spawn_blocking for JSON parsing
+    async fn load_default_models_config() -> Result<ModelsConfiguration, String> {
         let default_config =
-            include_str!("../../../../packages/shared/src/data/models-config.json");
-        let parsed: ModelsConfiguration = serde_json::from_str(default_config)
-            .map_err(|e| format!("Failed to parse bundled models config: {}", e))?;
-        Ok(parsed)
+            include_str!("../../../../packages/shared/src/data/models-config.json").to_string();
+        Self::parse_models_config(default_config).await
     }
 
     pub async fn compute_available_models(
@@ -27,19 +40,51 @@ impl ModelRegistry {
         registry: &ProviderRegistry,
     ) -> Result<Vec<AvailableModel>, String> {
         let models = Self::load_models_config(api_keys).await?;
+        log::info!(
+            "[ModelRegistry] Loaded {} models from config",
+            models.models.len()
+        );
+
         let custom_providers = api_keys.load_custom_providers().await?;
+        log::info!(
+            "[ModelRegistry] Loaded {} custom providers",
+            custom_providers.providers.len()
+        );
 
         let mut api_key_map = api_keys.load_api_keys().await?;
+        log::info!(
+            "[ModelRegistry] Loaded {} API keys: {:?}",
+            api_key_map.len(),
+            api_key_map.keys()
+        );
+
         let oauth_tokens = api_keys.load_oauth_tokens().await?;
+        log::info!(
+            "[ModelRegistry] Loaded {} OAuth tokens: {:?}",
+            oauth_tokens.len(),
+            oauth_tokens.keys()
+        );
+
         for (provider_id, token) in oauth_tokens {
             api_key_map.entry(provider_id).or_insert(token);
         }
+
+        let registered_providers: Vec<_> =
+            registry.providers().iter().map(|p| p.id.clone()).collect();
+        log::info!(
+            "[ModelRegistry] Registered providers in registry: {:?}",
+            registered_providers
+        );
 
         let available = Self::compute_available_models_internal(
             &models,
             &api_key_map,
             registry,
             &custom_providers,
+        );
+        log::info!(
+            "[ModelRegistry] Computed {} available models",
+            available.len()
         );
         Ok(available)
     }
@@ -178,28 +223,61 @@ impl ModelRegistry {
         custom_providers: &CustomProvidersConfiguration,
     ) -> bool {
         if let Some(provider) = registry.provider(provider_id) {
+            log::debug!(
+                "[ModelRegistry] Checking provider {}: auth_type={:?}, supports_oauth={}",
+                provider_id,
+                provider.auth_type,
+                provider.supports_oauth
+            );
+
             if provider.auth_type == crate::llm::types::AuthType::None {
                 if provider_id == "ollama" || provider_id == "lmstudio" {
-                    return api_keys
+                    let enabled = api_keys
                         .get(provider_id)
                         .map(|v| v == "enabled")
                         .unwrap_or(false);
+                    log::debug!(
+                        "[ModelRegistry] Provider {} is None auth type, enabled={}",
+                        provider_id,
+                        enabled
+                    );
+                    return enabled;
                 }
+                log::debug!(
+                    "[ModelRegistry] Provider {} is None auth type, always available",
+                    provider_id
+                );
                 return true;
             }
             if api_keys.get(provider_id).is_some() {
+                log::debug!("[ModelRegistry] Provider {} has API key", provider_id);
                 return true;
             }
             if provider.supports_oauth {
                 if let Some(token) = api_keys.get(provider_id) {
                     if !token.trim().is_empty() {
+                        log::debug!("[ModelRegistry] Provider {} has OAuth token", provider_id);
                         return true;
                     }
                 }
             }
+            log::debug!(
+                "[ModelRegistry] Provider {} not available - no credentials",
+                provider_id
+            );
+        } else {
+            log::debug!(
+                "[ModelRegistry] Provider {} not found in registry",
+                provider_id
+            );
         }
 
         if let Some(custom) = custom_providers.providers.get(provider_id) {
+            log::debug!(
+                "[ModelRegistry] Provider {} is custom, enabled={}",
+                provider_id,
+                custom.enabled
+            );
             return custom.enabled;
         }
 

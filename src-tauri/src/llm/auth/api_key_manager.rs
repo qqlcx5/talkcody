@@ -1,25 +1,96 @@
 use crate::llm::types::CustomProvidersConfiguration;
-use crate::llm::types::{AuthType, ProviderConfig};
+use crate::llm::types::{AuthType, ModelsConfiguration, ProviderConfig};
+use reqwest::Client;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 use tauri::State;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, RwLock};
 
 use crate::database::Database;
+
+const MODELS_CACHE_TTL: Duration = Duration::from_secs(300); // 5 minutes
 
 const SETTINGS_SELECT: &str = "SELECT value FROM settings WHERE key = $1";
 const CUSTOM_PROVIDERS_FILENAME: &str = "custom-providers.json";
 
+const GITHUB_COPILOT_ACCESS_TOKEN_KEY: &str = "github_copilot_oauth_access_token";
+const GITHUB_COPILOT_COPILOT_TOKEN_KEY: &str = "github_copilot_oauth_copilot_token";
+const GITHUB_COPILOT_EXPIRES_AT_KEY: &str = "github_copilot_oauth_expires_at";
+const GITHUB_COPILOT_ENTERPRISE_URL_KEY: &str = "github_copilot_oauth_enterprise_url";
+const GITHUB_COPILOT_USER_AGENT: &str = "GitHubCopilotChat/0.35.0";
+const GITHUB_COPILOT_EDITOR_VERSION: &str = "vscode/1.105.1";
+const GITHUB_COPILOT_PLUGIN_VERSION: &str = "copilot-chat/0.35.0";
+const GITHUB_COPILOT_INTEGRATION_ID: &str = "vscode-chat";
+const GITHUB_COPILOT_TOKEN_BUFFER_SECONDS: i64 = 60;
+
 pub struct ApiKeyManager {
     db: Arc<Database>,
     app_data_dir: PathBuf,
+    models_cache: RwLock<Option<(ModelsConfiguration, Instant)>>,
+}
+
+impl Clone for ApiKeyManager {
+    fn clone(&self) -> Self {
+        Self {
+            db: self.db.clone(),
+            app_data_dir: self.app_data_dir.clone(),
+            models_cache: RwLock::new(None),
+        }
+    }
 }
 
 impl ApiKeyManager {
     pub fn new(db: Arc<Database>, app_data_dir: PathBuf) -> Self {
-        Self { db, app_data_dir }
+        Self {
+            db,
+            app_data_dir,
+            models_cache: RwLock::new(None),
+        }
+    }
+
+    /// Load models configuration with caching (5 minutes TTL)
+    pub async fn load_models_config(&self) -> Result<ModelsConfiguration, String> {
+        // Check cache first
+        {
+            let cache = self.models_cache.read().await;
+            if let Some((config, timestamp)) = cache.as_ref() {
+                if timestamp.elapsed() < MODELS_CACHE_TTL {
+                    return Ok(config.clone());
+                }
+            }
+        }
+
+        // Cache miss or expired - load from database or default
+        let config = self.load_models_config_from_source().await?;
+
+        // Update cache
+        let mut cache = self.models_cache.write().await;
+        *cache = Some((config.clone(), Instant::now()));
+
+        Ok(config)
+    }
+
+    async fn load_models_config_from_source(&self) -> Result<ModelsConfiguration, String> {
+        if let Some(raw) = self.get_setting("models_config_json").await? {
+            let parsed: ModelsConfiguration = serde_json::from_str(&raw)
+                .map_err(|e| format!("Failed to parse models config: {}", e))?;
+            return Ok(parsed);
+        }
+
+        let default_config =
+            include_str!("../../../../packages/shared/src/data/models-config.json");
+        let parsed: ModelsConfiguration = serde_json::from_str(default_config)
+            .map_err(|e| format!("Failed to parse bundled models config: {}", e))?;
+        Ok(parsed)
+    }
+
+    /// Clear the models configuration cache
+    pub async fn clear_models_cache(&self) {
+        let mut cache = self.models_cache.write().await;
+        *cache = None;
     }
 
     fn custom_providers_path(&self) -> PathBuf {
@@ -131,6 +202,9 @@ impl ApiKeyManager {
             .await
             .map_err(|e| format!("Failed to write custom providers file: {}", e))?;
 
+        // Clear models cache since custom providers changed
+        self.clear_models_cache().await;
+
         Ok(())
     }
 
@@ -181,10 +255,107 @@ impl ApiKeyManager {
         match provider_id {
             "openai" => self.get_setting("openai_oauth_access_token").await,
             "anthropic" => self.get_setting("claude_oauth_access_token").await,
-            "github_copilot" => self.get_setting("github_copilot_oauth_copilot_token").await,
+            "github_copilot" => match self.get_valid_github_copilot_token().await {
+                Ok(token) => Ok(Some(token)),
+                Err(_) => self.get_setting(GITHUB_COPILOT_COPILOT_TOKEN_KEY).await,
+            },
             "qwen_code" => Ok(None),
             _ => Ok(None),
         }
+    }
+
+    async fn get_valid_github_copilot_token(&self) -> Result<String, String> {
+        let access_token = self
+            .get_setting(GITHUB_COPILOT_ACCESS_TOKEN_KEY)
+            .await?
+            .unwrap_or_default();
+        if access_token.trim().is_empty() {
+            return Err("Missing GitHub Copilot OAuth access token".to_string());
+        }
+
+        let expires_at_ms = self
+            .get_setting(GITHUB_COPILOT_EXPIRES_AT_KEY)
+            .await?
+            .and_then(|value| value.parse::<i64>().ok());
+
+        if let Some(expires_at_ms) = expires_at_ms {
+            let now_ms = chrono::Utc::now().timestamp_millis();
+            if now_ms + (GITHUB_COPILOT_TOKEN_BUFFER_SECONDS * 1000) < expires_at_ms {
+                if let Some(cached) = self.get_setting(GITHUB_COPILOT_COPILOT_TOKEN_KEY).await? {
+                    if !cached.trim().is_empty() {
+                        return Ok(cached);
+                    }
+                }
+            }
+        }
+
+        let enterprise_url = self
+            .get_setting(GITHUB_COPILOT_ENTERPRISE_URL_KEY)
+            .await?
+            .filter(|value| !value.trim().is_empty());
+
+        let client = Client::builder()
+            .timeout(Duration::from_secs(20))
+            .build()
+            .map_err(|e| format!("Failed to build HTTP client: {}", e))?;
+
+        let base_domain = enterprise_url
+            .as_deref()
+            .map(normalize_domain)
+            .unwrap_or_else(|| "github.com".to_string());
+
+        let token_url = if let Ok(override_url) = std::env::var("TALKCODY_COPILOT_TOKEN_URL") {
+            override_url
+        } else {
+            format!("https://api.{}/copilot_internal/v2/token", base_domain)
+        };
+
+        let response = client
+            .get(&token_url)
+            .header("Accept", "application/json")
+            .header("Authorization", format!("Bearer {}", access_token))
+            .header("User-Agent", GITHUB_COPILOT_USER_AGENT)
+            .header("Editor-Version", GITHUB_COPILOT_EDITOR_VERSION)
+            .header("Editor-Plugin-Version", GITHUB_COPILOT_PLUGIN_VERSION)
+            .header("Copilot-Integration-Id", GITHUB_COPILOT_INTEGRATION_ID)
+            .send()
+            .await
+            .map_err(|e| format!("GitHub Copilot token request failed: {}", e))?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unknown error".to_string());
+            return Err(format!(
+                "GitHub Copilot token refresh failed ({}): {}",
+                status, text
+            ));
+        }
+
+        let payload: serde_json::Value = response
+            .json()
+            .await
+            .map_err(|e| format!("Failed to parse Copilot token response: {}", e))?;
+        let token = payload
+            .get("token")
+            .and_then(|value| value.as_str())
+            .ok_or("Missing Copilot token in response")?
+            .to_string();
+        let expires_at = payload
+            .get("expires_at")
+            .and_then(|value| value.as_i64())
+            .ok_or("Missing Copilot expires_at in response")?;
+
+        let expires_at_ms = expires_at * 1000;
+
+        self.set_setting(GITHUB_COPILOT_COPILOT_TOKEN_KEY, &token)
+            .await?;
+        self.set_setting(GITHUB_COPILOT_EXPIRES_AT_KEY, &expires_at_ms.to_string())
+            .await?;
+
+        Ok(token)
     }
 
     pub async fn has_oauth_token(&self, provider_id: &str) -> Result<bool, String> {
@@ -223,16 +394,25 @@ impl ApiKeyManager {
                 tokens.insert("anthropic".to_string(), token);
             }
         }
-        if let Some(token) = self
-            .get_setting("github_copilot_oauth_copilot_token")
-            .await?
-        {
+        if let Some(token) = self.get_valid_github_copilot_token().await.ok() {
+            if !token.trim().is_empty() {
+                tokens.insert("github_copilot".to_string(), token);
+            }
+        } else if let Some(token) = self.get_setting(GITHUB_COPILOT_COPILOT_TOKEN_KEY).await? {
             if !token.trim().is_empty() {
                 tokens.insert("github_copilot".to_string(), token);
             }
         }
         Ok(tokens)
     }
+}
+
+fn normalize_domain(url: &str) -> String {
+    url.trim()
+        .trim_start_matches("https://")
+        .trim_start_matches("http://")
+        .trim_end_matches('/')
+        .to_string()
 }
 
 #[derive(Debug)]
@@ -296,6 +476,77 @@ mod tests {
             _dir: dir,
             api_keys: ApiKeyManager::new(db, std::path::PathBuf::from("/tmp")),
         }
+    }
+
+    #[tokio::test]
+    async fn github_copilot_refreshes_expired_token() {
+        let ctx = setup().await;
+        let server = tiny_http::Server::http("127.0.0.1:0").expect("server");
+        let addr = server.server_addr();
+        let (ip, port) = match addr {
+            tiny_http::ListenAddr::IP(socket_addr) => (socket_addr.ip(), socket_addr.port()),
+            _ => panic!("Expected IP SocketAddr"),
+        };
+        let token_url = format!("http://{}:{}/copilot_internal/v2/token", ip, port);
+
+        std::env::set_var("TALKCODY_COPILOT_TOKEN_URL", &token_url);
+
+        let response_token = "new-copilot-token";
+        let response_expires = chrono::Utc::now().timestamp() + 3600;
+        let response_body = format!(
+            "{{\"token\":\"{}\",\"expires_at\":{}}}",
+            response_token, response_expires
+        );
+
+        let server_handle = std::thread::spawn(move || {
+            if let Ok(request) = server.recv() {
+                let response = tiny_http::Response::from_string(response_body).with_header(
+                    tiny_http::Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..])
+                        .expect("header"),
+                );
+                let _ = request.respond(response);
+            }
+        });
+
+        ctx.api_keys
+            .set_setting(GITHUB_COPILOT_ACCESS_TOKEN_KEY, "access-token")
+            .await
+            .expect("set access token");
+        ctx.api_keys
+            .set_setting(GITHUB_COPILOT_COPILOT_TOKEN_KEY, "old-token")
+            .await
+            .expect("set copilot token");
+        ctx.api_keys
+            .set_setting(GITHUB_COPILOT_EXPIRES_AT_KEY, "0")
+            .await
+            .expect("set expired timestamp");
+
+        let refreshed = ctx
+            .api_keys
+            .get_valid_github_copilot_token()
+            .await
+            .expect("refresh token");
+
+        assert_eq!(refreshed, response_token);
+
+        let stored_token = ctx
+            .api_keys
+            .get_setting(GITHUB_COPILOT_COPILOT_TOKEN_KEY)
+            .await
+            .expect("read stored token")
+            .unwrap_or_default();
+        assert_eq!(stored_token, response_token);
+
+        let stored_expires = ctx
+            .api_keys
+            .get_setting(GITHUB_COPILOT_EXPIRES_AT_KEY)
+            .await
+            .expect("read expires")
+            .unwrap_or_default();
+        assert_eq!(stored_expires, (response_expires * 1000).to_string());
+
+        server_handle.join().expect("server join");
+        std::env::remove_var("TALKCODY_COPILOT_TOKEN_URL");
     }
 
     fn provider_config(id: &str, auth_type: AuthType, supports_oauth: bool) -> ProviderConfig {

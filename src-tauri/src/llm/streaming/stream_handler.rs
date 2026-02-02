@@ -10,20 +10,21 @@ use futures_util::StreamExt;
 use serde_json;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 use tauri::{Emitter, Manager};
 use tokio::time::timeout;
 
 static REQUEST_COUNTER: AtomicU32 = AtomicU32::new(1000);
+static HTTP_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
 
-pub struct StreamHandler<'a> {
-    registry: &'a ProviderRegistry,
-    api_keys: &'a ApiKeyManager,
+pub struct StreamHandler {
+    registry: ProviderRegistry,
+    api_keys: ApiKeyManager,
 }
 
-impl<'a> StreamHandler<'a> {
-    pub fn new(registry: &'a ProviderRegistry, api_keys: &'a ApiKeyManager) -> Self {
+impl StreamHandler {
+    pub fn new(registry: ProviderRegistry, api_keys: ApiKeyManager) -> Self {
         Self { registry, api_keys }
     }
 
@@ -47,7 +48,8 @@ impl<'a> StreamHandler<'a> {
             request.model
         );
 
-        let (model_key, provider_id) = self.resolve_model_and_provider(&request.model).await?;
+        let (model_key, provider_id, provider_model_name) =
+            self.resolve_model_info(&request.model).await?;
         log::info!(
             "[LLM Stream {}] Resolved model: {}, provider: {}",
             request_id,
@@ -82,9 +84,6 @@ impl<'a> StreamHandler<'a> {
             base_url
         );
 
-        let provider_model_name = self
-            .resolve_provider_model_name(&model_key, &provider_id)
-            .await?;
         log::info!(
             "[LLM Stream {}] Provider model name: {}",
             request_id,
@@ -95,19 +94,41 @@ impl<'a> StreamHandler<'a> {
         let mut trace_span_id: Option<String> = None;
         let mut trace_usage: Option<(i32, i32, Option<i32>, Option<i32>, Option<i32>)> = None;
         let mut trace_finish_reason: Option<String> = None;
+        let mut trace_client_start_ms: Option<i64> = None;
+        let mut trace_ttft_emitted = false;
         let mut done_emitted = false;
+
+        log::info!(
+            "[LLM Stream {}] Request trace_context: {:?}",
+            request_id,
+            request.trace_context
+        );
 
         if let Some(ref trace_context) = request.trace_context {
             let trace_writer = window.app_handle().state::<Arc<TraceWriter>>();
-            let trace_id = trace_context
-                .trace_id
-                .clone()
-                .unwrap_or_else(|| trace_writer.start_trace());
+            log::info!("[LLM Stream {}] Received trace_context - trace_id: {:?}, span_name: {:?}, parent_span_id: {:?}", 
+                request_id, trace_context.trace_id, trace_context.span_name, trace_context.parent_span_id);
+            let trace_id = trace_context.trace_id.clone().unwrap_or_else(|| {
+                let new_id = trace_writer.start_trace();
+                log::info!(
+                    "[LLM Stream {}] No trace_id provided, generated new trace: {}",
+                    request_id,
+                    new_id
+                );
+                new_id
+            });
+            log::info!("[LLM Stream {}] Using trace_id: {}", request_id, trace_id);
 
             let span_name = trace_context
                 .span_name
                 .as_deref()
                 .unwrap_or("llm.stream_completion");
+
+            trace_client_start_ms = trace_context
+                .metadata
+                .as_ref()
+                .and_then(|metadata| metadata.get("client_start_ms"))
+                .and_then(|value| value.parse::<i64>().ok());
 
             let mut attributes = HashMap::new();
             attributes.insert(
@@ -150,9 +171,20 @@ impl<'a> StreamHandler<'a> {
                 span_name.to_string(),
                 attributes,
             );
-            trace_span_id = Some(span_id);
+            trace_span_id = Some(span_id.clone());
 
-            log::info!("[LLM Stream {}] Tracing span created", request_id);
+            let parent_exists = trace_context
+                .parent_span_id
+                .as_deref()
+                .map(|id| trace_writer.has_span_id(id))
+                .unwrap_or(true);
+            log::info!(
+                "[LLM Stream {}] Tracing span created: span_id={}, parent_span_id={:?}, parent_exists={}",
+                request_id,
+                span_id,
+                trace_context.parent_span_id,
+                parent_exists
+            );
         }
 
         let credentials = self.api_keys.get_credentials(provider).await?;
@@ -193,6 +225,22 @@ impl<'a> StreamHandler<'a> {
             oauth_token.as_deref(),
             provider.headers.as_ref(),
         );
+
+        if provider.id == "github_copilot" {
+            headers.insert(
+                "User-Agent".to_string(),
+                "GitHubCopilotChat/0.35.0".to_string(),
+            );
+            headers.insert("Editor-Version".to_string(), "vscode/1.105.1".to_string());
+            headers.insert(
+                "Editor-Plugin-Version".to_string(),
+                "copilot-chat/0.35.0".to_string(),
+            );
+            headers.insert(
+                "Copilot-Integration-Id".to_string(),
+                "vscode-chat".to_string(),
+            );
+        }
 
         if provider.id == "moonshot" && provider.supports_coding_plan {
             if let Some(use_coding_plan) = self
@@ -314,16 +362,18 @@ impl<'a> StreamHandler<'a> {
             });
         }
 
-        let client = reqwest::Client::builder()
-            .connect_timeout(Duration::from_secs(10))
-            .timeout(Duration::from_secs(300)) // Add overall request timeout
-            .gzip(false)
-            .brotli(false)
-            .tcp_nodelay(true)
-            .pool_max_idle_per_host(5)
-            .build()
-            .map_err(|e| format!("Failed to build client: {}", e))?;
-        log::debug!("[LLM Stream {}] HTTP client built", request_id);
+        let client = HTTP_CLIENT.get_or_init(|| {
+            reqwest::Client::builder()
+                .connect_timeout(Duration::from_secs(10))
+                .timeout(Duration::from_secs(300)) // Add overall request timeout
+                .gzip(false)
+                .brotli(false)
+                .tcp_nodelay(true)
+                .pool_max_idle_per_host(5)
+                .build()
+                .expect("Failed to build HTTP client")
+        });
+        log::debug!("[LLM Stream {}] HTTP client ready", request_id);
 
         let mut req_builder = client.post(&url);
         for (key, value) in headers {
@@ -512,28 +562,7 @@ impl<'a> StreamHandler<'a> {
                     }
                 };
 
-                if use_openai_oauth {
-                    log::info!("[LLM Stream {}] Raw SSE event:\n{}", request_id, event_str);
-                } else {
-                    log::debug!("[LLM Stream {}] Raw SSE event:\n{}", request_id, event_str);
-                }
-
                 if let Some(parsed) = Self::parse_sse_event(&event_str) {
-                    if use_openai_oauth {
-                        log::info!(
-                            "[LLM Stream {}] Parsed SSE - event: {:?}, data: {}",
-                            request_id,
-                            parsed.event,
-                            parsed.data
-                        );
-                    } else {
-                        log::debug!(
-                            "[LLM Stream {}] Parsed SSE - event: {:?}, data: {}",
-                            request_id,
-                            parsed.event,
-                            parsed.data
-                        );
-                    }
                     if let Some(recorder) = recorder.as_mut() {
                         recorder.record_sse_event(parsed.event.as_deref(), &parsed.data);
                     }
@@ -576,6 +605,27 @@ impl<'a> StreamHandler<'a> {
                             }
                             Self::append_text_delta(&mut response_text, &event);
                             self.emit_stream_event(&window, &event_name, request_id, &event);
+
+                            if !trace_ttft_emitted {
+                                if let (Some(ref span_id), Some(client_start_ms)) =
+                                    (trace_span_id.as_ref(), trace_client_start_ms)
+                                {
+                                    let now_ms = chrono::Utc::now().timestamp_millis();
+                                    if now_ms >= client_start_ms {
+                                        let ttft_ms = now_ms - client_start_ms;
+                                        let trace_writer =
+                                            window.app_handle().state::<Arc<TraceWriter>>();
+                                        trace_writer.add_event(
+                                            span_id.to_string(),
+                                            crate::llm::tracing::types::attributes::GEN_AI_TTFT_MS
+                                                .to_string(),
+                                            Some(serde_json::json!({ "ttft_ms": ttft_ms })),
+                                        );
+                                    }
+                                }
+                                trace_ttft_emitted = true;
+                            }
+
                             if !state.pending_events.is_empty() {
                                 for pending in state.pending_events.drain(..) {
                                     if let Some(recorder) = recorder.as_mut() {
@@ -664,12 +714,6 @@ impl<'a> StreamHandler<'a> {
         );
         if response_text.is_empty() {
             log::info!("[LLM Stream {}] Final response: <empty>", request_id);
-        } else {
-            log::info!(
-                "[LLM Stream {}] Final response:\n{}",
-                request_id,
-                response_text
-            );
         }
         if let Some(recorder) = recorder.as_mut() {
             if state.finish_reason.as_deref() == Some("tool_calls") {
@@ -735,20 +779,20 @@ impl<'a> StreamHandler<'a> {
                 );
             }
 
+            let ttft_ms = trace_client_start_ms
+                .map(|client_start_ms| chrono::Utc::now().timestamp_millis() - client_start_ms)
+                .filter(|value| *value >= 0);
+
             // Record response event
             trace_writer.add_event(
                 span_id.clone(),
                 crate::llm::tracing::types::attributes::HTTP_RESPONSE_BODY.to_string(),
-                Some(serde_json::json!({
-                    "finish_reason": trace_finish_reason,
-                    "usage": trace_usage.map(|(i, o, t, c, cc)| serde_json::json!({
-                        "input_tokens": i,
-                        "output_tokens": o,
-                        "total_tokens": t,
-                        "cached_input_tokens": c,
-                        "cache_creation_input_tokens": cc,
-                    })),
-                })),
+                Some(Self::build_response_payload(
+                    trace_finish_reason.as_deref(),
+                    ttft_ms,
+                    trace_usage,
+                    response_text.as_str(),
+                )),
             );
 
             trace_writer.end_span(span_id.clone(), chrono::Utc::now().timestamp_millis());
@@ -770,39 +814,31 @@ impl<'a> StreamHandler<'a> {
         Ok(request_id)
     }
 
-    async fn resolve_model_and_provider(
+    async fn resolve_model_info(
         &self,
         model_identifier: &str,
-    ) -> Result<(String, String), String> {
+    ) -> Result<(String, String, String), String> {
+        let models = self.api_keys.load_models_config().await?;
         let api_keys = self.api_keys.load_api_keys().await?;
         let custom_providers = self.api_keys.load_custom_providers().await?;
-        let models =
-            crate::llm::models::model_registry::ModelRegistry::load_models_config(self.api_keys)
-                .await?;
-        crate::llm::models::model_registry::ModelRegistry::get_model_provider(
-            model_identifier,
-            &api_keys,
-            self.registry,
-            &custom_providers,
-            &models,
-        )
-    }
 
-    async fn resolve_provider_model_name(
-        &self,
-        model_key: &str,
-        provider_id: &str,
-    ) -> Result<String, String> {
-        let models =
-            crate::llm::models::model_registry::ModelRegistry::load_models_config(self.api_keys)
-                .await?;
-        Ok(
-            crate::llm::models::model_registry::ModelRegistry::resolve_provider_model_name(
-                model_key,
-                provider_id,
+        let (model_key, provider_id) =
+            crate::llm::models::model_registry::ModelRegistry::get_model_provider(
+                model_identifier,
+                &api_keys,
+                &self.registry,
+                &custom_providers,
                 &models,
-            ),
-        )
+            )?;
+
+        let provider_model_name =
+            crate::llm::models::model_registry::ModelRegistry::resolve_provider_model_name(
+                &model_key,
+                &provider_id,
+                &models,
+            );
+
+        Ok((model_key, provider_id, provider_model_name))
     }
 
     async fn resolve_base_url(
@@ -900,6 +936,26 @@ impl<'a> StreamHandler<'a> {
     ) {
         log::debug!("[LLM Stream {}] Emitting event: {:?}", request_id, event);
         let _ = window.emit(event_name, event);
+    }
+
+    fn build_response_payload(
+        finish_reason: Option<&str>,
+        ttft_ms: Option<i64>,
+        trace_usage: Option<(i32, i32, Option<i32>, Option<i32>, Option<i32>)>,
+        response_text: &str,
+    ) -> serde_json::Value {
+        serde_json::json!({
+            "finish_reason": finish_reason,
+            "ttft_ms": ttft_ms,
+            "usage": trace_usage.map(|(i, o, t, c, cc)| serde_json::json!({
+                "input_tokens": i,
+                "output_tokens": o,
+                "total_tokens": t,
+                "cached_input_tokens": c,
+                "cache_creation_input_tokens": cc,
+            })),
+            "response_text": response_text,
+        })
     }
 
     fn recording_channel(
@@ -1014,13 +1070,48 @@ impl<'a> StreamHandler<'a> {
             }
         }
 
+        fn to_output_content(content: &crate::llm::types::MessageContent) -> Vec<Value> {
+            match content {
+                crate::llm::types::MessageContent::Text(text) => {
+                    if text.trim().is_empty() {
+                        Vec::new()
+                    } else {
+                        vec![json!({ "type": "output_text", "text": text })]
+                    }
+                }
+                crate::llm::types::MessageContent::Parts(parts) => {
+                    let mut mapped = Vec::new();
+                    for part in parts {
+                        match part {
+                            crate::llm::types::ContentPart::Text { text } => {
+                                if !text.trim().is_empty() {
+                                    mapped.push(json!({ "type": "output_text", "text": text }));
+                                }
+                            }
+                            crate::llm::types::ContentPart::Reasoning { text, .. } => {
+                                if !text.trim().is_empty() {
+                                    mapped.push(json!({ "type": "output_text", "text": text }));
+                                }
+                            }
+                            crate::llm::types::ContentPart::Image { .. } => {
+                                // Assistant messages don't typically include images in input
+                            }
+                            crate::llm::types::ContentPart::ToolCall { .. } => {}
+                            crate::llm::types::ContentPart::ToolResult { .. } => {}
+                        }
+                    }
+                    mapped
+                }
+            }
+        }
+
         fn append_assistant_items(
             content: &crate::llm::types::MessageContent,
             input_items: &mut Vec<Value>,
         ) {
             match content {
                 crate::llm::types::MessageContent::Text(_) => {
-                    let content_parts = to_input_content(content);
+                    let content_parts = to_output_content(content);
                     if !content_parts.is_empty() {
                         input_items.push(json!({
                             "type": "message",
@@ -1037,13 +1128,13 @@ impl<'a> StreamHandler<'a> {
                             crate::llm::types::ContentPart::Text { text } => {
                                 if !text.trim().is_empty() {
                                     pending_parts
-                                        .push(json!({ "type": "input_text", "text": text }));
+                                        .push(json!({ "type": "output_text", "text": text }));
                                 }
                             }
                             crate::llm::types::ContentPart::Reasoning { text, .. } => {
                                 if !text.trim().is_empty() {
                                     pending_parts
-                                        .push(json!({ "type": "input_text", "text": text }));
+                                        .push(json!({ "type": "output_text", "text": text }));
                                 }
                             }
                             crate::llm::types::ContentPart::Image { image } => {
@@ -1678,7 +1769,7 @@ mod tests {
         db.connect().await.expect("db connect");
         let api_keys = ApiKeyManager::new(db, std::path::PathBuf::from("/tmp"));
         let registry = ProviderRegistry::new(builtin_providers());
-        let handler = StreamHandler::new(&registry, &api_keys);
+        let handler = StreamHandler::new(registry, api_keys);
 
         let request = StreamTextRequest {
             model: "gpt-5.2-codex".to_string(),
@@ -1908,6 +1999,28 @@ mod tests {
     }
 
     #[test]
+    fn build_response_payload_includes_response_text() {
+        let payload = StreamHandler::build_response_payload(
+            Some("stop"),
+            Some(12),
+            Some((10, 20, Some(30), None, Some(5))),
+            "final response",
+        );
+
+        assert_eq!(payload["finish_reason"], json!("stop"));
+        assert_eq!(payload["ttft_ms"], json!(12));
+        assert_eq!(payload["usage"]["input_tokens"], json!(10));
+        assert_eq!(payload["usage"]["output_tokens"], json!(20));
+        assert_eq!(payload["usage"]["total_tokens"], json!(30));
+        assert_eq!(
+            payload["usage"]["cached_input_tokens"],
+            serde_json::Value::Null
+        );
+        assert_eq!(payload["usage"]["cache_creation_input_tokens"], json!(5));
+        assert_eq!(payload["response_text"], json!("final response"));
+    }
+
+    #[test]
     fn parse_sse_event_preserves_data_lines() {
         let raw = "event: message\ndata: first\ndata: second\n";
         let event = StreamHandler::parse_sse_event(raw).expect("parsed");
@@ -1941,7 +2054,7 @@ mod tests {
             .expect("zhipu provider")
             .clone();
         let registry = ProviderRegistry::new(providers);
-        let handler = StreamHandler::new(&registry, &api_keys);
+        let handler = StreamHandler::new(registry, api_keys);
 
         let base_url = handler
             .resolve_base_url(&provider)
@@ -1982,7 +2095,7 @@ mod tests {
             .expect("moonshot provider")
             .clone();
         let registry = ProviderRegistry::new(providers);
-        let handler = StreamHandler::new(&registry, &api_keys);
+        let handler = StreamHandler::new(registry.clone(), api_keys.clone());
 
         let base_url = handler
             .resolve_base_url(&provider)
@@ -2047,6 +2160,148 @@ mod tests {
                 assert_eq!(finish_reason, None);
             }
             _ => panic!("Unexpected event"),
+        }
+    }
+
+    #[tokio::test]
+    async fn build_openai_oauth_request_uses_correct_content_types() {
+        // Test that user/developer messages use input_text and assistant messages use output_text
+        // This is required by the ChatGPT Codex API
+        let dir = TempDir::new().expect("temp dir");
+        let db_path = dir.path().join("talkcody-test.db");
+        let db = Arc::new(Database::new(db_path.to_string_lossy().to_string()));
+        db.connect().await.expect("db connect");
+        let api_keys = ApiKeyManager::new(db, std::path::PathBuf::from("/tmp"));
+        let registry = ProviderRegistry::new(builtin_providers());
+        let handler = StreamHandler::new(registry, api_keys);
+
+        let request = StreamTextRequest {
+            model: "gpt-5.2-codex".to_string(),
+            messages: vec![
+                Message::System {
+                    content: "You are a helpful assistant.".to_string(),
+                    provider_options: None,
+                },
+                Message::User {
+                    content: MessageContent::Text("Hello!".to_string()),
+                    provider_options: None,
+                },
+                Message::Assistant {
+                    content: MessageContent::Text("Hi there! How can I help you?".to_string()),
+                    provider_options: None,
+                },
+                Message::User {
+                    content: MessageContent::Parts(vec![ContentPart::Text {
+                        text: "What's the weather?".to_string(),
+                    }]),
+                    provider_options: None,
+                },
+                Message::Assistant {
+                    content: MessageContent::Parts(vec![
+                        ContentPart::Text {
+                            text: "Let me check that for you.".to_string(),
+                        },
+                        ContentPart::Reasoning {
+                            text: "The user wants weather info.".to_string(),
+                            provider_options: None,
+                        },
+                    ]),
+                    provider_options: None,
+                },
+            ],
+            tools: None,
+            stream: Some(true),
+            temperature: None,
+            max_tokens: None,
+            top_p: None,
+            top_k: None,
+            provider_options: None,
+            request_id: None,
+            trace_context: None,
+        };
+
+        let body = handler
+            .build_openai_oauth_request(&request, "gpt-5.2-codex")
+            .expect("request body");
+        let input = body
+            .get("input")
+            .and_then(|value| value.as_array())
+            .expect("input array");
+
+        // Find messages by role
+        let developer_msg = input
+            .iter()
+            .find(|item| {
+                item.get("role")
+                    .and_then(|value| value.as_str())
+                    .is_some_and(|value| value == "developer")
+            })
+            .expect("developer message");
+        let user_msg = input
+            .iter()
+            .find(|item| {
+                item.get("role")
+                    .and_then(|value| value.as_str())
+                    .is_some_and(|value| value == "user")
+            })
+            .expect("user message");
+        let assistant_msgs: Vec<_> = input
+            .iter()
+            .filter(|item| {
+                item.get("role")
+                    .and_then(|value| value.as_str())
+                    .is_some_and(|value| value == "assistant")
+            })
+            .collect();
+
+        // Developer message should use input_text
+        let dev_content = developer_msg
+            .get("content")
+            .and_then(|value| value.as_array())
+            .expect("developer content array")
+            .first()
+            .expect("first content item");
+        assert_eq!(
+            dev_content.get("type").and_then(|value| value.as_str()),
+            Some("input_text"),
+            "Developer message should use input_text"
+        );
+
+        // User message should use input_text
+        let user_content = user_msg
+            .get("content")
+            .and_then(|value| value.as_array())
+            .expect("user content array")
+            .first()
+            .expect("first content item");
+        assert_eq!(
+            user_content.get("type").and_then(|value| value.as_str()),
+            Some("input_text"),
+            "User message should use input_text"
+        );
+
+        // Assistant messages should use output_text
+        assert_eq!(assistant_msgs.len(), 2, "Should have 2 assistant messages");
+        for (index, assistant_msg) in assistant_msgs.iter().enumerate() {
+            let content_array = assistant_msg
+                .get("content")
+                .and_then(|value| value.as_array())
+                .expect(&format!("assistant {} content array", index));
+            for (content_index, content_item) in content_array.iter().enumerate() {
+                let content_type = content_item
+                    .get("type")
+                    .and_then(|value| value.as_str())
+                    .expect(&format!(
+                        "content type at assistant {} content {}",
+                        index, content_index
+                    ));
+                // Assistant messages should only contain output_text (not input_text)
+                assert_eq!(
+                    content_type, "output_text",
+                    "Assistant message {} content {} should use output_text, not {}",
+                    index, content_index, content_type
+                );
+            }
         }
     }
 }

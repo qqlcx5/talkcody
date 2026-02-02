@@ -9,6 +9,19 @@ pub struct ProviderRegistry {
     protocols: HashMap<ProtocolType, Box<dyn LlmProtocol>>,
 }
 
+impl Clone for ProviderRegistry {
+    fn clone(&self) -> Self {
+        let mut protocols: HashMap<ProtocolType, Box<dyn LlmProtocol>> = HashMap::new();
+        protocols.insert(ProtocolType::OpenAiCompatible, Box::new(OpenAiProtocol));
+        protocols.insert(ProtocolType::Claude, Box::new(ClaudeProtocol));
+
+        Self {
+            providers: self.providers.clone(),
+            protocols,
+        }
+    }
+}
+
 impl ProviderRegistry {
     pub fn new(builtin_providers: Vec<ProviderConfig>) -> Self {
         let mut providers = HashMap::new();

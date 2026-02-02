@@ -4,12 +4,7 @@
 import { create } from 'zustand';
 import { logger } from '@/lib/logger';
 import { llmClient } from '@/services/llm/llm-client';
-import {
-  exchangeCode,
-  isTokenExpired,
-  refreshAccessToken,
-  startOAuthFlow,
-} from './claude-oauth-service';
+import { exchangeCode, startOAuthFlow } from './claude-oauth-service';
 
 interface ClaudeOAuthState {
   // Connection state
@@ -17,13 +12,12 @@ interface ClaudeOAuthState {
   isLoading: boolean;
   error: string | null;
 
-  // Tokens (in-memory)
-  accessToken: string | null;
-  refreshToken: string | null;
+  // Token metadata (in-memory)
   expiresAt: number | null;
 
   // OAuth flow state (temporary during flow)
   verifier: string | null;
+  state: string | null;
 
   // Initialization
   isInitialized: boolean;
@@ -37,10 +31,6 @@ interface ClaudeOAuthActions {
   startOAuth: () => Promise<string>;
   completeOAuth: (code: string) => Promise<void>;
   disconnect: () => Promise<void>;
-
-  // Token management
-  getValidAccessToken: () => Promise<string | null>;
-  refreshTokenIfNeeded: () => Promise<boolean>;
 }
 
 type ClaudeOAuthStore = ClaudeOAuthState & ClaudeOAuthActions;
@@ -59,10 +49,9 @@ export const useClaudeOAuthStore = create<ClaudeOAuthStore>((set, get) => ({
   isConnected: false,
   isLoading: false,
   error: null,
-  accessToken: null,
-  refreshToken: null,
   expiresAt: null,
   verifier: null,
+  state: null,
   isInitialized: false,
 
   // Initialize from storage
@@ -76,19 +65,14 @@ export const useClaudeOAuthStore = create<ClaudeOAuthStore>((set, get) => ({
       logger.info('[ClaudeOAuth] Initializing store');
 
       const snapshot = await loadOAuthSnapshot();
-      const accessToken = snapshot?.anthropic?.accessToken || null;
-      const refreshToken = snapshot?.anthropic?.refreshToken || null;
+      const isConnected = snapshot?.anthropic?.isConnected || false;
       const expiresAt = snapshot?.anthropic?.expiresAt || null;
-
-      const isConnected = !!(accessToken && refreshToken && expiresAt);
 
       logger.info('[ClaudeOAuth] Initialized', { isConnected });
 
       set({
-        accessToken,
-        refreshToken,
-        expiresAt,
         isConnected,
+        expiresAt,
         isLoading: false,
         isInitialized: true,
       });
@@ -111,6 +95,7 @@ export const useClaudeOAuthStore = create<ClaudeOAuthStore>((set, get) => ({
 
       set({
         verifier: result.verifier,
+        state: result.state,
         isLoading: false,
       });
 
@@ -128,31 +113,30 @@ export const useClaudeOAuthStore = create<ClaudeOAuthStore>((set, get) => ({
 
   // Complete OAuth flow with authorization code
   completeOAuth: async (code: string) => {
-    const { verifier } = get();
+    const { verifier, state } = get();
 
-    if (!verifier) {
-      throw new Error('No verifier found. Please start OAuth flow first.');
+    if (!verifier || !state) {
+      throw new Error('No verifier or state found. Please start OAuth flow first.');
     }
 
     set({ isLoading: true, error: null });
 
     try {
-      const result = await exchangeCode(code, verifier);
+      const result = await exchangeCode(code, verifier, state);
 
       if (result.type === 'failed' || !result.tokens) {
         throw new Error(result.error || 'Token exchange failed');
       }
 
-      const { accessToken, refreshToken, expiresAt } = result.tokens;
+      const { expiresAt } = result.tokens;
 
       logger.info('[ClaudeOAuth] OAuth completed successfully');
 
       set({
-        accessToken,
-        refreshToken,
-        expiresAt,
         isConnected: true,
+        expiresAt,
         verifier: null,
+        state: null,
         isLoading: false,
       });
     } catch (error) {
@@ -160,6 +144,7 @@ export const useClaudeOAuthStore = create<ClaudeOAuthStore>((set, get) => ({
       set({
         error: error instanceof Error ? error.message : 'Failed to complete OAuth',
         verifier: null,
+        state: null,
         isLoading: false,
       });
       throw error;
@@ -176,10 +161,8 @@ export const useClaudeOAuthStore = create<ClaudeOAuthStore>((set, get) => ({
       logger.info('[ClaudeOAuth] Disconnected');
 
       set({
-        accessToken: null,
-        refreshToken: null,
-        expiresAt: null,
         isConnected: false,
+        expiresAt: null,
         isLoading: false,
       });
     } catch (error) {
@@ -189,66 +172,6 @@ export const useClaudeOAuthStore = create<ClaudeOAuthStore>((set, get) => ({
         isLoading: false,
       });
       throw error;
-    }
-  },
-
-  // Get a valid access token (refresh if needed)
-  getValidAccessToken: async () => {
-    const state = get();
-
-    if (!state.isConnected || !state.refreshToken) {
-      return null;
-    }
-
-    // Check if token is expired
-    if (state.expiresAt && isTokenExpired(state.expiresAt)) {
-      logger.info('[ClaudeOAuth] Token expired, refreshing...');
-      const success = await get().refreshTokenIfNeeded();
-      if (!success) {
-        return null;
-      }
-    }
-
-    return get().accessToken;
-  },
-
-  // Refresh token if needed
-  refreshTokenIfNeeded: async () => {
-    const { refreshToken, expiresAt } = get();
-
-    if (!refreshToken) {
-      return false;
-    }
-
-    // Only refresh if expired
-    if (expiresAt && !isTokenExpired(expiresAt)) {
-      return true;
-    }
-
-    try {
-      const result = await refreshAccessToken(refreshToken);
-
-      if (result.type === 'failed' || !result.tokens) {
-        logger.error('[ClaudeOAuth] Token refresh failed:', result.error);
-        // Clear tokens on refresh failure
-        await get().disconnect();
-        return false;
-      }
-
-      const { accessToken, refreshToken: newRefreshToken, expiresAt: newExpiresAt } = result.tokens;
-
-      logger.info('[ClaudeOAuth] Token refreshed successfully');
-
-      set({
-        accessToken,
-        refreshToken: newRefreshToken,
-        expiresAt: newExpiresAt,
-      });
-
-      return true;
-    } catch (error) {
-      logger.error('[ClaudeOAuth] Token refresh error:', error);
-      return false;
     }
   },
 }));
@@ -263,13 +186,4 @@ export async function isClaudeOAuthConnected(): Promise<boolean> {
     await store.initialize();
   }
   return useClaudeOAuthStore.getState().isConnected;
-}
-
-// Export async helper for getting valid access token
-export async function getClaudeOAuthAccessToken(): Promise<string | null> {
-  const store = useClaudeOAuthStore.getState();
-  if (!store.isInitialized) {
-    await store.initialize();
-  }
-  return useClaudeOAuthStore.getState().getValidAccessToken();
 }

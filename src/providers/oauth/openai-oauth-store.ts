@@ -6,12 +6,7 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { create } from 'zustand';
 import { logger } from '@/lib/logger';
 import { llmClient } from '@/services/llm/llm-client';
-import {
-  exchangeCode,
-  isTokenExpired,
-  refreshAccessToken,
-  startOAuthFlow,
-} from './openai-oauth-service';
+import { exchangeCode, startOAuthFlow } from './openai-oauth-service';
 
 // OAuth callback result from Rust server
 interface OAuthCallbackResult {
@@ -27,9 +22,7 @@ interface OpenAIOAuthState {
   isLoading: boolean;
   error: string | null;
 
-  // Tokens (in-memory)
-  accessToken: string | null;
-  refreshToken: string | null;
+  // Token metadata (in-memory)
   expiresAt: number | null;
   accountId: string | null;
 
@@ -55,10 +48,6 @@ interface OpenAIOAuthActions {
   completeOAuth: (code: string) => Promise<void>;
   disconnect: () => Promise<void>;
   cleanupCallbackListener: () => void;
-
-  // Token management
-  getValidAccessToken: () => Promise<string | null>;
-  refreshTokenIfNeeded: () => Promise<boolean>;
 }
 
 type OpenAIOAuthStore = OpenAIOAuthState & OpenAIOAuthActions;
@@ -77,8 +66,6 @@ export const useOpenAIOAuthStore = create<OpenAIOAuthStore>((set, get) => ({
   isConnected: false,
   isLoading: false,
   error: null,
-  accessToken: null,
-  refreshToken: null,
   expiresAt: null,
   accountId: null,
   verifier: null,
@@ -98,21 +85,16 @@ export const useOpenAIOAuthStore = create<OpenAIOAuthStore>((set, get) => ({
       logger.info('[OpenAIOAuth] Initializing store');
 
       const snapshot = await loadOAuthSnapshot();
-      const accessToken = snapshot?.openai?.accessToken || null;
-      const refreshToken = snapshot?.openai?.refreshToken || null;
+      const isConnected = snapshot?.openai?.isConnected || false;
       const expiresAt = snapshot?.openai?.expiresAt || null;
       const accountId = snapshot?.openai?.accountId || null;
-
-      const isConnected = !!(accessToken && refreshToken && expiresAt);
 
       logger.info('[OpenAIOAuth] Initialized', { isConnected });
 
       set({
-        accessToken,
-        refreshToken,
+        isConnected,
         expiresAt,
         accountId,
-        isConnected,
         isLoading: false,
         isInitialized: true,
       });
@@ -250,16 +232,14 @@ export const useOpenAIOAuthStore = create<OpenAIOAuthStore>((set, get) => ({
         throw new Error(result.error || 'Token exchange failed');
       }
 
-      const { accessToken, refreshToken, expiresAt, accountId } = result.tokens;
+      const { expiresAt, accountId } = result.tokens;
 
       logger.info('[OpenAIOAuth] OAuth completed successfully');
 
       set({
-        accessToken,
-        refreshToken,
+        isConnected: true,
         expiresAt,
         accountId: accountId || null,
-        isConnected: true,
         verifier: null,
         expectedState: null,
         isLoading: false,
@@ -286,11 +266,9 @@ export const useOpenAIOAuthStore = create<OpenAIOAuthStore>((set, get) => ({
       logger.info('[OpenAIOAuth] Disconnected');
 
       set({
-        accessToken: null,
-        refreshToken: null,
+        isConnected: false,
         expiresAt: null,
         accountId: null,
-        isConnected: false,
         isLoading: false,
       });
     } catch (error) {
@@ -300,72 +278,6 @@ export const useOpenAIOAuthStore = create<OpenAIOAuthStore>((set, get) => ({
         isLoading: false,
       });
       throw error;
-    }
-  },
-
-  // Get a valid access token (refresh if needed)
-  getValidAccessToken: async () => {
-    const state = get();
-
-    if (!state.isConnected || !state.refreshToken) {
-      return null;
-    }
-
-    // Check if token is expired
-    if (state.expiresAt && isTokenExpired(state.expiresAt)) {
-      logger.info('[OpenAIOAuth] Token expired, refreshing...');
-      const success = await get().refreshTokenIfNeeded();
-      if (!success) {
-        return null;
-      }
-    }
-
-    return get().accessToken;
-  },
-
-  // Refresh token if needed
-  refreshTokenIfNeeded: async () => {
-    const { refreshToken, expiresAt } = get();
-
-    if (!refreshToken) {
-      return false;
-    }
-
-    // Only refresh if expired
-    if (expiresAt && !isTokenExpired(expiresAt)) {
-      return true;
-    }
-
-    try {
-      const result = await refreshAccessToken(refreshToken);
-
-      if (result.type === 'failed' || !result.tokens) {
-        logger.error('[OpenAIOAuth] Token refresh failed:', result.error);
-        // Clear tokens on refresh failure
-        await get().disconnect();
-        return false;
-      }
-
-      const {
-        accessToken,
-        refreshToken: newRefreshToken,
-        expiresAt: newExpiresAt,
-        accountId,
-      } = result.tokens;
-
-      logger.info('[OpenAIOAuth] Token refreshed successfully');
-
-      set({
-        accessToken,
-        refreshToken: newRefreshToken,
-        expiresAt: newExpiresAt,
-        accountId: accountId || null,
-      });
-
-      return true;
-    } catch (error) {
-      logger.error('[OpenAIOAuth] Token refresh error:', error);
-      return false;
     }
   },
 }));
@@ -382,15 +294,6 @@ export async function isOpenAIOAuthConnected(): Promise<boolean> {
   return useOpenAIOAuthStore.getState().isConnected;
 }
 
-// Export async helper for getting valid access token
-export async function getOpenAIOAuthAccessToken(): Promise<string | null> {
-  const store = useOpenAIOAuthStore.getState();
-  if (!store.isInitialized) {
-    await store.initialize();
-  }
-  return useOpenAIOAuthStore.getState().getValidAccessToken();
-}
-
 // Export async helper for getting account ID
 export async function getOpenAIOAuthAccountId(): Promise<string | null> {
   const store = useOpenAIOAuthStore.getState();
@@ -398,4 +301,13 @@ export async function getOpenAIOAuthAccountId(): Promise<string | null> {
     await store.initialize();
   }
   return useOpenAIOAuthStore.getState().accountId;
+}
+
+/**
+ * @deprecated Tokens are now managed by the Rust backend. This function returns null.
+ * Use the Rust backend to make authenticated API calls instead.
+ */
+export async function getOpenAIOAuthAccessToken(): Promise<string | null> {
+  // Tokens are now managed internally by the Rust backend
+  return null;
 }

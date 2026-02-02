@@ -30,6 +30,7 @@ export class LlmClient {
     abortSignal?: AbortSignal
   ): Promise<StreamTextResult> {
     logger.info(`[LLM Client] Starting streamText for model: ${request.model}`);
+    const clientStartMs = Date.now();
 
     // Generate request ID first and set up listener BEFORE calling Rust
     // This prevents race condition where events are emitted before listener is ready
@@ -83,11 +84,28 @@ export class LlmClient {
     );
 
     // Now invoke Rust command with the requestId and traceContext
+    // traceContext must be inside the request object for Rust to receive it
+    const traceContext = request.traceContext
+      ? {
+          ...request.traceContext,
+          metadata: {
+            ...(request.traceContext.metadata ?? {}),
+            client_start_ms: clientStartMs.toString(),
+          },
+        }
+      : undefined;
+    const requestPayload = {
+      ...request,
+      requestId,
+      traceContext,
+    };
+    logger.info(
+      `[LLM Client ${requestId}] Sending request with traceContext: ${JSON.stringify(requestPayload.traceContext)}`
+    );
     let response: StreamResponse;
     try {
       response = await invoke<StreamResponse>('llm_stream_text', {
-        request: { ...request, requestId },
-        traceContext: request.traceContext ?? undefined,
+        request: requestPayload,
       });
     } catch (error) {
       // Ensure cleanup on invoke failure to prevent listener leaks
@@ -174,11 +192,11 @@ export class LlmClient {
     await invoke('llm_set_setting', { key, value });
   }
 
-  async startClaudeOAuth(): Promise<{ url: string; verifier: string }> {
+  async startClaudeOAuth(): Promise<{ url: string; verifier: string; state: string }> {
     return invoke('llm_claude_oauth_start');
   }
 
-  async completeClaudeOAuth(params: { code: string; verifier: string }): Promise<{
+  async completeClaudeOAuth(params: { code: string; verifier: string; state: string }): Promise<{
     accessToken: string;
     refreshToken: string;
     expiresAt: number;
@@ -260,25 +278,19 @@ export class LlmClient {
 
   async getOAuthStatus(): Promise<{
     anthropic?: {
-      accessToken?: string | null;
-      refreshToken?: string | null;
       expiresAt?: number | null;
+      isConnected?: boolean | null;
     } | null;
     openai?: {
-      accessToken?: string | null;
-      refreshToken?: string | null;
       expiresAt?: number | null;
       accountId?: string | null;
+      isConnected?: boolean | null;
     } | null;
     qwen?: {
-      accessToken?: string | null;
-      tokenPath?: string | null;
       isConnected?: boolean | null;
     } | null;
     githubCopilot?: {
-      accessToken?: string | null;
-      copilotToken?: string | null;
-      enterpriseUrl?: string | null;
+      isConnected?: boolean | null;
     } | null;
   } | null> {
     return invoke('llm_oauth_status');

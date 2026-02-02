@@ -62,13 +62,11 @@ export const useQwenCodeOAuthStore = create<QwenCodeOAuthStore>((set, get) => ({
       logger.info('[QwenOAuth] Initializing store');
 
       const snapshot = await loadOAuthSnapshot();
-      const tokenPath = snapshot?.qwen?.tokenPath || null;
       const isConnected = !!snapshot?.qwen?.isConnected;
 
-      logger.info('[QwenOAuth] Initialized', { isConnected, hasPath: !!tokenPath });
+      logger.info('[QwenOAuth] Initialized', { isConnected });
 
       set({
-        tokenPath,
         isConnected,
         isLoading: false,
         isInitialized: true,

@@ -307,17 +307,13 @@ class CustomModelService {
       apiKey = settingsManager.getProviderApiKey(providerId);
     }
 
-    const { oauthConfig } = useProviderStore.getState();
-    const oauthToken =
-      providerId === 'github_copilot'
-        ? oauthConfig.githubCopilotCopilotToken || getOAuthToken(providerId, oauthConfig)
-        : getOAuthToken(providerId, oauthConfig);
-    const authToken = apiKey || oauthToken;
+    // OAuth tokens are now managed by the Rust backend
+    // Only use API keys from settings
+    const authToken = apiKey;
 
     // For local providers (ollama, lmstudio), API key is optional
-    // OAuth providers also don't need API key
     if (!authToken && !isLocalProvider(providerId) && !isCustomProvider) {
-      throw new Error(`No API key or OAuth token configured for provider ${providerId}`);
+      throw new Error(`No API key configured for provider ${providerId}`);
     }
 
     try {
@@ -326,9 +322,7 @@ class CustomModelService {
         Accept: 'application/json',
       };
 
-      if (oauthToken && !isLocalProvider(providerId) && !isCustomProvider) {
-        headers['Authorization'] = `Bearer ${oauthToken}`;
-      } else if (isCustomProvider && customProviderType === 'anthropic' && apiKey) {
+      if (isCustomProvider && customProviderType === 'anthropic' && apiKey) {
         // Custom Anthropic provider uses x-api-key header
         headers['x-api-key'] = apiKey;
         headers['anthropic-version'] = '2023-06-01';
