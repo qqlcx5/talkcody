@@ -24,10 +24,6 @@
 
 - Type: SQLite
 
-### AI Integration
-
-- SDK: Vercel AI SDK 5.0
-
 ## Project Structure
 
 ```
@@ -170,7 +166,6 @@ When generating code, consider:
 - Use accurate type definitions and do not use `any` types
 - Keep components modular and reusable
 - Use zustand for state management
-- Use Vercel AI SDK for AI-related functionality
 - Try to avoid using dynamic imports
 - User-visible messages and text need to support both English and Chinese.
 - Platform-related functions must be able to work simultaneously on macOS, Windows, and Linux platforms.

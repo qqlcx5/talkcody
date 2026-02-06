@@ -116,7 +116,6 @@ TalkCody is licensed under the MIT License. See [LICENSE](LICENSE) for details.
 
 - [Tauri](https://github.com/tauri-apps/tauri) - easily build tiny, blazing fast binaries for all major desktop platforms
 - [Bun](https://github.com/oven-sh/bun) - a fast all-in-one JavaScript runtime
-- [Vercel AI SDK](https://github.com/vercel/ai) - easy integration with AI models
 - [Monaco Editor](https://github.com/microsoft/monaco-editor) - code editor that powers VS Code
 - [libSQL](https://github.com/tursodatabase/libsql) - lightweight, embedded SQL database
 - [Shadcn UI](https://github.com/shadcn-ui/ui) - beautiful component library
