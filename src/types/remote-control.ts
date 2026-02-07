@@ -1,3 +1,61 @@
+export type RemoteChannelId = 'telegram' | 'discord' | 'slack' | 'feishu' | 'whatsapp';
+
+export type RemoteAttachmentType = 'image' | 'audio' | 'voice' | 'file';
+
+export interface RemoteAttachment {
+  id: string;
+  type: RemoteAttachmentType;
+  filePath: string;
+  filename: string;
+  mimeType: string;
+  size: number;
+  durationSeconds?: number;
+  caption?: string;
+}
+
+export interface TelegramRemoteAttachment {
+  id: string;
+  attachmentType: RemoteAttachmentType;
+  filePath: string;
+  filename: string;
+  mimeType: string;
+  size: number;
+  durationSeconds?: number;
+  caption?: string;
+}
+
+export interface RemoteInboundMessage {
+  channelId: RemoteChannelId;
+  chatId: string;
+  messageId: string;
+  text: string;
+  username?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  date: number;
+  attachments?: RemoteAttachment[];
+}
+
+export interface RemoteSendMessageRequest {
+  channelId: RemoteChannelId;
+  chatId: string;
+  text: string;
+  replyToMessageId?: string;
+  disableWebPagePreview?: boolean;
+}
+
+export interface RemoteSendMessageResponse {
+  messageId: string;
+}
+
+export interface RemoteEditMessageRequest {
+  channelId: RemoteChannelId;
+  chatId: string;
+  messageId: string;
+  text: string;
+  disableWebPagePreview?: boolean;
+}
+
 export interface TelegramRemoteConfig {
   enabled: boolean;
   token: string;
@@ -13,6 +71,7 @@ export interface TelegramInboundMessage {
   firstName?: string | null;
   lastName?: string | null;
   date: number;
+  attachments?: TelegramRemoteAttachment[];
 }
 
 export interface TelegramSendMessageRequest {

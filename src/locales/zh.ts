@@ -529,6 +529,8 @@ const zh: LocaleDefinition = {
       pollTimeoutLabel: '轮询超时（秒）',
       pollTimeoutPlaceholder: '25',
       pollTimeoutHint: '推荐 10-30 秒，可填写 5-60 秒。',
+      keepAwakeLabel: '开启远程控制时保持唤醒',
+      keepAwakeHint: '防止系统休眠导致漏消息。部分设备合盖仍会休眠。',
       save: '保存远程控制设置',
       saved: '远程控制设置已保存',
       saveFailed: '保存远程控制设置失败',

@@ -523,6 +523,8 @@ export interface LocaleDefinition {
       pollTimeoutLabel: string;
       pollTimeoutPlaceholder: string;
       pollTimeoutHint: string;
+      keepAwakeLabel: string;
+      keepAwakeHint: string;
       save: string;
       saved: string;
       saveFailed: string;

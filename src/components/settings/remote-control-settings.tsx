@@ -7,10 +7,18 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { useLocale } from '@/hooks/use-locale';
 import { logger } from '@/lib/logger';
-import { telegramRemoteService } from '@/services/remote/telegram-remote-service';
+import { remoteControlLifecycleService } from '@/services/remote/remote-control-lifecycle-service';
 import { settingsManager } from '@/stores/settings-store';
 
 const DEFAULT_POLL_TIMEOUT = '25';
+
+export interface RemoteControlSettingsState {
+  enabled: boolean;
+  token: string;
+  allowedChats: string;
+  pollTimeout: string;
+  keepAwake: boolean;
+}
 
 /**
  * Convert a settings value to boolean safely
@@ -48,6 +56,9 @@ export function RemoteControlSettings() {
   const [pollTimeout, setPollTimeout] = useState(
     valueToString(settingsManager.get('telegram_remote_poll_timeout')) || DEFAULT_POLL_TIMEOUT
   );
+  const [keepAwakeEnabled, setKeepAwakeEnabled] = useState(
+    toBoolean(settingsManager.get('remote_control_keep_awake'))
+  );
 
   const validateRemoteSettings = () => {
     if (!remoteEnabled) {
@@ -79,7 +90,8 @@ export function RemoteControlSettings() {
         'telegram_remote_poll_timeout',
         pollTimeout || DEFAULT_POLL_TIMEOUT
       );
-      await telegramRemoteService.refresh();
+      await settingsManager.set('remote_control_keep_awake', keepAwakeEnabled.toString());
+      await remoteControlLifecycleService.refresh();
       toast.success(t.Settings.remoteControl.saved);
     } catch (error) {
       logger.error('[RemoteControlSettings] Failed to save remote control settings:', error);
@@ -136,6 +148,16 @@ export function RemoteControlSettings() {
           <p className="text-xs text-muted-foreground">
             {t.Settings.remoteControl.pollTimeoutHint}
           </p>
+        </div>
+
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <Label className="text-sm font-medium">{t.Settings.remoteControl.keepAwakeLabel}</Label>
+            <p className="text-xs text-muted-foreground">
+              {t.Settings.remoteControl.keepAwakeHint}
+            </p>
+          </div>
+          <Switch checked={keepAwakeEnabled} onCheckedChange={setKeepAwakeEnabled} />
         </div>
 
         <div className="flex justify-end">

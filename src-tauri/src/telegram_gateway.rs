@@ -1,3 +1,4 @@
+use bytes::Bytes;
 use rand::Rng;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -11,10 +12,13 @@ use uuid::Uuid;
 
 const TELEGRAM_CONFIG_FILE: &str = "telegram-remote.json";
 const TELEGRAM_STATE_FILE: &str = "telegram-remote-state.json";
+const TELEGRAM_ATTACHMENTS_DIR: &str = "attachments";
+const TELEGRAM_MEDIA_PREFIX: &str = "telegram";
 const DEFAULT_POLL_TIMEOUT_SECS: u64 = 25;
 const DEFAULT_ERROR_BACKOFF_MS: u64 = 1500;
 const MAX_ERROR_BACKOFF_MS: u64 = 30000;
 const TELEGRAM_STATE_VERSION: u8 = 1;
+const MAX_TELEGRAM_MEDIA_BYTES: u64 = 20 * 1024 * 1024;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -38,6 +42,19 @@ impl Default for TelegramConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct TelegramRemoteAttachment {
+    pub id: String,
+    pub attachment_type: String,
+    pub file_path: String,
+    pub filename: String,
+    pub mime_type: String,
+    pub size: u64,
+    pub duration_seconds: Option<u32>,
+    pub caption: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TelegramInboundMessage {
     pub chat_id: i64,
     pub message_id: i64,
@@ -46,6 +63,7 @@ pub struct TelegramInboundMessage {
     pub first_name: Option<String>,
     pub last_name: Option<String>,
     pub date: i64,
+    pub attachments: Option<Vec<TelegramRemoteAttachment>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -251,7 +269,7 @@ fn is_group_chat(chat_type: &Option<String>, chat_id: i64) -> bool {
 async fn poll_loop(
     app_handle: AppHandle,
     gateway_state: TelegramGatewayState,
-    mut stop_rx: watch::Receiver<bool>,
+    stop_rx: watch::Receiver<bool>,
 ) {
     let client = Client::builder()
         .timeout(Duration::from_secs(DEFAULT_POLL_TIMEOUT_SECS + 10))
@@ -262,6 +280,17 @@ async fn poll_loop(
         return;
     }
     let client = client.unwrap();
+
+    let attachments_dir = match attachments_root(&app_handle).await {
+        Ok(path) => path,
+        Err(error) => {
+            log::warn!(
+                "[TelegramGateway] Failed to resolve attachments dir: {}",
+                error
+            );
+            None
+        }
+    };
 
     loop {
         if *stop_rx.borrow() {
@@ -295,7 +324,6 @@ async fn poll_loop(
         let mut retry_after_ms: Option<u64> = None;
         match response {
             Ok(resp) => {
-                let status = resp.status();
                 if let Some(retry_after) = resp
                     .headers()
                     .get("retry-after")
@@ -335,16 +363,33 @@ async fn poll_loop(
                             }
 
                             if let Some(message) = update.message {
-                                let text = match message.text {
-                                    Some(text) => text,
-                                    None => continue,
-                                };
-
                                 if is_group_chat(&message.chat.chat_type, message.chat.id) {
                                     continue;
                                 }
 
                                 if !is_chat_allowed(&config, message.chat.id) {
+                                    continue;
+                                }
+
+                                let (text, attachments) = match build_message_payload(
+                                    &client,
+                                    &config.token,
+                                    &message,
+                                    attachments_dir.as_ref(),
+                                )
+                                .await
+                                {
+                                    Ok(payload) => payload,
+                                    Err(error) => {
+                                        log::warn!(
+                                            "[TelegramGateway] Failed to build message payload: {}",
+                                            error
+                                        );
+                                        (String::new(), Vec::new())
+                                    }
+                                };
+
+                                if text.trim().is_empty() && attachments.is_empty() {
                                     continue;
                                 }
 
@@ -365,6 +410,11 @@ async fn poll_loop(
                                         .as_ref()
                                         .and_then(|user| user.last_name.clone()),
                                     date: message.date,
+                                    attachments: if attachments.is_empty() {
+                                        None
+                                    } else {
+                                        Some(attachments)
+                                    },
                                 };
 
                                 if let Err(error) =
@@ -426,6 +476,257 @@ async fn poll_loop(
     log::info!("[TelegramGateway] Polling loop stopped");
 }
 
+async fn save_attachment_file(
+    attachments_dir: &PathBuf,
+    filename: &str,
+    data: Bytes,
+) -> Result<String, String> {
+    tokio::fs::create_dir_all(attachments_dir)
+        .await
+        .map_err(|e| format!("Failed to create attachments dir: {}", e))?;
+    let target_path = attachments_dir.join(filename);
+    tokio::fs::write(&target_path, data)
+        .await
+        .map_err(|e| format!("Failed to write attachment: {}", e))?;
+    Ok(target_path.to_string_lossy().to_string())
+}
+
+async fn attachments_root<R: Runtime>(
+    app_handle: &AppHandle<R>,
+) -> Result<Option<PathBuf>, String> {
+    let app_data_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to get app data dir: {}", e))?;
+    Ok(Some(app_data_dir.join(TELEGRAM_ATTACHMENTS_DIR)))
+}
+
+async fn fetch_file_info(
+    client: &Client,
+    token: &str,
+    file_id: &str,
+) -> Result<TelegramFileInfo, String> {
+    let url = format!("https://api.telegram.org/bot{}/getFile", token);
+    let response = client
+        .post(&url)
+        .json(&serde_json::json!({ "file_id": file_id }))
+        .send()
+        .await
+        .map_err(|e| format!("Telegram getFile failed: {}", e))?;
+
+    let payload = response
+        .json::<TelegramFileInfoResponse>()
+        .await
+        .map_err(|e| format!("Failed to parse getFile response: {}", e))?;
+
+    if !payload.ok {
+        let description = payload
+            .description
+            .unwrap_or_else(|| "Telegram getFile returned ok=false".to_string());
+        return Err(description);
+    }
+
+    payload
+        .result
+        .ok_or_else(|| "Telegram getFile returned empty result".to_string())
+}
+
+async fn download_file(client: &Client, token: &str, file_path: &str) -> Result<Bytes, String> {
+    let url = format!("https://api.telegram.org/file/bot{}/{}", token, file_path);
+    let response = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("Telegram download failed: {}", e))?;
+    let status = response.status();
+    if !status.is_success() {
+        return Err(format!("Telegram download failed: status {}", status));
+    }
+    response
+        .bytes()
+        .await
+        .map_err(|e| format!("Failed to read file bytes: {}", e))
+}
+
+fn sanitize_filename(value: &str) -> String {
+    let mut sanitized = value.replace(['/', '\\'], "_");
+    while sanitized.contains("..") {
+        sanitized = sanitized.replace("..", "_");
+    }
+    sanitized
+}
+
+fn build_attachment_filename(
+    prefix: &str,
+    original_name: Option<&str>,
+    unique_id: &str,
+    suffix: &str,
+) -> String {
+    let base = original_name
+        .map(sanitize_filename)
+        .unwrap_or_else(|| format!("{}-{}", prefix, suffix));
+    let name = if base.contains('.') {
+        format!("{}-{}", base, unique_id)
+    } else {
+        format!("{}-{}.bin", base, unique_id)
+    };
+    name
+}
+
+async fn build_message_payload(
+    client: &Client,
+    token: &str,
+    message: &TelegramMessage,
+    attachments_dir: Option<&PathBuf>,
+) -> Result<(String, Vec<TelegramRemoteAttachment>), String> {
+    let mut text_parts: Vec<String> = Vec::new();
+    let mut attachments: Vec<TelegramRemoteAttachment> = Vec::new();
+
+    if let Some(text) = message.text.as_ref() {
+        text_parts.push(text.clone());
+    }
+
+    if let Some(caption) = message.caption.as_ref() {
+        text_parts.push(caption.clone());
+    }
+
+    let Some(attachments_dir) = attachments_dir else {
+        return Ok((text_parts.join("\n"), attachments));
+    };
+
+    if let Some(photos) = message.photo.as_ref() {
+        if let Some(photo) = photos
+            .iter()
+            .max_by_key(|entry| entry.file_size.unwrap_or(0))
+        {
+            let file_info = fetch_file_info(client, token, &photo.file_id).await?;
+            if let Some(file_path) = file_info.file_path.as_ref() {
+                let size = file_info.file_size.unwrap_or(0);
+                if size <= MAX_TELEGRAM_MEDIA_BYTES {
+                    let bytes = download_file(client, token, file_path).await?;
+                    let filename = build_attachment_filename(
+                        TELEGRAM_MEDIA_PREFIX,
+                        Some(&format!("photo-{}", photo.file_unique_id)),
+                        &photo.file_unique_id,
+                        "photo",
+                    );
+                    let saved_path = save_attachment_file(attachments_dir, &filename, bytes).await;
+                    if let Ok(path) = saved_path {
+                        attachments.push(TelegramRemoteAttachment {
+                            id: photo.file_unique_id.clone(),
+                            attachment_type: "image".to_string(),
+                            file_path: path,
+                            filename,
+                            mime_type: "image/jpeg".to_string(),
+                            size,
+                            duration_seconds: None,
+                            caption: None,
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    if let Some(voice) = message.voice.as_ref() {
+        let file_info = fetch_file_info(client, token, &voice.file_id).await?;
+        if let Some(file_path) = file_info.file_path.as_ref() {
+            let size = file_info.file_size.unwrap_or(0);
+            if size <= MAX_TELEGRAM_MEDIA_BYTES {
+                let bytes = download_file(client, token, file_path).await?;
+                let filename = build_attachment_filename(
+                    TELEGRAM_MEDIA_PREFIX,
+                    Some(&format!("voice-{}", voice.file_unique_id)),
+                    &voice.file_unique_id,
+                    "voice",
+                );
+                let saved_path = save_attachment_file(attachments_dir, &filename, bytes).await;
+                if let Ok(path) = saved_path {
+                    attachments.push(TelegramRemoteAttachment {
+                        id: voice.file_unique_id.clone(),
+                        attachment_type: "voice".to_string(),
+                        file_path: path,
+                        filename,
+                        mime_type: voice
+                            .mime_type
+                            .clone()
+                            .unwrap_or_else(|| "audio/ogg".to_string()),
+                        size,
+                        duration_seconds: voice.duration,
+                        caption: None,
+                    });
+                }
+            }
+        }
+    }
+
+    if let Some(audio) = message.audio.as_ref() {
+        let file_info = fetch_file_info(client, token, &audio.file_id).await?;
+        if let Some(file_path) = file_info.file_path.as_ref() {
+            let size = file_info.file_size.unwrap_or(0);
+            if size <= MAX_TELEGRAM_MEDIA_BYTES {
+                let bytes = download_file(client, token, file_path).await?;
+                let filename = build_attachment_filename(
+                    TELEGRAM_MEDIA_PREFIX,
+                    audio.file_name.as_deref(),
+                    &audio.file_unique_id,
+                    "audio",
+                );
+                let saved_path = save_attachment_file(attachments_dir, &filename, bytes).await;
+                if let Ok(path) = saved_path {
+                    attachments.push(TelegramRemoteAttachment {
+                        id: audio.file_unique_id.clone(),
+                        attachment_type: "audio".to_string(),
+                        file_path: path,
+                        filename,
+                        mime_type: audio
+                            .mime_type
+                            .clone()
+                            .unwrap_or_else(|| "audio/mpeg".to_string()),
+                        size,
+                        duration_seconds: audio.duration,
+                        caption: None,
+                    });
+                }
+            }
+        }
+    }
+
+    if let Some(document) = message.document.as_ref() {
+        let file_info = fetch_file_info(client, token, &document.file_id).await?;
+        if let Some(file_path) = file_info.file_path.as_ref() {
+            let size = file_info.file_size.unwrap_or(0);
+            if size <= MAX_TELEGRAM_MEDIA_BYTES {
+                let bytes = download_file(client, token, file_path).await?;
+                let filename = build_attachment_filename(
+                    TELEGRAM_MEDIA_PREFIX,
+                    document.file_name.as_deref(),
+                    &document.file_unique_id,
+                    "document",
+                );
+                let saved_path = save_attachment_file(attachments_dir, &filename, bytes).await;
+                if let Ok(path) = saved_path {
+                    attachments.push(TelegramRemoteAttachment {
+                        id: document.file_unique_id.clone(),
+                        attachment_type: "file".to_string(),
+                        file_path: path,
+                        filename,
+                        mime_type: document
+                            .mime_type
+                            .clone()
+                            .unwrap_or_else(|| "application/octet-stream".to_string()),
+                        size,
+                        duration_seconds: None,
+                        caption: None,
+                    });
+                }
+            }
+        }
+    }
+
+    Ok((text_parts.join("\n"), attachments))
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 struct TelegramGetUpdatesRequest {
     pub offset: Option<i64>,
@@ -459,8 +760,13 @@ struct TelegramMessage {
     pub message_id: i64,
     pub date: i64,
     pub text: Option<String>,
+    pub caption: Option<String>,
     pub chat: TelegramChat,
     pub from: Option<TelegramUser>,
+    pub photo: Option<Vec<TelegramPhotoSize>>,
+    pub voice: Option<TelegramVoice>,
+    pub audio: Option<TelegramAudio>,
+    pub document: Option<TelegramDocument>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -478,6 +784,58 @@ struct TelegramUser {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
+struct TelegramPhotoSize {
+    pub file_id: String,
+    pub file_unique_id: String,
+    pub file_size: Option<u64>,
+    pub width: u32,
+    pub height: u32,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct TelegramVoice {
+    pub file_id: String,
+    pub file_unique_id: String,
+    pub file_size: Option<u64>,
+    pub duration: Option<u32>,
+    pub mime_type: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct TelegramAudio {
+    pub file_id: String,
+    pub file_unique_id: String,
+    pub file_size: Option<u64>,
+    pub duration: Option<u32>,
+    pub mime_type: Option<String>,
+    pub file_name: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct TelegramDocument {
+    pub file_id: String,
+    pub file_unique_id: String,
+    pub file_size: Option<u64>,
+    pub mime_type: Option<String>,
+    pub file_name: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct TelegramFileInfo {
+    pub file_id: String,
+    pub file_unique_id: String,
+    pub file_size: Option<u64>,
+    pub file_path: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct TelegramFileInfoResponse {
+    pub ok: bool,
+    pub result: Option<TelegramFileInfo>,
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
 struct TelegramSendMessageResult {
     pub message_id: i64,
 }
@@ -489,6 +847,34 @@ struct TelegramSendMessageResponseWrapper {
     pub description: Option<String>,
     pub error_code: Option<i64>,
     pub parameters: Option<TelegramResponseParameters>,
+}
+
+#[cfg(test)]
+mod filename_tests {
+    use super::build_attachment_filename;
+
+    #[test]
+    fn sanitizes_attachment_filename() {
+        let name = build_attachment_filename(
+            "telegram",
+            Some("..\\..\\secret/evil.txt"),
+            "unique",
+            "document",
+        );
+        assert!(!name.contains("/"));
+        assert!(!name.contains("\\"));
+        assert!(!name.contains(".."));
+        assert!(name.contains("unique"));
+        assert!(name.ends_with(".txt-unique") || name.ends_with(".txt-unique.bin"));
+    }
+
+    #[test]
+    fn adds_unique_suffix_for_named_files() {
+        let name =
+            build_attachment_filename("telegram", Some("report.pdf"), "file-abc", "document");
+        assert!(name.contains("file-abc"));
+        assert!(name.ends_with("report.pdf-file-abc"));
+    }
 }
 
 #[tauri::command]

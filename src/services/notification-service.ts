@@ -6,7 +6,7 @@ import {
 } from '@tauri-apps/plugin-notification';
 import { logger } from '@/lib/logger';
 import { hookService } from '@/services/hooks/hook-service';
-import { telegramRemoteService } from '@/services/remote/telegram-remote-service';
+import { remoteControlLifecycleService } from '@/services/remote/remote-control-lifecycle-service';
 import { settingsManager } from '@/stores/settings-store';
 
 class NotificationService {
@@ -88,7 +88,7 @@ class NotificationService {
   async notifyReviewRequired(): Promise<void> {
     await this.sendIfNotFocused('Review Required', 'File edit needs your approval');
     try {
-      await telegramRemoteService.refresh();
+      await remoteControlLifecycleService.refresh();
     } catch (error) {
       logger.warn('[NotificationService] Remote refresh failed', error);
     }

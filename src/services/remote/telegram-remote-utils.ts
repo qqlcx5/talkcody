@@ -17,13 +17,14 @@ function cleanupDedup(now: number, ttlMs: number): void {
 }
 
 export function isDuplicateTelegramMessage(
-  chatId: number,
-  messageId: number,
+  channelId: string,
+  chatId: string | number,
+  messageId: string | number,
   ttlMs: number = DEFAULT_DEDUP_TTL_MS
 ): boolean {
   const now = Date.now();
   cleanupDedup(now, ttlMs);
-  const key = `${chatId}:${messageId}`;
+  const key = `${channelId}:${String(chatId)}:${String(messageId)}`;
   if (dedupStore.has(key)) {
     return true;
   }

@@ -1,18 +1,21 @@
-# Telegram Remote Integration Architecture
+# Remote Control Integration Architecture
 
-This document describes the implementation principles, architecture, and core flows for Telegram remote control in TalkCody.
+This document describes the multi-channel remote control integration in TalkCody, with Telegram as the first supported channel.
 
 ## Goals
-- Receive Telegram messages on mobile and execute tasks on desktop.
-- Stream responses back to Telegram with message edits and chunked delivery.
+- Receive messages from mobile chat apps and execute tasks on desktop.
+- Stream responses back to chat apps with message edits and chunked delivery.
+- Support voice/audio and image attachments.
 - Keep configuration simple and persisted in app settings.
 - Provide safe access control via allowed chat IDs and group chat blocking.
+- Reduce missed messages by keeping the app awake when remote control is enabled.
 
 ## Key Components
 
-### Tauri Backend Gateway (`src-tauri/src/telegram_gateway.rs`)
+### Tauri Backend Telegram Gateway (`src-tauri/src/telegram_gateway.rs`)
 - Polls Telegram Bot API with `getUpdates`.
 - Emits `telegram-inbound-message` events to the frontend on inbound messages.
+- Downloads photo, voice, audio, and document attachments to the app data `attachments/` folder.
 - Sends outbound replies using `sendMessage` and updates drafts via `editMessageText`.
 - Persists last update offset in `telegram-remote-state.json` under app data dir.
 - Stores config in `telegram-remote.json` under app data dir.
@@ -21,22 +24,37 @@ This document describes the implementation principles, architecture, and core fl
   - `telegram_get_status`, `telegram_is_running`
   - `telegram_send_message`, `telegram_edit_message`
 
-### Frontend Remote Service (`src/services/remote/telegram-remote-service.ts`)
-- Listens for `telegram-inbound-message` events.
+### Frontend Remote Chat Service (`src/services/remote/remote-chat-service.ts`)
+- Listens for inbound events from channel adapters.
 - Creates/loads tasks and starts agent execution via `ExecutionService`.
 - Streams updates using `editMessage` and finalizes with chunked sends.
 - Handles remote approvals via `EditReviewStore`.
 - Supports commands: `/help`, `/new`, `/status`, `/stop`, `/approve`, `/reject`.
 - Deduplicates inbound messages by `chatId + messageId`.
 
-### Settings UI (`src/components/settings/general-settings.tsx`)
-- Lets users configure bot token, allowed chat IDs, and poll timeout.
+### Channel Manager + Adapter (`src/services/remote/remote-channel-manager.ts`)
+- Registers channel adapters (Telegram today; others pluggable).
+- Normalizes inbound messages into a channel-agnostic shape.
+- Routes outbound send/edit requests to the correct channel adapter.
+
+### Media Pipeline (`src/services/remote/remote-media-service.ts`)
+- Converts inbound attachments into `MessageAttachment` payloads.
+- For audio/voice, uses `aiTranscriptionService` to generate transcription text.
+- Ensures images are converted to base64 for LLM ingestion.
+
+### Lifecycle Service (`src/services/remote/remote-control-lifecycle-service.ts`)
+- Starts/stops remote chat services based on settings.
+- Applies `keep_awake` when remote control is enabled to reduce missed messages.
+
+### Settings UI (`src/components/settings/remote-control-settings.tsx`)
+- Lets users configure bot token, allowed chat IDs, poll timeout, and keep-awake.
 - Validates token and poll timeout range before saving.
 
 ### Storage
 - Settings DB (SQLite) stores:
   - `telegram_remote_enabled`, `telegram_remote_token`,
-  - `telegram_remote_allowed_chats`, `telegram_remote_poll_timeout`.
+  - `telegram_remote_allowed_chats`, `telegram_remote_poll_timeout`,
+  - `remote_control_keep_awake`.
 - App data files:
   - `telegram-remote.json` (backend config snapshot).
   - `telegram-remote-state.json` (last update offset).
@@ -45,21 +63,21 @@ This document describes the implementation principles, architecture, and core fl
 
 ### 1. Configuration and Startup
 1. User enables Telegram remote control in Settings.
-2. Frontend calls `telegram_set_config` and `telegram_start`.
+2. Lifecycle service applies keep-awake and starts channel adapter(s).
 3. Backend loads config and state, then starts polling loop.
 
 ### 2. Polling and Inbound Messages
 1. Poll loop calls `getUpdates` with `offset = last_update_id + 1`.
 2. For each update, filter out:
-   - non-text messages,
    - group chats (negative chat IDs or `chat_type` = group/supergroup),
    - chat IDs not in allowlist.
-3. Emit `telegram-inbound-message` to the frontend.
-4. Update `last_update_id` and persist state.
+3. Download attachments (photo, voice, audio, document) to app data.
+4. Emit `telegram-inbound-message` to the frontend.
+5. Update `last_update_id` and persist state.
 
 ### 3. Task Execution
 1. Frontend creates or reuses a task for the chat.
-2. User message is stored and `ExecutionService` starts agent run.
+2. User message and attachments are stored and `ExecutionService` starts agent run.
 3. Task settings force plan auto-approval for remote runs.
 
 ### 4. Streaming Output
@@ -74,7 +92,7 @@ This document describes the implementation principles, architecture, and core fl
 ## Reliability and Backoff
 - Polling uses exponential backoff with jitter and respects `retry_after`.
 - `last_update_id` is persisted to avoid reprocessing after restarts.
-- Errors are tracked in gateway status and surfaced in `/status`.
+- Keep-awake minimizes sleep-induced message loss; some systems still sleep when the lid is closed.
 
 ## Security Model
 - Access is restricted by allowed chat IDs.
@@ -82,10 +100,11 @@ This document describes the implementation principles, architecture, and core fl
 - Bot token stays in the settings database and is not logged.
 
 ## Limitations
-- Only text messages are processed.
-- Group chats are not supported.
+- Telegram channels only today; other adapters are pluggable but not implemented yet.
 - Streaming relies on Telegram message limits (4096 chars per message).
+- Attachment size limited to 20MB for downloads/transcription.
 
 ## Testing
 - Unit tests cover Telegram utilities (chunking, dedupe, command parsing).
 - Backend state persistence tests validate offset storage.
+- Settings tests cover remote keep-awake state shape.

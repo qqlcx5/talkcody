@@ -48,6 +48,7 @@ interface SettingsState {
   telegram_remote_token: string;
   telegram_remote_allowed_chats: string;
   telegram_remote_poll_timeout: string;
+  remote_control_keep_awake: boolean;
 
   // Project Settings
   project: string;
@@ -264,6 +265,7 @@ const DEFAULT_SETTINGS: Omit<SettingsState, 'loading' | 'error' | 'isInitialized
   telegram_remote_token: '',
   telegram_remote_allowed_chats: '',
   telegram_remote_poll_timeout: '25',
+  remote_control_keep_awake: true,
   project: DEFAULT_PROJECT,
   current_root_path: '',
   custom_tools_dir: '',
@@ -347,6 +349,7 @@ class SettingsDatabase {
       telegram_remote_token: '',
       telegram_remote_allowed_chats: '',
       telegram_remote_poll_timeout: '25',
+      remote_control_keep_awake: 'true',
       model_type_main: '',
       model_type_small: '',
       model_type_image_generator: '',
@@ -487,6 +490,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         'telegram_remote_token',
         'telegram_remote_allowed_chats',
         'telegram_remote_poll_timeout',
+        'remote_control_keep_awake',
         'reasoning_effort',
         'project',
         'current_root_path',
@@ -577,6 +581,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         telegram_remote_token: rawSettings.telegram_remote_token || '',
         telegram_remote_allowed_chats: rawSettings.telegram_remote_allowed_chats || '',
         telegram_remote_poll_timeout: rawSettings.telegram_remote_poll_timeout || '25',
+        remote_control_keep_awake: rawSettings.remote_control_keep_awake !== 'false',
         project: rawSettings.project || DEFAULT_PROJECT,
         current_root_path: rawSettings.current_root_path || '',
         custom_tools_dir: rawSettings.custom_tools_dir || '',

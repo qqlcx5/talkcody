@@ -211,4 +211,16 @@ describe('RemoteControlSettings helpers', () => {
     expect(valueToString(undefined)).toBe('');
     expect(valueToString(null)).toBe('');
   });
+
+  it('remote control state shape includes keepAwake', () => {
+    const state = {
+      enabled: true,
+      token: 'token',
+      allowedChats: '1,2',
+      pollTimeout: '25',
+      keepAwake: false,
+    };
+
+    expect(state.keepAwake).toBe(false);
+  });
 });

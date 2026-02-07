@@ -1,5 +1,4 @@
 import { invoke } from '@tauri-apps/api/core';
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { logger } from '@/lib/logger';
 import { debounce } from '@/lib/utils/debounce';
 import { getLocale, type SupportedLocale } from '@/locales';
@@ -9,6 +8,8 @@ import { commandExecutor } from '@/services/commands/command-executor';
 import { commandRegistry } from '@/services/commands/command-registry';
 import { executionService } from '@/services/execution-service';
 import { messageService } from '@/services/message-service';
+import { remoteChannelManager } from '@/services/remote/remote-channel-manager';
+import { remoteMediaService } from '@/services/remote/remote-media-service';
 import {
   isDuplicateTelegramMessage,
   normalizeTelegramCommand,
@@ -21,12 +22,9 @@ import { settingsManager, useSettingsStore } from '@/stores/settings-store';
 import { useTaskStore } from '@/stores/task-store';
 import type { CommandContext } from '@/types/command';
 import type {
-  TelegramEditMessageRequest,
+  RemoteInboundMessage,
+  RemoteSendMessageRequest,
   TelegramGatewayStatus,
-  TelegramInboundMessage,
-  TelegramRemoteConfig,
-  TelegramSendMessageRequest,
-  TelegramSendMessageResponse,
 } from '@/types/remote-control';
 import type { TaskSettings } from '@/types/task';
 
@@ -36,51 +34,49 @@ const TELEGRAM_STREAM_EDIT_LIMIT = 3800;
 const TELEGRAM_DEDUP_TTL_MS = 5 * 60 * 1000;
 
 interface ChatSessionState {
+  channelId: RemoteInboundMessage['channelId'];
+  chatId: string;
   taskId: string;
-  lastMessageId?: number;
+  lastMessageId?: string;
   lastSentAt: number;
-  streamingMessageId?: number;
+  streamingMessageId?: string;
   sentChunks: string[];
   lastStreamStatus?: ExecutionStatus;
 }
 
 interface PendingApprovalState {
-  chatId: number;
+  channelId: RemoteInboundMessage['channelId'];
+  chatId: string;
   taskId: string;
   editId: string;
   filePath: string;
-  messageId?: number;
+  messageId?: string;
 }
 
-class TelegramRemoteService {
-  private inboundUnlisten: UnlistenFn | null = null;
+function buildSessionKey(channelId: string, chatId: string): string {
+  return `${channelId}:${chatId}`;
+}
+
+class RemoteChatService {
   private executionUnsubscribe: (() => void) | null = null;
+  private editReviewUnsubscribe: (() => void) | null = null;
   private running = false;
-  private sessions = new Map<number, ChatSessionState>();
+  private sessions = new Map<string, ChatSessionState>();
   private approvals = new Map<string, PendingApprovalState>();
   private lastStreamContent = new Map<string, string>();
+  private inboundUnsubscribe: (() => void) | null = null;
 
   async start(): Promise<void> {
     if (this.running) return;
-
-    const config = await this.loadConfig();
-    if (!config.enabled || !config.token) {
-      logger.info('[TelegramRemoteService] Disabled or missing token');
-      this.running = false;
-      return;
-    }
-
     this.running = true;
 
-    await invoke('telegram_set_config', { config: this.toRustConfig(config) });
-    await invoke('telegram_start');
+    await remoteChannelManager.startAll();
 
-    this.inboundUnlisten = await listen<TelegramInboundMessage>(
-      'telegram-inbound-message',
-      (event) => {
-        this.handleInboundMessage(event.payload).catch(console.error);
-      }
-    );
+    if (!this.inboundUnsubscribe) {
+      this.inboundUnsubscribe = remoteChannelManager.onInbound((message) => {
+        this.handleInboundMessage(message).catch(console.error);
+      });
+    }
 
     this.attachExecutionStreamListener();
     this.attachEditReviewListener();
@@ -90,12 +86,22 @@ class TelegramRemoteService {
     if (!this.running) return;
     this.running = false;
 
-    if (this.inboundUnlisten) {
-      this.inboundUnlisten();
-      this.inboundUnlisten = null;
+    if (this.inboundUnsubscribe) {
+      this.inboundUnsubscribe();
+      this.inboundUnsubscribe = null;
     }
 
-    await invoke('telegram_stop');
+    if (this.executionUnsubscribe) {
+      this.executionUnsubscribe();
+      this.executionUnsubscribe = null;
+    }
+
+    if (this.editReviewUnsubscribe) {
+      this.editReviewUnsubscribe();
+      this.editReviewUnsubscribe = null;
+    }
+
+    await remoteChannelManager.stopAll();
   }
 
   async refresh(): Promise<void> {
@@ -103,10 +109,10 @@ class TelegramRemoteService {
     await this.start();
   }
 
-  async handleInboundMessage(message: TelegramInboundMessage): Promise<void> {
+  async handleInboundMessage(message: RemoteInboundMessage): Promise<void> {
     if (
       isDuplicateTelegramMessage(
-        'telegram',
+        message.channelId,
         message.chatId,
         message.messageId,
         TELEGRAM_DEDUP_TTL_MS
@@ -114,18 +120,17 @@ class TelegramRemoteService {
     ) {
       return;
     }
-    const text = message.text.trim();
-    if (!text) return;
 
-    if (text.startsWith('/')) {
-      await this.handleCommand(message, text);
+    const trimmedText = message.text.trim();
+    if (trimmedText.startsWith('/')) {
+      await this.handleCommand(message, trimmedText);
       return;
     }
 
-    await this.handlePrompt(message, text);
+    await this.handlePrompt(message);
   }
 
-  private async handleCommand(message: TelegramInboundMessage, text: string): Promise<void> {
+  private async handleCommand(message: RemoteInboundMessage, text: string): Promise<void> {
     const normalized = normalizeTelegramCommand(text);
     const [command, ...rest] = normalized.split(' ');
     const args = rest.join(' ').trim();
@@ -141,8 +146,8 @@ class TelegramRemoteService {
     }
 
     if (command === '/new') {
-      await this.resetSession(message.chatId, args || 'Remote task');
-      await this.handlePrompt(message, args || '');
+      await this.resetSession(message.channelId, message.chatId, args || 'Remote task');
+      await this.handlePrompt({ ...message, text: args || '' });
       return;
     }
 
@@ -157,11 +162,10 @@ class TelegramRemoteService {
     }
 
     if (command === '/help') {
-      await this.sendMessage(message.chatId, this.getLocaleText().RemoteControl.help);
+      await this.sendMessage(message, this.getLocaleText().RemoteControl.help);
       return;
     }
 
-    // Forward unknown commands to command registry when possible
     try {
       await commandRegistry.initialize();
       const parsed = commandExecutor.parseCommand(normalized);
@@ -170,28 +174,28 @@ class TelegramRemoteService {
         return;
       }
     } catch (error) {
-      logger.warn('[TelegramRemoteService] Failed to execute command', error);
+      logger.warn('[RemoteChatService] Failed to execute command', error);
     }
 
-    await this.sendMessage(message.chatId, this.getLocaleText().RemoteControl.unknownCommand);
+    await this.sendMessage(message, this.getLocaleText().RemoteControl.unknownCommand);
   }
 
   private async executeCommand(
     commandName: string,
     rawArgs: string,
-    message: TelegramInboundMessage
+    message: RemoteInboundMessage
   ): Promise<void> {
-    const session = await this.getOrCreateSession(message.chatId, message.text);
+    const session = await this.getOrCreateSession(message.channelId, message.chatId, message.text);
     const parsed = commandExecutor.parseCommand(`/${commandName} ${rawArgs}`);
     if (!parsed.command) {
-      await this.sendMessage(message.chatId, this.getLocaleText().RemoteControl.unknownCommand);
+      await this.sendMessage(message, this.getLocaleText().RemoteControl.unknownCommand);
       return;
     }
 
     const context: CommandContext = {
       taskId: session.taskId,
       sendMessage: async (reply) => {
-        await this.sendMessage(message.chatId, reply);
+        await this.sendMessage(message, reply);
       },
       createNewTask: async () => {
         const taskId = await taskService.createTask('Remote command');
@@ -203,13 +207,22 @@ class TelegramRemoteService {
     await commandExecutor.executeCommand(parsed, context);
   }
 
-  private async handlePrompt(message: TelegramInboundMessage, text: string): Promise<void> {
-    const session = await this.getOrCreateSession(message.chatId, text);
+  private async handlePrompt(message: RemoteInboundMessage): Promise<void> {
+    const session = await this.getOrCreateSession(message.channelId, message.chatId, message.text);
 
     const taskSettings: TaskSettings = { autoApprovePlan: true };
     await taskService.updateTaskSettings(session.taskId, taskSettings);
 
-    await messageService.addUserMessage(session.taskId, text, {});
+    const mediaResult = await remoteMediaService.prepareInboundMessage(message);
+    const promptText = mediaResult.text.trim();
+
+    if (!promptText && mediaResult.attachments.length === 0) {
+      return;
+    }
+
+    await messageService.addUserMessage(session.taskId, promptText, {
+      attachments: mediaResult.attachments,
+    });
 
     const agentId = await settingsManager.getAgentId();
     let agent = await agentRegistry.getWithResolvedTools(agentId);
@@ -230,100 +243,109 @@ class TelegramRemoteService {
       tools: agent?.tools,
       agentId: agent?.id ?? agentId,
       isNewTask: false,
-      userMessage: text,
+      userMessage: promptText,
     });
 
     const statusText = this.getLocaleText().RemoteControl.processing;
-    const statusMessage = await this.sendMessage(message.chatId, statusText);
+    const statusMessage = await this.sendMessage(message, statusText);
     session.streamingMessageId = statusMessage.messageId;
     session.lastMessageId = statusMessage.messageId;
     session.sentChunks = [statusText];
-    session.lastStreamStatus = undefined; // Reset for new execution
+    session.lastStreamStatus = undefined;
   }
 
-  private async handleStatus(message: TelegramInboundMessage): Promise<void> {
-    const session = this.sessions.get(message.chatId);
+  private async handleStatus(message: RemoteInboundMessage): Promise<void> {
+    const session = this.sessions.get(buildSessionKey(message.channelId, message.chatId));
     const execution = session
       ? useExecutionStore.getState().getExecution(session.taskId)
       : undefined;
     if (!execution) {
-      await this.sendMessage(message.chatId, this.getLocaleText().RemoteControl.noActiveTask);
+      await this.sendMessage(message, this.getLocaleText().RemoteControl.noActiveTask);
       return;
     }
 
     const statusText = this.getLocaleText().RemoteControl.status(execution.status);
-    await this.sendMessage(message.chatId, statusText);
+    await this.sendMessage(message, statusText);
 
-    const gatewayStatus = await this.getGatewayStatus();
+    const gatewayStatus = await this.getGatewayStatus(message.channelId);
     if (gatewayStatus?.lastError) {
       const detail = this.getLocaleText().RemoteControl.gatewayError(gatewayStatus.lastError);
-      await this.sendMessage(message.chatId, detail);
+      await this.sendMessage(message, detail);
     }
   }
 
   private async handleApprove(
-    message: TelegramInboundMessage,
+    message: RemoteInboundMessage,
     approved: boolean,
     _args: string
   ): Promise<void> {
-    const approval = this.approvals.get(String(message.chatId));
+    const approval = this.approvals.get(buildSessionKey(message.channelId, message.chatId));
     if (!approval) {
-      await this.sendMessage(message.chatId, this.getLocaleText().RemoteControl.noPendingApproval);
+      await this.sendMessage(message, this.getLocaleText().RemoteControl.noPendingApproval);
       return;
     }
 
     if (approved) {
       await useEditReviewStore.getState().approveEdit(approval.taskId);
-      await this.sendMessage(message.chatId, this.getLocaleText().RemoteControl.approved);
+      await this.sendMessage(message, this.getLocaleText().RemoteControl.approved);
     } else {
-      await useEditReviewStore.getState().rejectEdit(approval.taskId, 'Rejected via Telegram');
-      await this.sendMessage(message.chatId, this.getLocaleText().RemoteControl.rejected);
+      await useEditReviewStore.getState().rejectEdit(approval.taskId, 'Rejected via remote chat');
+      await this.sendMessage(message, this.getLocaleText().RemoteControl.rejected);
     }
 
-    this.approvals.delete(String(message.chatId));
+    this.approvals.delete(buildSessionKey(message.channelId, message.chatId));
   }
 
-  private async handleStop(message: TelegramInboundMessage): Promise<void> {
-    const session = this.sessions.get(message.chatId);
+  private async handleStop(message: RemoteInboundMessage): Promise<void> {
+    const session = this.sessions.get(buildSessionKey(message.channelId, message.chatId));
     if (!session) {
-      await this.sendMessage(message.chatId, this.getLocaleText().RemoteControl.noActiveTask);
+      await this.sendMessage(message, this.getLocaleText().RemoteControl.noActiveTask);
       return;
     }
 
     executionService.stopExecution(session.taskId);
-    await this.sendMessage(message.chatId, this.getLocaleText().RemoteControl.stopped);
+    await this.sendMessage(message, this.getLocaleText().RemoteControl.stopped);
   }
 
   private async getOrCreateSession(
-    chatId: number,
+    channelId: RemoteInboundMessage['channelId'],
+    chatId: string,
     firstMessage: string
   ): Promise<ChatSessionState> {
-    let session = this.sessions.get(chatId);
+    const key = buildSessionKey(channelId, chatId);
+    let session = this.sessions.get(key);
     if (session) return session;
 
     const taskId = await taskService.createTask(firstMessage || 'Remote task');
     session = {
+      channelId,
+      chatId,
       taskId,
       lastSentAt: 0,
       sentChunks: [],
     };
-    this.sessions.set(chatId, session);
+    this.sessions.set(key, session);
     return session;
   }
 
-  private async resetSession(chatId: number, firstMessage: string = ''): Promise<void> {
-    const session = this.sessions.get(chatId);
+  private async resetSession(
+    channelId: RemoteInboundMessage['channelId'],
+    chatId: string,
+    firstMessage: string = ''
+  ): Promise<void> {
+    const key = buildSessionKey(channelId, chatId);
+    const session = this.sessions.get(key);
     if (!session) {
       return;
     }
-    // Clean up old session state
+
     this.lastStreamContent.delete(session.taskId);
     session.streamingMessageId = undefined;
     session.lastMessageId = undefined;
     session.sentChunks = [];
     session.lastStreamStatus = undefined;
     session.lastSentAt = 0;
-    // Create new task for this session
+
     const newTaskId = await taskService.createTask(firstMessage || 'Remote task');
     session.taskId = newTaskId;
   }
@@ -334,7 +356,7 @@ class TelegramRemoteService {
     }
 
     const onChange = debounce(() => {
-      for (const [chatId, session] of this.sessions) {
+      for (const [sessionKey, session] of this.sessions) {
         const execution = useExecutionStore.getState().getExecution(session.taskId);
         if (!execution) {
           continue;
@@ -343,7 +365,7 @@ class TelegramRemoteService {
         if (execution.status !== 'running') {
           if (session.lastStreamStatus !== execution.status) {
             session.lastStreamStatus = execution.status;
-            this.flushFinalStream(chatId, session).catch(console.error);
+            this.flushFinalStream(sessionKey, session).catch(console.error);
           }
           continue;
         }
@@ -355,20 +377,19 @@ class TelegramRemoteService {
         if (content === lastContent) continue;
 
         this.lastStreamContent.set(session.taskId, content);
-        this.sendStreamUpdate(chatId, session, content).catch(console.error);
+        this.sendStreamUpdate(sessionKey, session, content).catch(console.error);
       }
     }, STREAM_THROTTLE_MS);
 
     this.executionUnsubscribe = useExecutionStore.subscribe(onChange);
   }
 
-  private async flushFinalStream(chatId: number, session: ChatSessionState): Promise<void> {
+  private async flushFinalStream(sessionKey: string, session: ChatSessionState): Promise<void> {
     const execution = useExecutionStore.getState().getExecution(session.taskId);
     if (!execution) {
       return;
     }
 
-    // Get final content from task store messages (streamingContent is cleared before this is called)
     const messages = useTaskStore.getState().getMessages(session.taskId);
     const lastAssistantMessage = messages
       .slice()
@@ -392,7 +413,7 @@ class TelegramRemoteService {
     if (session.streamingMessageId && chunks.length > 0) {
       const first = chunks[0] ?? '';
       if (first.trim()) {
-        await this.editMessage(chatId, session.streamingMessageId, first);
+        await this.editMessage(session, first);
         session.sentChunks = [first];
       }
     } else if (!session.streamingMessageId) {
@@ -400,37 +421,52 @@ class TelegramRemoteService {
       if (!first.trim()) {
         return;
       }
-      const message = await this.sendMessage(chatId, first);
+      const message = await this.sendMessage(
+        { channelId: session.channelId, chatId: session.chatId } as RemoteInboundMessage,
+        first
+      );
       session.streamingMessageId = message.messageId;
       session.sentChunks = [first];
     }
 
-    // Skip first chunk if it was already sent during streaming
     const startIndex = session.streamingMessageId ? 1 : 0;
     for (let i = startIndex; i < chunks.length; i += 1) {
       const chunk = chunks[i];
       if (!chunk) continue;
-      await this.sendMessage(chatId, chunk);
+      await this.sendMessage(
+        { channelId: session.channelId, chatId: session.chatId } as RemoteInboundMessage,
+        chunk
+      );
       session.sentChunks.push(chunk);
     }
   }
 
   private attachEditReviewListener(): void {
-    useEditReviewStore.subscribe((state) => {
+    if (this.editReviewUnsubscribe) {
+      return;
+    }
+    this.editReviewUnsubscribe = useEditReviewStore.subscribe((state) => {
+      if (!this.running) {
+        return;
+      }
       for (const [taskId, entry] of state.pendingEdits.entries()) {
-        const session = Array.from(this.sessions.entries()).find(
+        const sessionEntry = Array.from(this.sessions.entries()).find(
           ([, value]) => value.taskId === taskId
         );
-        if (!session) continue;
-        const [chatId] = session;
-        if (this.approvals.has(String(chatId))) continue;
+        if (!sessionEntry) continue;
+        const [sessionKey, session] = sessionEntry;
+        if (this.approvals.has(sessionKey)) continue;
 
         const pending = entry.pendingEdit;
         const prompt = this.getLocaleText().RemoteControl.approvalPrompt(pending.filePath);
-        this.sendMessage(chatId, prompt)
+        this.sendMessage(
+          { channelId: session.channelId, chatId: session.chatId } as RemoteInboundMessage,
+          prompt
+        )
           .then((msg) => {
-            this.approvals.set(String(chatId), {
-              chatId,
+            this.approvals.set(sessionKey, {
+              channelId: session.channelId,
+              chatId: session.chatId,
               taskId,
               editId: entry.editId,
               filePath: pending.filePath,
@@ -443,7 +479,7 @@ class TelegramRemoteService {
   }
 
   private async sendStreamUpdate(
-    chatId: number,
+    _sessionKey: string,
     session: ChatSessionState,
     content: string
   ): Promise<void> {
@@ -465,79 +501,69 @@ class TelegramRemoteService {
     }
 
     if (session.streamingMessageId) {
-      await this.editMessage(chatId, session.streamingMessageId, streamingChunk);
+      await this.editMessage(session, streamingChunk);
       session.sentChunks = [streamingChunk];
       return;
     }
 
-    const message = await this.sendMessage(chatId, streamingChunk);
+    const message = await this.sendMessage(
+      { channelId: session.channelId, chatId: session.chatId } as RemoteInboundMessage,
+      streamingChunk
+    );
     session.streamingMessageId = message.messageId;
     session.sentChunks = [streamingChunk];
   }
 
-  private async sendMessage(chatId: number, text: string): Promise<TelegramSendMessageResponse> {
-    const request: TelegramSendMessageRequest = {
-      chatId,
+  private async sendMessage(
+    message: Pick<RemoteInboundMessage, 'channelId' | 'chatId'>,
+    text: string
+  ): Promise<{ messageId: string }> {
+    if (!this.running) {
+      return { messageId: '' };
+    }
+    const request: RemoteSendMessageRequest = {
+      channelId: message.channelId,
+      chatId: message.chatId,
       text,
       disableWebPagePreview: true,
     };
-    return invoke('telegram_send_message', { request });
+    return remoteChannelManager.sendMessage(request);
   }
 
-  private async editMessage(chatId: number, messageId: number, text: string): Promise<void> {
-    if (!text.trim()) {
+  private async editMessage(session: ChatSessionState, text: string): Promise<void> {
+    if (!this.running) {
       return;
     }
-    const request: TelegramEditMessageRequest = {
-      chatId,
-      messageId,
+    if (!text.trim() || !session.streamingMessageId) {
+      return;
+    }
+    await remoteChannelManager.editMessage({
+      channelId: session.channelId,
+      chatId: session.chatId,
+      messageId: session.streamingMessageId,
       text,
       disableWebPagePreview: true,
-    };
-    await invoke('telegram_edit_message', { request });
+    });
   }
 
-  private async loadConfig(): Promise<TelegramRemoteConfig> {
-    const settings = useSettingsStore.getState();
-    return {
-      enabled: settings.telegram_remote_enabled,
-      token: settings.telegram_remote_token,
-      allowedChatIds: this.parseAllowedChats(settings.telegram_remote_allowed_chats),
-      pollTimeoutSecs: Number(settings.telegram_remote_poll_timeout || '25'),
-    };
-  }
-
-  private async getGatewayStatus(): Promise<TelegramGatewayStatus | null> {
+  private async getGatewayStatus(
+    channelId: RemoteInboundMessage['channelId']
+  ): Promise<TelegramGatewayStatus | null> {
+    if (channelId !== 'telegram') {
+      return null;
+    }
     try {
       return await invoke('telegram_get_status');
     } catch (error) {
-      logger.warn('[TelegramRemoteService] Failed to fetch gateway status', error);
+      logger.warn('[RemoteChatService] Failed to fetch gateway status', error);
       return null;
     }
   }
 
-  private parseAllowedChats(raw: string): number[] {
-    if (!raw) return [];
-    return raw
-      .split(',')
-      .map((id) => Number(id.trim()))
-      .filter((id) => !Number.isNaN(id));
-  }
-
-  private toRustConfig(config: TelegramRemoteConfig) {
-    return {
-      enabled: config.enabled,
-      token: config.token,
-      allowedChatIds: config.allowedChatIds,
-      pollTimeoutSecs: config.pollTimeoutSecs,
-    };
-  }
-
   private getLocaleText() {
     const language = (useSettingsStore.getState().language || 'en') as SupportedLocale;
-    const locale = getLocale(language);
-    return locale;
+    return getLocale(language);
   }
 }
 
-export const telegramRemoteService = new TelegramRemoteService();
+export const remoteChatService = new RemoteChatService();

@@ -15,10 +15,16 @@ describe('telegram-remote-utils', () => {
     expect(normalizeTelegramCommand('hello')).toBe('hello');
   });
 
-  it('deduplicates by chat and message id', () => {
-    expect(isDuplicateTelegramMessage(1, 10, 1000)).toBe(false);
-    expect(isDuplicateTelegramMessage(1, 10, 1000)).toBe(true);
-    expect(isDuplicateTelegramMessage(1, 11, 1000)).toBe(false);
+  it('deduplicates by channel, chat, and message id', () => {
+    expect(isDuplicateTelegramMessage('telegram', 1, 10, 1000)).toBe(false);
+    expect(isDuplicateTelegramMessage('telegram', 1, 10, 1000)).toBe(true);
+    expect(isDuplicateTelegramMessage('telegram', 1, 11, 1000)).toBe(false);
+  });
+
+  it('does not mix dedup state across channels', () => {
+    expect(isDuplicateTelegramMessage('telegram', 'chat-a', 'msg-1', 1000)).toBe(false);
+    expect(isDuplicateTelegramMessage('slack', 'chat-a', 'msg-1', 1000)).toBe(false);
+    expect(isDuplicateTelegramMessage('telegram', 'chat-a', 'msg-1', 1000)).toBe(true);
   });
 
   it('splits long text into chunks', () => {

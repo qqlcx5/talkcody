@@ -548,6 +548,9 @@ const en: LocaleDefinition = {
       pollTimeoutLabel: 'Polling Timeout (seconds)',
       pollTimeoutPlaceholder: '25',
       pollTimeoutHint: 'Recommended 10-30 seconds. Accepts 5-60 seconds.',
+      keepAwakeLabel: 'Keep Awake While Remote Control Is Enabled',
+      keepAwakeHint:
+        'Prevents sleep so remote messages are not missed. Some systems may still sleep when the lid is closed.',
       save: 'Save Remote Control Settings',
       saved: 'Remote control settings saved',
       saveFailed: 'Failed to save remote control settings',

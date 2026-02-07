@@ -1,11 +1,16 @@
 import { useEffect } from 'react';
-import { telegramRemoteService } from '@/services/remote/telegram-remote-service';
+import { TelegramChannelAdapter } from '@/services/remote/channels/telegram-channel-adapter';
+import { remoteChannelManager } from '@/services/remote/remote-channel-manager';
+import { remoteControlLifecycleService } from '@/services/remote/remote-control-lifecycle-service';
 
-export function TelegramRemoteServiceRunner() {
+const telegramAdapter = new TelegramChannelAdapter();
+remoteChannelManager.registerAdapter(telegramAdapter);
+
+export function RemoteServiceRunner() {
   useEffect(() => {
-    telegramRemoteService.start().catch(console.error);
+    remoteControlLifecycleService.initialize().catch(console.error);
     return () => {
-      telegramRemoteService.stop().catch(console.error);
+      remoteControlLifecycleService.shutdown().catch(console.error);
     };
   }, []);
 
