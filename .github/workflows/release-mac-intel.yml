@@ -73,6 +73,9 @@ jobs:
           toolchain: stable
           targets: x86_64-apple-darwin
 
+      - name: Install protobuf
+        run: brew install protobuf
+
       - name: Install frontend dependencies
         run: bun install --frozen-lockfile
 

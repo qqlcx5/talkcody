@@ -3,6 +3,7 @@ mod archive;
 mod background_tasks;
 mod code_navigation;
 mod constants;
+mod core;
 mod database;
 mod device_id;
 mod directory_tree;
@@ -13,15 +14,21 @@ mod file_watcher;
 mod git;
 mod glob;
 mod http_proxy;
+mod integrations;
 mod keep_awake;
 mod lint;
 mod list_files;
 mod llm;
 mod lsp;
 mod oauth_callback_server;
+mod platform;
 mod script_executor;
 mod search;
+mod security;
+mod server;
 mod shell_utils;
+mod storage;
+mod streaming;
 mod telegram_gateway;
 mod terminal;
 mod walker;
@@ -38,6 +45,7 @@ use file_watcher::FileWatcher;
 use llm::tracing::writer::TraceWriter;
 use script_executor::{ScriptExecutionRequest, ScriptExecutionResult, ScriptExecutor};
 use serde::{Deserialize, Serialize};
+use server::{config::ServerConfig, state::ServerState};
 use std::process::Stdio;
 use std::sync::OnceLock;
 use std::sync::{Arc, Mutex, RwLock};
@@ -61,6 +69,12 @@ use window_manager::{create_window, WindowRegistry, WindowState};
 // IMPORTANT: set_app_handle() must be called exactly once during app.setup()
 // before any code calls get_app_handle()
 static APP_HANDLE: OnceLock<tauri::AppHandle> = OnceLock::new();
+
+/// Server information for client discovery
+#[derive(Clone)]
+pub struct ServerInfo {
+    pub addr: std::net::SocketAddr,
+}
 
 /// Initialize the global app handle
 ///
@@ -789,6 +803,34 @@ pub fn run() {
             let database = Arc::new(Database::new(db_path_str));
             app.manage(database.clone());
 
+            // Start Cloud Backend Server with full runtime
+            let server_config = server::config::ServerConfig::new(app_data_dir.clone(), app_data_dir.clone());
+            let (event_tx, _event_rx) = tokio::sync::mpsc::unbounded_channel::<core::types::RuntimeEvent>();
+
+            let server_handle = app.handle().clone();
+            let server_config_clone = server_config.clone();
+            tauri::async_runtime::spawn(async move {
+                match server::state::ServerStateFactory::create(server_config_clone, event_tx).await {
+                    Ok(server_state) => {
+                        // Start server with the configured state
+                        let bind_addr = std::net::SocketAddr::from(([127, 0, 0, 1], 0));
+                        match tokio::net::TcpListener::bind(bind_addr).await {
+                            Ok(listener) => {
+                                let addr = listener.local_addr().unwrap_or(bind_addr);
+                                log::info!("Cloud backend server started on {}", addr);
+                                server_handle.manage(ServerInfo { addr });
+                            }
+                            Err(e) => {
+                                log::error!("Failed to bind server: {}", e);
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        log::error!("Failed to create server state: {}", e);
+                    }
+                }
+            });
+
             // Initialize LLM tracing
             init_trace_writer_state(app, database.clone());
 
@@ -1030,6 +1072,7 @@ pub fn run() {
             llm::commands::llm_get_provider_configs,
             llm::commands::llm_get_models_config,
             llm::commands::llm_is_model_available,
+            llm::commands::llm_transcribe_audio,
             llm::auth::api_key_manager::llm_set_setting,
             llm::auth::oauth::llm_openai_oauth_start,
             llm::auth::oauth::llm_openai_oauth_complete,

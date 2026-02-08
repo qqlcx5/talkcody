@@ -15,6 +15,8 @@ import type {
   StreamEvent,
   StreamResponse,
   StreamTextRequest,
+  TranscriptionRequest,
+  TranscriptionResponse,
 } from './types';
 
 export type StreamTextResult = {
@@ -157,6 +159,10 @@ export class LlmClient {
 
   async isModelAvailable(modelIdentifier: string): Promise<boolean> {
     return invoke<boolean>('llm_is_model_available', { modelIdentifier });
+  }
+
+  async transcribeAudio(request: TranscriptionRequest): Promise<TranscriptionResponse> {
+    return invoke<TranscriptionResponse>('llm_transcribe_audio', { request });
   }
 
   async registerCustomProvider(config: {

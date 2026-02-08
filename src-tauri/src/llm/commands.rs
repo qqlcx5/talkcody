@@ -2,8 +2,11 @@ use crate::llm::auth::api_key_manager::LlmState;
 use crate::llm::models::model_registry::ModelRegistry;
 use crate::llm::models::model_sync;
 use crate::llm::streaming::stream_handler::StreamHandler;
+use crate::llm::transcription::service::TranscriptionService;
+use crate::llm::transcription::types::TranscriptionContext;
 use crate::llm::types::{
     AvailableModel, CustomProviderConfig, ModelsConfiguration, StreamResponse, StreamTextRequest,
+    TranscriptionRequest, TranscriptionResponse,
 };
 use tauri::{Manager, State, Window};
 
@@ -139,4 +142,46 @@ pub async fn llm_is_model_available(
             &models,
         )?;
     Ok(!model_key.is_empty() && !provider_id.is_empty())
+}
+
+#[tauri::command]
+pub async fn llm_transcribe_audio(
+    request: TranscriptionRequest,
+    state: State<'_, LlmState>,
+) -> Result<TranscriptionResponse, String> {
+    let (registry, api_keys, models) = {
+        let registry = state.registry.lock().await;
+        let api_keys = state.api_keys.lock().await;
+        let models = api_keys.load_models_config().await?;
+        (registry.clone(), api_keys.clone(), models)
+    };
+
+    let custom_providers = api_keys.load_custom_providers().await?;
+
+    // Convert request to context
+    let context = TranscriptionContext {
+        audio_base64: request.audio_base64,
+        mime_type: request.mime_type,
+        language: request.language,
+        prompt: request.prompt,
+        temperature: request.temperature,
+        response_format: request.response_format,
+    };
+
+    // Use unified transcription service
+    let result = TranscriptionService::transcribe(
+        &api_keys,
+        &registry,
+        &custom_providers,
+        &models,
+        &request.model,
+        context,
+    )
+    .await?;
+
+    Ok(TranscriptionResponse {
+        text: result.text,
+        language: result.language,
+        duration: result.duration_in_seconds,
+    })
 }

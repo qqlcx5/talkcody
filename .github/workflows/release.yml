@@ -79,7 +79,8 @@ jobs:
             librsvg2-dev \
             jq \
             ibus-gtk3 \
-            fcitx5-frontend-gtk3
+            fcitx5-frontend-gtk3 \
+            protobuf-compiler
 
       - name: Install frontend dependencies
         run: bun install --frozen-lockfile
@@ -160,8 +161,10 @@ jobs:
       - name: Build frontend
         run: bun run build
 
-      - name: Install jq
-        run: choco install jq -y
+      - name: Install jq and protoc
+        run: |
+          choco install jq -y
+          choco install protoc -y
 
       - name: Build Tauri app
         run: |
@@ -259,6 +262,9 @@ jobs:
 
           # Verify certificate is imported
           security find-identity -v -p codesigning
+
+      - name: Install protobuf
+        run: brew install protobuf
 
       - name: Install frontend dependencies
         run: bun install --frozen-lockfile

@@ -1299,6 +1299,8 @@ export const settingsManager = {
 
   // Convenience methods
   setModel: (model: string) => useSettingsStore.getState().setModel(model),
+  setModelType: (type: 'main' | 'small' | 'image_generator' | 'transcription', value: string) =>
+    useSettingsStore.getState().setModelType(type, value),
   setAssistant: (assistantId: string) => useSettingsStore.getState().setAssistantId(assistantId),
   setApiKey: (apiKey: string) => useSettingsStore.getState().set('apiKey', apiKey),
   setProject: (project: string) => useSettingsStore.getState().setProject(project),

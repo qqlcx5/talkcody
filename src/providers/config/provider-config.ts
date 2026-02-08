@@ -94,6 +94,15 @@ export const PROVIDER_CONFIGS: ProviderRegistry = {
     type: 'custom',
   },
 
+  groq: {
+    id: 'groq',
+    name: 'Groq',
+    apiKeyName: 'GROQ_API_KEY',
+    baseUrl: 'https://api.groq.com/openai/v1',
+    required: false,
+    type: 'openai-compatible',
+  },
+
   ollama: {
     id: 'ollama',
     name: 'Ollama',

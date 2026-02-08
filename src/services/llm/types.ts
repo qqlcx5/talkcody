@@ -147,3 +147,19 @@ export type ProviderConfig = {
   extraBody?: unknown;
   authType: string;
 };
+
+export type TranscriptionRequest = {
+  model: string;
+  audioBase64: string;
+  mimeType: string;
+  language?: string | null;
+  prompt?: string | null;
+  temperature?: number | null;
+  responseFormat?: string | null;
+};
+
+export type TranscriptionResponse = {
+  text: string;
+  language?: string | null;
+  duration?: number | null;
+};

@@ -81,8 +81,10 @@ jobs:
       - name: Build frontend
         run: bun run build
 
-      - name: Install jq
-        run: choco install jq -y
+      - name: Install jq and protoc
+        run: |
+          choco install jq -y
+          choco install protoc -y
 
       - name: Build Tauri app (with updater artifacts)
         if: github.event_name == 'push'

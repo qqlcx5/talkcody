@@ -6,4 +6,5 @@ pub mod providers;
 pub mod streaming;
 pub mod testing;
 pub mod tracing;
+pub mod transcription;
 pub mod types;

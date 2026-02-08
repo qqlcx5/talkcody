@@ -257,6 +257,27 @@ pub enum StreamEvent {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TranscriptionRequest {
+    pub model: String,
+    #[serde(rename = "audioBase64")]
+    pub audio_base64: String,
+    #[serde(rename = "mimeType")]
+    pub mime_type: String,
+    pub language: Option<String>,
+    pub prompt: Option<String>,
+    pub temperature: Option<f32>,
+    #[serde(rename = "responseFormat")]
+    pub response_format: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TranscriptionResponse {
+    pub text: String,
+    pub language: Option<String>,
+    pub duration: Option<f32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CustomProviderConfig {
     pub id: String,
     pub name: String,

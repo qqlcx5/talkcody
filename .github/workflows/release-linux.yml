@@ -86,7 +86,8 @@ jobs:
             librsvg2-dev \
             jq \
             ibus-gtk3 \
-            fcitx5-frontend-gtk3
+            fcitx5-frontend-gtk3 \
+            protobuf-compiler
 
       - name: Install frontend dependencies
         run: bun install --frozen-lockfile
@@ -144,7 +145,8 @@ jobs:
             librsvg2-dev \
             jq \
             ibus-gtk3 \
-            fcitx5-frontend-gtk3
+            fcitx5-frontend-gtk3 \
+            protobuf-compiler
 
       - name: Install frontend dependencies
         run: bun install --frozen-lockfile

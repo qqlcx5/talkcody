@@ -203,7 +203,7 @@ describe('ModelService (provider-store compat) - getCurrentModel', () => {
       { modelType: ModelType.MAIN, expectedModel: 'glm-4.6@aiGateway' },
       { modelType: ModelType.SMALL, expectedModel: 'glm-4.6@aiGateway' },
       { modelType: ModelType.IMAGE_GENERATOR, expectedModel: 'nano-banana@aiGateway' },
-      { modelType: ModelType.TRANSCRIPTION, expectedModel: 'whisper-1@openai' },
+      { modelType: ModelType.TRANSCRIPTION, expectedModel: 'whisper-large-v3-turbo@groq' },
     ];
 
     for (const testCase of testCases) {

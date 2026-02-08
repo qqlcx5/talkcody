@@ -228,6 +228,9 @@ export class TestIPCHandler {
     if (cmd === 'llm_is_model_available') {
       return true;
     }
+    if (cmd === 'llm_transcribe_audio') {
+      return { text: 'Test transcript', language: 'en', duration: 1.5 };
+    }
     if (cmd === 'llm_set_setting') {
       return null;
     }

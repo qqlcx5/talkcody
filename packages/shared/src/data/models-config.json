@@ -528,6 +528,28 @@
         "output": "0"
       }
     },
+    "whisper-large-v3-turbo": {
+      "name": "Whisper Large V3 Turbo",
+      "audioInput": true,
+      "providers": [
+        "groq"
+      ],
+      "pricing": {
+        "input": "0",
+        "output": "0"
+      }
+    },
+    "whisper-large-v3": {
+      "name": "Whisper Large V3",
+      "audioInput": true,
+      "providers": [
+        "groq"
+      ],
+      "pricing": {
+        "input": "0",
+        "output": "0"
+      }
+    },
     "dall-e-3": {
       "name": "Image DALL-E 3",
       "imageInput": false,

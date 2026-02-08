@@ -38,7 +38,7 @@ tauri-plugin-notification = "2"
 libsql = "0.9.29"
 tokio = { version = "1", features = ["full"] }
 base64 = "0.22"
-reqwest = { version = "0.12", features = ["json", "stream", "rustls-tls", "blocking", "gzip", "brotli"], default-features = false }
+reqwest = { version = "0.12", features = ["json", "stream", "rustls-tls", "blocking", "gzip", "brotli", "multipart"], default-features = false }
 bytes = "1"
 url = "2.5"
 futures-util = "0.3"
@@ -70,7 +70,11 @@ zip = "2.2"
 # OAuth callback server
 tiny_http = "0.12"
 async-trait = "0.1"
+axum = "0.7"
+tokio-stream = "0.1"
+tower = "0.4"
 open-lark = { version = "0.14.0", default-features = false, features = ["im", "websocket"] }
+futures = "0.3.31"
 
 [target."cfg(any(target_os = \"macos\", windows, target_os = \"linux\"))".dependencies]
 tauri-plugin-single-instance = { version = "2.0.0", features = ["deep-link"] }
