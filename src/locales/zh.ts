@@ -1461,7 +1461,7 @@ const zh: LocaleDefinition = {
   },
 
   RemoteControl: {
-    help: '/help - 查看命令\n/new <内容> - 新建任务\n/status - 任务状态\n/approve - 批准待处理编辑\n/reject - 拒绝待处理编辑\n/stop - 停止当前任务',
+    help: '/help - 查看命令\n/new <内容> - 新建任务\n/status - 任务状态\n/model <modelId> - 切换模型\n/project <projectId> - 切换项目\n/agent <agentId> - 切换代理\n/list -p|-m|-a - 列出项目/模型/代理\n/approve - 批准待处理编辑\n/reject - 拒绝待处理编辑\n/stop - 停止当前任务',
     unknownCommand: '未知命令。发送 /help 查看可用命令。',
     processing: '处理中... 稍后会更新结果。',
     accepted: '已收到消息。',
@@ -1476,6 +1476,33 @@ const zh: LocaleDefinition = {
     approvalPrompt: (filePath) =>
       `需要批准文件编辑：${filePath}\n回复 /approve 以应用，或 /reject 以取消。`,
     status: (status) => `当前任务状态：${status}`,
+    statusDetail: ({
+      projectDisplay,
+      model,
+      agentId,
+      planModeEnabled,
+      taskStatus,
+      setProjectHint,
+    }) =>
+      `状态\n项目: ${projectDisplay}\n模型: ${model}\n代理: ${agentId}\n计划模式: ${
+        planModeEnabled ? '已启用' : '已禁用'
+      }\n任务: ${taskStatus}\n${setProjectHint}`,
+    setProjectHint: '设置项目: /project <projectId>（在项目页面查看项目 ID）',
+    listUsage: '用法: /list -p|-m|-a（项目/模型/代理）',
+    listProjectsTitle: '项目',
+    listModelsTitle: '模型',
+    listAgentsTitle: '代理',
+    listEmpty: '暂无数据。',
+    listError: '暂时无法获取列表。',
+    missingModelArg: '请提供模型标识。',
+    invalidModel: (model) => `模型不可用：${model}`,
+    modelSwitched: (model) => `模型已切换为 ${model}`,
+    missingProjectArg: '请提供项目 ID。',
+    invalidProject: (projectId) => `项目不存在：${projectId}`,
+    projectSwitched: (projectId) => `项目已切换为 ${projectId}`,
+    missingAgentArg: '请提供代理 ID。',
+    invalidAgent: (agentId) => `代理不存在：${agentId}`,
+    agentSwitched: (agentId) => `代理已切换为 ${agentId}`,
   },
 
   StreamProcessor: {

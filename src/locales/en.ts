@@ -1505,7 +1505,7 @@ const en: LocaleDefinition = {
   },
 
   RemoteControl: {
-    help: '/help - show commands\n/new <text> - start a new task\n/status - task status\n/approve - approve pending edit\n/reject - reject pending edit\n/stop - stop current task',
+    help: '/help - show commands\n/new <text> - start a new task\n/status - task status\n/model <modelId> - switch model\n/project <projectId> - switch project\n/agent <agentId> - switch agent\n/list -p|-m|-a - list projects/models/agents\n/approve - approve pending edit\n/reject - reject pending edit\n/stop - stop current task',
     unknownCommand: 'Unknown command. Send /help for available commands.',
     processing: 'Working on it... I will update you shortly.',
     accepted: 'Got it. Message received.',
@@ -1520,6 +1520,33 @@ const en: LocaleDefinition = {
     approvalPrompt: (filePath) =>
       `Approval required for file edit: ${filePath}\nReply with /approve to apply or /reject to cancel.`,
     status: (status) => `Current task status: ${status}`,
+    statusDetail: ({
+      projectDisplay,
+      model,
+      agentId,
+      planModeEnabled,
+      taskStatus,
+      setProjectHint,
+    }) =>
+      `Status\nProject: ${projectDisplay}\nModel: ${model}\nAgent: ${agentId}\nPlan Mode: ${
+        planModeEnabled ? 'Enabled' : 'Disabled'
+      }\nTask: ${taskStatus}\n${setProjectHint}`,
+    setProjectHint: 'Set project: /project <projectId> (get the id from the Projects page)',
+    listUsage: 'Usage: /list -p|-m|-a (projects, models, agents)',
+    listProjectsTitle: 'Projects',
+    listModelsTitle: 'Models',
+    listAgentsTitle: 'Agents',
+    listEmpty: 'No items found.',
+    listError: 'Unable to load list right now.',
+    missingModelArg: 'Please provide a model identifier.',
+    invalidModel: (model) => `Model not available: ${model}`,
+    modelSwitched: (model) => `Model switched to ${model}`,
+    missingProjectArg: 'Please provide a project id.',
+    invalidProject: (projectId) => `Project not found: ${projectId}`,
+    projectSwitched: (projectId) => `Project switched to ${projectId}`,
+    missingAgentArg: 'Please provide an agent id.',
+    invalidAgent: (agentId) => `Agent not found: ${agentId}`,
+    agentSwitched: (agentId) => `Agent switched to ${agentId}`,
   },
 
   StreamProcessor: {

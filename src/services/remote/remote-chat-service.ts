@@ -199,9 +199,9 @@ class RemoteChatService {
       return;
     }
 
-    if (command === '/stop') {
-      logger.info('[RemoteChatService] Stop command');
-      await this.handleStop(message);
+    if (command === '/list') {
+      logger.info('[RemoteChatService] List command');
+      await this.handleList(message, args);
       return;
     }
 
@@ -350,9 +350,25 @@ class RemoteChatService {
       : undefined;
     const taskStatus = execution?.status || 'idle';
 
+    const localeText = this.getLocaleText();
     const projectId = await settingsManager.getProject();
     const agentId = await settingsManager.getAgentId();
     const planModeEnabled = await settingsManager.getPlanModeEnabled();
+
+    let projectDisplay = projectId || '-';
+    if (projectId) {
+      try {
+        const project = await databaseService.getProject(projectId);
+        if (project?.name) {
+          projectDisplay = `${project.name} (${projectId})`;
+        }
+      } catch (error) {
+        logger.warn('[RemoteChatService] Failed to resolve project for status', {
+          projectId,
+          error,
+        });
+      }
+    }
 
     let model = '';
     try {
@@ -361,13 +377,13 @@ class RemoteChatService {
       logger.warn('[RemoteChatService] Failed to resolve current model for status', error);
     }
 
-    const statusText = this.getLocaleText().RemoteControl.statusDetail({
-      projectId,
-      model: model || '- ',
+    const statusText = localeText.RemoteControl.statusDetail({
+      projectDisplay,
+      model: model || '-',
       agentId,
       planModeEnabled,
       taskStatus,
-      taskId: session?.taskId,
+      setProjectHint: localeText.RemoteControl.setProjectHint,
     });
     await this.sendMessage(message, statusText);
 
@@ -380,7 +396,7 @@ class RemoteChatService {
 
     const gatewayStatus = await this.getGatewayStatus(message.channelId);
     if (gatewayStatus?.lastError) {
-      const detail = this.getLocaleText().RemoteControl.gatewayError(gatewayStatus.lastError);
+      const detail = localeText.RemoteControl.gatewayError(gatewayStatus.lastError);
       await this.sendMessage(message, detail);
     }
   }
@@ -431,7 +447,7 @@ class RemoteChatService {
       return;
     }
 
-    await settingsManager.setModelType('main', modelIdentifier);
+    await settingsManager.set('model_type_main', modelIdentifier);
     await this.sendMessage(
       message,
       this.getLocaleText().RemoteControl.modelSwitched(modelIdentifier)
@@ -445,8 +461,9 @@ class RemoteChatService {
       return;
     }
 
+    let project: { root_path?: string | null } | null = null;
     try {
-      await databaseService.getProject(projectId);
+      project = await databaseService.getProject(projectId);
     } catch (error) {
       logger.warn('[RemoteChatService] Project not found', {
         projectId,
@@ -455,6 +472,9 @@ class RemoteChatService {
       await this.sendMessage(message, this.getLocaleText().RemoteControl.invalidProject(projectId));
       return;
     }
+
+    const projectRoot = typeof project?.root_path === 'string' ? project.root_path : '';
+    settingsManager.setCurrentRootPath(projectRoot || '');
 
     await settingsManager.setCurrentProjectId(projectId);
     await this.sendMessage(message, this.getLocaleText().RemoteControl.projectSwitched(projectId));
@@ -475,6 +495,87 @@ class RemoteChatService {
 
     await settingsManager.setAssistant(agentId);
     await this.sendMessage(message, this.getLocaleText().RemoteControl.agentSwitched(agentId));
+  }
+
+  private async handleList(message: RemoteInboundMessage, args: string): Promise<void> {
+    const localeText = this.getLocaleText();
+    const tokens = args.trim().split(/\s+/).filter(Boolean);
+    if (tokens.length === 0) {
+      await this.sendMessage(message, localeText.RemoteControl.listUsage);
+      return;
+    }
+
+    const flags = new Set<'p' | 'm' | 'a'>();
+    let invalid = false;
+    for (const token of tokens) {
+      if (!token.startsWith('-') || token === '-') {
+        invalid = true;
+        break;
+      }
+      for (const flag of token.slice(1)) {
+        if (flag === 'p' || flag === 'm' || flag === 'a') {
+          flags.add(flag);
+        } else {
+          invalid = true;
+          break;
+        }
+      }
+      if (invalid) break;
+    }
+
+    if (invalid || flags.size === 0) {
+      await this.sendMessage(message, localeText.RemoteControl.listUsage);
+      return;
+    }
+
+    const sections: string[] = [];
+    const addSection = (title: string, lines: string[]) => {
+      const body = lines.length > 0 ? lines.join('\n') : localeText.RemoteControl.listEmpty;
+      sections.push(`${title}\n${body}`);
+    };
+
+    if (flags.has('p')) {
+      try {
+        const projects = await databaseService.getProjects();
+        const lines = projects.map((project) => `${project.name} (${project.id})`);
+        addSection(localeText.RemoteControl.listProjectsTitle, lines);
+      } catch (error) {
+        logger.warn('[RemoteChatService] Failed to list projects', error);
+        sections.push(
+          `${localeText.RemoteControl.listProjectsTitle}\n${localeText.RemoteControl.listError}`
+        );
+      }
+    }
+
+    if (flags.has('m')) {
+      try {
+        const models = await modelService.getAvailableModels();
+        const lines = models.map((model) => `${model.name} (${model.key}) - ${model.provider}`);
+        addSection(localeText.RemoteControl.listModelsTitle, lines);
+      } catch (error) {
+        logger.warn('[RemoteChatService] Failed to list models', error);
+        sections.push(
+          `${localeText.RemoteControl.listModelsTitle}\n${localeText.RemoteControl.listError}`
+        );
+      }
+    }
+
+    if (flags.has('a')) {
+      try {
+        const agents = await agentRegistry.listAll();
+        const lines = agents
+          .filter((agent) => !agent.hidden && agentRegistry.isSystemAgentEnabled(agent.id))
+          .map((agent) => `${agent.name} (${agent.id})`);
+        addSection(localeText.RemoteControl.listAgentsTitle, lines);
+      } catch (error) {
+        logger.warn('[RemoteChatService] Failed to list agents', error);
+        sections.push(
+          `${localeText.RemoteControl.listAgentsTitle}\n${localeText.RemoteControl.listError}`
+        );
+      }
+    }
+
+    await this.sendMessage(message, sections.join('\n\n'));
   }
 
   private async handleStop(message: RemoteInboundMessage): Promise<void> {

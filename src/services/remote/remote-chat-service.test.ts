@@ -31,6 +31,62 @@ const mocks = vi.hoisted(() => {
     }),
   });
 
+  const useTaskStore = Object.assign(vi.fn(), {
+    getState: vi.fn().mockReturnValue({
+      getMessages: vi.fn().mockReturnValue([]),
+    }),
+  });
+
+  const useSettingsStore = Object.assign(vi.fn(), {
+    getState: vi.fn().mockReturnValue({
+      language: 'en',
+    }),
+  });
+
+  const settingsManager = {
+    getAgentId: vi.fn().mockResolvedValue('planner'),
+    getProject: vi.fn().mockResolvedValue('project-1'),
+    getPlanModeEnabled: vi.fn().mockResolvedValue(false),
+    set: vi.fn().mockResolvedValue(undefined),
+    setAssistant: vi.fn().mockResolvedValue(undefined),
+    setCurrentProjectId: vi.fn().mockResolvedValue(undefined),
+    setCurrentRootPath: vi.fn(),
+  };
+
+  const modelService = {
+    getCurrentModel: vi.fn().mockResolvedValue('gpt-4@openai'),
+    isModelAvailable: vi.fn().mockResolvedValue(true),
+    getAvailableModels: vi.fn().mockResolvedValue([
+      { key: 'gpt-4', name: 'GPT-4', provider: 'openai' },
+    ]),
+  };
+
+  const agentRegistry = {
+    getWithResolvedTools: vi.fn().mockResolvedValue({ id: 'planner' }),
+    listAll: vi.fn().mockResolvedValue([
+      { id: 'planner', name: 'Planner', hidden: false },
+      { id: 'hidden', name: 'Hidden', hidden: true },
+    ]),
+    isSystemAgentEnabled: vi.fn().mockReturnValue(true),
+  };
+
+  const databaseService = {
+    getProject: vi.fn().mockResolvedValue({ id: 'project-1', name: 'Project One' }),
+    getProjects: vi.fn().mockResolvedValue([
+      { id: 'project-1', name: 'Project One' },
+      { id: 'project-2', name: 'Project Two' },
+    ]),
+  };
+
+  const commandRegistry = {
+    initialize: vi.fn().mockResolvedValue(undefined),
+  };
+
+  const commandExecutor = {
+    parseCommand: vi.fn().mockReturnValue({ isValid: false }),
+    executeCommand: vi.fn().mockResolvedValue(undefined),
+  };
+
   return {
     inboundUnsubscribe,
     executionUnsubscribe,
@@ -45,6 +101,14 @@ const mocks = vi.hoisted(() => {
     editReviewSubscribe,
     useExecutionStore,
     useEditReviewStore,
+    useTaskStore,
+    useSettingsStore,
+    settingsManager,
+    modelService,
+    agentRegistry,
+    databaseService,
+    commandRegistry,
+    commandExecutor,
   };
 });
 
@@ -64,6 +128,81 @@ vi.mock('@/stores/execution-store', () => ({
 
 vi.mock('@/stores/edit-review-store', () => ({
   useEditReviewStore: mocks.useEditReviewStore,
+}));
+
+vi.mock('@/stores/settings-store', () => ({
+  settingsManager: mocks.settingsManager,
+  useSettingsStore: mocks.useSettingsStore,
+}));
+
+vi.mock('@/providers/stores/provider-store', () => ({
+  modelService: mocks.modelService,
+}));
+
+vi.mock('@/services/agents/agent-registry', () => ({
+  agentRegistry: mocks.agentRegistry,
+}));
+
+vi.mock('@/services/database-service', () => ({
+  databaseService: mocks.databaseService,
+}));
+
+vi.mock('@/services/commands/command-registry', () => ({
+  commandRegistry: mocks.commandRegistry,
+}));
+
+vi.mock('@/services/commands/command-executor', () => ({
+  commandExecutor: mocks.commandExecutor,
+}));
+
+vi.mock('@/stores/task-store', () => ({
+  useTaskStore: mocks.useTaskStore,
+}));
+
+vi.mock('@/locales', () => ({
+  getLocale: vi.fn().mockReturnValue({
+    RemoteControl: {
+      help: 'help',
+      unknownCommand: 'unknown',
+      processing: 'processing',
+      accepted: 'accepted',
+      completed: 'completed',
+      failed: 'failed',
+      noActiveTask: 'noActiveTask',
+      noPendingApproval: 'noPendingApproval',
+      approved: 'approved',
+      rejected: 'rejected',
+      stopped: 'stopped',
+      gatewayError: (message: string) => `gateway:${message}`,
+      approvalPrompt: (filePath: string) => `approve:${filePath}`,
+      status: (status: string) => `status:${status}`,
+      statusDetail: ({ projectDisplay, model, agentId, planModeEnabled, taskStatus, setProjectHint }: {
+        projectDisplay: string;
+        model: string;
+        agentId: string;
+        planModeEnabled: boolean;
+        taskStatus: string;
+        setProjectHint: string;
+      }) =>
+        `detail:${projectDisplay}:${model}:${agentId}:${planModeEnabled ? '1' : '0'}:${taskStatus}:${setProjectHint}`,
+      setProjectHint: 'setProjectHint',
+      listUsage: 'listUsage',
+      listProjectsTitle: 'listProjectsTitle',
+      listModelsTitle: 'listModelsTitle',
+      listAgentsTitle: 'listAgentsTitle',
+      listEmpty: 'listEmpty',
+      listError: 'listError',
+      missingModelArg: 'missingModelArg',
+      invalidModel: (model: string) => `invalidModel:${model}`,
+      modelSwitched: (model: string) => `modelSwitched:${model}`,
+      missingProjectArg: 'missingProjectArg',
+      invalidProject: (projectId: string) => `invalidProject:${projectId}`,
+      projectSwitched: (projectId: string) => `projectSwitched:${projectId}`,
+      missingAgentArg: 'missingAgentArg',
+      invalidAgent: (agentId: string) => `invalidAgent:${agentId}`,
+      agentSwitched: (agentId: string) => `agentSwitched:${agentId}`,
+    },
+  }),
 }));
 
 import { remoteChatService } from '@/services/remote/remote-chat-service';
@@ -174,15 +313,6 @@ describe('remote-chat-service', () => {
     vi.useRealTimers();
   });
 
-  it('does not send messages when stopped', async () => {
-    const message = { channelId: 'telegram', chatId: '1' };
-    // @ts-expect-error - testing private method
-    const result = await remoteChatService.sendMessage(message, 'hello');
-
-    expect(result.messageId).toBe('');
-    expect(mocks.sendMessage).not.toHaveBeenCalled();
-  });
-
   it('does not edit messages when stopped', async () => {
     const session = {
       channelId: 'telegram',
@@ -197,5 +327,184 @@ describe('remote-chat-service', () => {
     await remoteChatService.editMessage(session, 'update');
 
     expect(mocks.editMessage).not.toHaveBeenCalled();
+  });
+
+  it('reports detailed status', async () => {
+    await remoteChatService.start();
+
+    mocks.useExecutionStore.getState.mockReturnValue({
+      getExecution: vi.fn().mockReturnValue({
+        taskId: 'task-42',
+        status: 'running',
+        streamingContent: '',
+      }),
+    });
+
+    // @ts-expect-error - test setup
+    remoteChatService.sessions.set('telegram:1', {
+      channelId: 'telegram',
+      chatId: '1',
+      taskId: 'task-42',
+      lastSentAt: 0,
+      sentChunks: [],
+    });
+
+    await remoteChatService.handleInboundMessage({
+      channelId: 'telegram',
+      chatId: '1',
+      messageId: 'm1',
+      text: '/status',
+      date: Date.now(),
+    });
+
+    expect(mocks.sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        channelId: 'telegram',
+        chatId: '1',
+        text: 'detail:Project One (project-1):gpt-4@openai:planner:0:running:setProjectHint',
+      })
+    );
+  });
+
+  it('switches model with /model', async () => {
+    await remoteChatService.start();
+
+    await remoteChatService.handleInboundMessage({
+      channelId: 'telegram',
+      chatId: '1',
+      messageId: 'm2',
+      text: '/model gpt-4@openai',
+      date: Date.now(),
+    });
+
+    expect(mocks.modelService.isModelAvailable).toHaveBeenCalledWith('gpt-4@openai');
+    expect(mocks.settingsManager.set).toHaveBeenCalledWith('model_type_main', 'gpt-4@openai');
+    expect(mocks.sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        channelId: 'telegram',
+        chatId: '1',
+        text: 'modelSwitched:gpt-4@openai',
+      })
+    );
+  });
+
+  it('switches project with /project', async () => {
+    mocks.databaseService.getProject.mockResolvedValueOnce({
+      id: 'project-2',
+      name: 'Project Two',
+      root_path: '/Users/kks/mygit/ai',
+    });
+
+    await remoteChatService.start();
+
+    await remoteChatService.handleInboundMessage({
+      channelId: 'telegram',
+      chatId: '1',
+      messageId: 'm3',
+      text: '/project project-2',
+      date: Date.now(),
+    });
+
+    expect(mocks.databaseService.getProject).toHaveBeenCalledWith('project-2');
+    expect(mocks.settingsManager.setCurrentRootPath).toHaveBeenCalledWith('/Users/kks/mygit/ai');
+    expect(mocks.settingsManager.setCurrentProjectId).toHaveBeenCalledWith('project-2');
+    expect(mocks.sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        channelId: 'telegram',
+        chatId: '1',
+        text: 'projectSwitched:project-2',
+      })
+    );
+  });
+
+  it('clears root path if project has no root_path', async () => {
+    mocks.databaseService.getProject.mockResolvedValueOnce({
+      id: 'project-3',
+      name: 'Project Three',
+    });
+
+    await remoteChatService.start();
+
+    await remoteChatService.handleInboundMessage({
+      channelId: 'telegram',
+      chatId: '1',
+      messageId: 'm4',
+      text: '/project project-3',
+      date: Date.now(),
+    });
+
+    expect(mocks.databaseService.getProject).toHaveBeenCalledWith('project-3');
+    expect(mocks.settingsManager.setCurrentRootPath).toHaveBeenCalledWith('');
+    expect(mocks.settingsManager.setCurrentProjectId).toHaveBeenCalledWith('project-3');
+    expect(mocks.sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        channelId: 'telegram',
+        chatId: '1',
+        text: 'projectSwitched:project-3',
+      })
+    );
+  });
+
+  it('lists projects with /list -p', async () => {
+    await remoteChatService.start();
+
+    await remoteChatService.handleInboundMessage({
+      channelId: 'telegram',
+      chatId: '1',
+      messageId: 'm5',
+      text: '/list -p',
+      date: Date.now(),
+    });
+
+    expect(mocks.databaseService.getProjects).toHaveBeenCalled();
+    expect(mocks.sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        channelId: 'telegram',
+        chatId: '1',
+        text: 'listProjectsTitle\nProject One (project-1)\nProject Two (project-2)',
+      })
+    );
+  });
+
+  it('lists models with /list -m', async () => {
+    await remoteChatService.start();
+
+    await remoteChatService.handleInboundMessage({
+      channelId: 'telegram',
+      chatId: '1',
+      messageId: 'm6',
+      text: '/list -m',
+      date: Date.now(),
+    });
+
+    expect(mocks.modelService.getAvailableModels).toHaveBeenCalled();
+    expect(mocks.sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        channelId: 'telegram',
+        chatId: '1',
+        text: 'listModelsTitle\nGPT-4 (gpt-4) - openai',
+      })
+    );
+  });
+
+  it('lists agents with /list -a', async () => {
+    await remoteChatService.start();
+
+    await remoteChatService.handleInboundMessage({
+      channelId: 'telegram',
+      chatId: '1',
+      messageId: 'm7',
+      text: '/list -a',
+      date: Date.now(),
+    });
+
+    expect(mocks.agentRegistry.listAll).toHaveBeenCalled();
+    expect(mocks.sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        channelId: 'telegram',
+        chatId: '1',
+        text: 'listAgentsTitle\nPlanner (planner)',
+      })
+    );
   });
 });

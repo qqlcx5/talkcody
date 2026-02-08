@@ -14,7 +14,7 @@
     "body": {
       "messages": [
         {
-          "content": "You are an AI assistant that generates concise, descriptive titles for tasks.\n\nUser's message: \"硅谷附近有哪些好玩的地方\"\n\nGenerate a short, clear title (5-10 words) that captures the essence of what the user is asking or discussing.\n\nGuidelines:\n1. Keep it concise (5-10 words maximum)\n2. Use title case (capitalize first letter of main words)\n3. Be specific and descriptive\n4. Avoid generic titles like \"New Chat\" or \"Question\"\n5. Focus on the main topic or intent\n\nExamples:\n- \"Fix Login Bug\"\n- \"Create User Dashboard\"\n- \"Explain React Hooks\"\n- \"Database Schema Design\"\n- \"API Rate Limiting Issue\"\n\nGenerate the title in English.\n\nProvide ONLY the title without any quotes, explanations, or additional formatting.",
+          "content": "You are an AI assistant that generates concise, descriptive titles for tasks.\n\nUser's message: \"Remote task\"\n\nGenerate a short, clear title (5-10 words) that captures the essence of what the user is asking or discussing.\n\nGuidelines:\n1. Keep it concise (5-10 words maximum)\n2. Use title case (capitalize first letter of main words)\n3. Be specific and descriptive\n4. Avoid generic titles like \"New Chat\" or \"Question\"\n5. Focus on the main topic or intent\n\nExamples:\n- \"Fix Login Bug\"\n- \"Create User Dashboard\"\n- \"Explain React Hooks\"\n- \"Database Schema Design\"\n- \"API Rate Limiting Issue\"\n\nGenerate the title in English.\n\nProvide ONLY the title without any quotes, explanations, or additional formatting.",
           "role": "user"
         }
       ],
@@ -29,30 +29,30 @@
     "type": "stream",
     "status": 200,
     "headers": {
-      "p3p": "CP=\"This is not a P3P policy! See g.co/p3phelp for more info.\"",
-      "transfer-encoding": "chunked",
-      "accept-ranges": "none",
-      "set-cookie": "NID=528=mT2jOJydvbiiXpEUetJJ477ziazpFebgrruUCfGypAKkMUy9_SHJM2RJlY7WXHPqGhTHh_IY6hOWq976akDyX5I5KS2-vgYg37k0a3DTdaz4rJmG6-qI0EeCwrt3UkoIhSr8_KOPCNG6bsmfNhFLtuo9g5mjx_JIQVUuUqg9cLAo3IIAFyeE9nJ5mk44G_gkB-xNhOjZ; expires=Sun, 09-Aug-2026 18:53:06 GMT; path=/; domain=.generativelanguage.googleapis.com; HttpOnly",
-      "server-timing": "gfet4t7; dur=2892",
-      "vary": "Origin,Accept-Encoding",
-      "x-content-type-options": "nosniff",
-      "date": "Sat, 07 Feb 2026 18:53:09 GMT",
-      "alt-svc": "h3=\":443\"; ma=2592000,h3-29=\":443\"; ma=2592000",
+      "x-xss-protection": "0",
+      "set-cookie": "NID=528=DzLVdha4B_MPqNMnJHGjckzmQtgLDxAKyGWUCSKYFu1NUu3liJ_5ORg_j1vv2TS_DOK6rcdy3TGX1mWB3jT2wOHGuSpzNMQE38a23QwKmIfTcXFf9zP4OJAUq86ISGF9kePnQ6TjPyQzMahDCpbiOO2WF6mF0MZjlQ-M6nN2Hq9zJDCTkAlPOanyqtQ2Lw7lMXk0OIffhA; expires=Mon, 10-Aug-2026 03:35:33 GMT; path=/; domain=.generativelanguage.googleapis.com; HttpOnly",
       "cache-control": "private",
+      "vary": "Origin,Accept-Encoding",
+      "expires": "Sun, 08 Feb 2026 03:35:33 GMT",
+      "x-content-type-options": "nosniff",
+      "server": "scaffolding on HTTPServer2",
+      "transfer-encoding": "chunked",
+      "server-timing": "gfet4t7; dur=722",
+      "accept-ranges": "none",
+      "p3p": "CP=\"This is not a P3P policy! See g.co/p3phelp for more info.\"",
       "content-type": "text/event-stream",
       "x-frame-options": "SAMEORIGIN",
-      "expires": "Sat, 07 Feb 2026 18:53:09 GMT",
-      "server": "scaffolding on HTTPServer2",
-      "x-xss-protection": "0"
+      "date": "Sun, 08 Feb 2026 03:35:33 GMT",
+      "alt-svc": "h3=\":443\"; ma=2592000,h3-29=\":443\"; ma=2592000"
     },
     "sse_events": [
       {
         "event": null,
-        "data": "{\"choices\":[{\"delta\":{\"content\":\"Fun Places Near\",\"role\":\"assistant\"},\"index\":0}],\"created\":1770490389,\"id\":\"FYqHae2NF4TV_uMPu8nF6Ac\",\"model\":\"gemini-2.5-flash-lite\",\"object\":\"chat.completion.chunk\",\"usage\":{\"completion_tokens\":3,\"prompt_tokens\":182,\"total_tokens\":185}}"
+        "data": "{\"choices\":[{\"delta\":{\"content\":\"Remote Work\",\"role\":\"assistant\"},\"index\":0}],\"created\":1770521733,\"id\":\"hQSIaeaSMei9jMcPg_q3kAc\",\"model\":\"gemini-2.5-flash-lite\",\"object\":\"chat.completion.chunk\",\"usage\":{\"completion_tokens\":2,\"prompt_tokens\":177,\"total_tokens\":179}}"
       },
       {
         "event": null,
-        "data": "{\"choices\":[{\"delta\":{\"content\":\" Silicon Valley\",\"role\":\"assistant\"},\"finish_reason\":\"stop\",\"index\":0}],\"created\":1770490389,\"id\":\"FYqHae2NF4TV_uMPu8nF6Ac\",\"model\":\"gemini-2.5-flash-lite\",\"object\":\"chat.completion.chunk\",\"usage\":{\"completion_tokens\":5,\"prompt_tokens\":182,\"total_tokens\":187}}"
+        "data": "{\"choices\":[{\"delta\":{\"content\":\" Task Management\",\"role\":\"assistant\"},\"finish_reason\":\"stop\",\"index\":0}],\"created\":1770521733,\"id\":\"hQSIaeaSMei9jMcPg_q3kAc\",\"model\":\"gemini-2.5-flash-lite\",\"object\":\"chat.completion.chunk\",\"usage\":{\"completion_tokens\":4,\"prompt_tokens\":177,\"total_tokens\":181}}"
       },
       {
         "event": null,
@@ -65,7 +65,7 @@
     "messages": [
       {
         "role": "user",
-        "content": "You are an AI assistant that generates concise, descriptive titles for tasks.\n\nUser's message: \"硅谷附近有哪些好玩的地方\"\n\nGenerate a short, clear title (5-10 words) that captures the essence of what the user is asking or discussing.\n\nGuidelines:\n1. Keep it concise (5-10 words maximum)\n2. Use title case (capitalize first letter of main words)\n3. Be specific and descriptive\n4. Avoid generic titles like \"New Chat\" or \"Question\"\n5. Focus on the main topic or intent\n\nExamples:\n- \"Fix Login Bug\"\n- \"Create User Dashboard\"\n- \"Explain React Hooks\"\n- \"Database Schema Design\"\n- \"API Rate Limiting Issue\"\n\nGenerate the title in English.\n\nProvide ONLY the title without any quotes, explanations, or additional formatting.",
+        "content": "You are an AI assistant that generates concise, descriptive titles for tasks.\n\nUser's message: \"Remote task\"\n\nGenerate a short, clear title (5-10 words) that captures the essence of what the user is asking or discussing.\n\nGuidelines:\n1. Keep it concise (5-10 words maximum)\n2. Use title case (capitalize first letter of main words)\n3. Be specific and descriptive\n4. Avoid generic titles like \"New Chat\" or \"Question\"\n5. Focus on the main topic or intent\n\nExamples:\n- \"Fix Login Bug\"\n- \"Create User Dashboard\"\n- \"Explain React Hooks\"\n- \"Database Schema Design\"\n- \"API Rate Limiting Issue\"\n\nGenerate the title in English.\n\nProvide ONLY the title without any quotes, explanations, or additional formatting.",
         "providerOptions": null
       }
     ],
@@ -80,9 +80,9 @@
   "expected_events": [
     {
       "type": "usage",
-      "input_tokens": 182,
-      "output_tokens": 3,
-      "total_tokens": 185,
+      "input_tokens": 177,
+      "output_tokens": 2,
+      "total_tokens": 179,
       "cached_input_tokens": null,
       "cache_creation_input_tokens": null
     },
@@ -91,19 +91,19 @@
     },
     {
       "type": "text-delta",
-      "text": "Fun Places Near"
+      "text": "Remote Work"
     },
     {
       "type": "usage",
-      "input_tokens": 182,
-      "output_tokens": 5,
-      "total_tokens": 187,
+      "input_tokens": 177,
+      "output_tokens": 4,
+      "total_tokens": 181,
       "cached_input_tokens": null,
       "cache_creation_input_tokens": null
     },
     {
       "type": "text-delta",
-      "text": " Silicon Valley"
+      "text": " Task Management"
     },
     {
       "type": "done",

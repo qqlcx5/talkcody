@@ -1470,6 +1470,30 @@ export interface LocaleDefinition {
     gatewayError: (message: string) => string;
     approvalPrompt: (filePath: string) => string;
     status: (status: string) => string;
+    statusDetail: (input: {
+      projectDisplay: string;
+      model: string;
+      agentId: string;
+      planModeEnabled: boolean;
+      taskStatus: string;
+      setProjectHint: string;
+    }) => string;
+    setProjectHint: string;
+    listUsage: string;
+    listProjectsTitle: string;
+    listModelsTitle: string;
+    listAgentsTitle: string;
+    listEmpty: string;
+    listError: string;
+    missingModelArg: string;
+    invalidModel: (model: string) => string;
+    modelSwitched: (model: string) => string;
+    missingProjectArg: string;
+    invalidProject: (projectId: string) => string;
+    projectSwitched: (projectId: string) => string;
+    missingAgentArg: string;
+    invalidAgent: (agentId: string) => string;
+    agentSwitched: (agentId: string) => string;
   };
 
   StreamProcessor: {

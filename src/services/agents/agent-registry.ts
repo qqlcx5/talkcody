@@ -392,6 +392,13 @@ class AgentRegistry {
     return this.systemAgents.get(id) || this.persistentAgents.get(id);
   }
 
+  async listAll(): Promise<AgentDefinition[]> {
+    if (!this.loaded) {
+      await this.loadAllAgents();
+    }
+    return this.list();
+  }
+
   list(): AgentDefinition[] {
     // Combine system agents and persistent agents
     return [
